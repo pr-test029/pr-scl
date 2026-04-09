@@ -27,8 +27,8 @@ service cloud.firestore {
 
     // --- COLLECTION PROFILES ---
     match /profiles/{userId} {
-      // Lecture: l'utilisateur peut lire son propre profil
-      allow read: if isAuthenticated() && request.auth.uid == userId;
+      // Lecture: l'admin peut tout lire, l'utilisateur peut lire son propre profil
+      allow read: if isAdmin() || (isAuthenticated() && request.auth.uid == userId);
 
       // Création: uniquement lors de l'inscription initiale
       allow create: if isAuthenticated() && request.auth.uid == userId;

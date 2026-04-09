@@ -5,9 +5,12 @@ import { Card, Button, Modal } from '../../components/ui/Common';
 import {
     subscribeToSchools,
     setSubscription,
-    isAdmin as checkIsAdmin
+    isAdmin as checkIsAdmin,
+    subscribeToUserProfiles,
+    updateUserRole,
+    UserProfile,
+    auth
 } from '../../services/firebase';
-import { auth } from '../../services/firebase';
 
 interface AdminPanelProps {
     onBack: () => void;
@@ -19,6 +22,8 @@ interface SchoolWithUser extends School {
 
 export const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
     const [schools, setSchools] = useState<SchoolWithUser[]>([]);
+    const [profiles, setProfiles] = useState<UserProfile[]>([]);
+    const [activeTab, setActiveTab] = useState<'schools' | 'users'>('schools');
     const [loading, setLoading] = useState(true);
     const [searchTerm, setSearchTerm] = useState('');
     const [showConfirmModal, setShowConfirmModal] = useState(false);
@@ -34,12 +39,19 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
             return;
         }
 
-        const unsubscribe = subscribeToSchools((updatedSchools) => {
+        const unsubSchools = subscribeToSchools((updatedSchools) => {
             setSchools(updatedSchools);
             setLoading(false);
         });
 
-        return () => unsubscribe();
+        const unsubProfiles = subscribeToUserProfiles((updatedProfiles) => {
+            setProfiles(updatedProfiles);
+        });
+
+        return () => {
+            unsubSchools();
+            unsubProfiles();
+        };
     }, []);
 
     const handleAddSubscription = (school: School, months: number) => {
@@ -180,10 +192,15 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
         });
     };
 
-    const filteredSchools = schools.filter(school =>
-        school.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        school.owner_email.toLowerCase().includes(searchTerm.toLowerCase())
-    );
+    const filteredSchools = schools.filter(school => {
+        const owner = profiles.find(p => p.uid === school.owner_id);
+        const ownerName = (owner?.display_name || '').toLowerCase();
+        const searchTermLower = searchTerm.toLowerCase();
+        
+        return school.name.toLowerCase().includes(searchTermLower) ||
+               school.owner_email.toLowerCase().includes(searchTermLower) ||
+               ownerName.includes(searchTermLower);
+    });
 
     const activeCount = schools.filter(s => s.subscription_status === 'active').length;
     const expiredCount = schools.filter(s => {
@@ -195,12 +212,30 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
         return (
             <div className="flex items-center justify-center min-h-[500px]">
                 <div className="flex flex-col items-center">
-                    <div className="w-14 h-14 border-4 border-blue-500 border-t-transparent rounded-full animate-spin mb-4"></div>
-                    <p className="text-gray-500 dark:text-gray-400">Chargement des écoles...</p>
+                    <div className="flex items-center">
+                        <div className="w-14 h-14 border-4 border-blue-500 border-t-transparent rounded-full animate-spin mb-4"></div>
+                        <p className="text-gray-500 dark:text-gray-400 ml-4">Chargement de l'administration...</p>
+                    </div>
                 </div>
             </div>
         );
     }
+
+    const handleToggleRole = async (profile: UserProfile) => {
+        const newRole = profile.role === 'admin' ? 'user' : 'admin';
+        const confirmMsg = profile.role === 'admin'
+            ? `Retirer le statut admin de ${profile.display_name || profile.email} ?`
+            : `Donner le statut admin à ${profile.display_name || profile.email} ?`;
+
+        if (window.confirm(confirmMsg)) {
+            try {
+                await updateUserRole(profile.uid, newRole);
+            } catch (error) {
+                console.error("Erreur lors de la mise à jour du rôle:", error);
+                alert("Erreur lors de la mise à jour du rôle");
+            }
+        }
+    };
 
     return (
         <div className="space-y-6 animate-fadeIn">
@@ -227,41 +262,54 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
                 </div>
             </div>
 
+            {/* Onglets de Navigation */}
+            <div className="flex p-1 bg-gray-100 dark:bg-slate-900/50 rounded-xl w-fit border border-gray-200 dark:border-slate-700/50">
+                <button
+                    onClick={() => setActiveTab('schools')}
+                    className={`px-6 py-2 rounded-lg text-sm font-semibold transition-all ${activeTab === 'schools' ? 'bg-white dark:bg-slate-800 text-blue-600 dark:text-blue-400 shadow-sm' : 'text-gray-500 hover:text-gray-700 dark:hover:text-gray-300'}`}
+                >
+                    <i className="fas fa-school mr-2"></i>
+                    Écoles
+                </button>
+                <button
+                    onClick={() => setActiveTab('users')}
+                    className={`px-6 py-2 rounded-lg text-sm font-semibold transition-all ${activeTab === 'users' ? 'bg-white dark:bg-slate-800 text-blue-600 dark:text-blue-400 shadow-sm' : 'text-gray-500 hover:text-gray-700 dark:hover:text-gray-300'}`}
+                >
+                    <i className="fas fa-users mr-2"></i>
+                    Utilisateurs
+                </button>
+            </div>
+
             {/* Statistiques modernes */}
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                 <StatCard
-                    icon="fa-school"
-                    label="Total Écoles"
-                    value={schools.length}
+                    icon="fa-id-card"
+                    label="Utilisateurs"
+                    value={profiles.length}
                     gradient="from-blue-500 to-blue-600"
                     iconBg="bg-blue-100 dark:bg-blue-500/30"
                     iconColor="text-blue-600 dark:text-blue-400"
                 />
                 <StatCard
+                    icon="fa-school"
+                    label="Écoles"
+                    value={schools.length}
+                    gradient="from-indigo-500 to-indigo-600"
+                    iconBg="bg-indigo-100 dark:bg-indigo-500/30"
+                    iconColor="text-indigo-600 dark:text-indigo-400"
+                />
+                <StatCard
                     icon="fa-check-circle"
-                    label="Actifs"
+                    label="Abonnements"
                     value={activeCount}
                     gradient="from-emerald-500 to-emerald-600"
                     iconBg="bg-emerald-100 dark:bg-emerald-500/30"
                     iconColor="text-emerald-600 dark:text-emerald-400"
                 />
                 <StatCard
-                    icon="fa-exclamation-circle"
-                    label="Expirés"
-                    value={expiredCount}
-                    gradient="from-rose-500 to-rose-600"
-                    iconBg="bg-rose-100 dark:bg-rose-500/30"
-                    iconColor="text-rose-600 dark:text-rose-400"
-                />
-                <StatCard
-                    icon="fa-calendar-plus"
-                    label="Ce mois"
-                    value={schools.filter(s => {
-                        if (!s.created_at) return false;
-                        const now = new Date();
-                        const created = new Date(s.created_at);
-                        return created.getMonth() === now.getMonth() && created.getFullYear() === now.getFullYear();
-                    }).length}
+                    icon="fa-shield-alt"
+                    label="Admins"
+                    value={profiles.filter(p => p.role === 'admin').length}
                     gradient="from-violet-500 to-violet-600"
                     iconBg="bg-violet-100 dark:bg-violet-500/30"
                     iconColor="text-violet-600 dark:text-violet-400"
@@ -274,7 +322,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
                     <i className="fas fa-search absolute left-4 top-1/2 transform -translate-y-1/2 text-gray-400"></i>
                     <input
                         type="text"
-                        placeholder="Rechercher par nom d'école ou email..."
+                        placeholder={activeTab === 'schools' ? "Rechercher par nom d'école ou email..." : "Rechercher par nom ou email..."}
                         value={searchTerm}
                         onChange={(e) => setSearchTerm(e.target.value)}
                         className="w-full pl-12 pr-4 py-3 bg-gray-50 dark:bg-slate-900 border border-gray-200 dark:border-slate-700 rounded-lg text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
@@ -282,108 +330,216 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
                 </div>
             </div>
 
-            {/* Tableau des écoles */}
-            <Card className="overflow-hidden border border-gray-200 dark:border-slate-700 shadow-sm">
-                <div className="overflow-x-auto">
-                    <table className="w-full">
-                        <thead className="bg-gray-50 dark:bg-slate-800/80 border-b border-gray-200 dark:border-slate-700">
-                            <tr>
-                                <th className="text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider py-4 px-4">
-                                    École & Contact
-                                </th>
-                                <th className="text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider py-4 px-4">
-                                    Plan
-                                </th>
-                                <th className="text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider py-4 px-4">
-                                    Statut
-                                </th>
-                                <th className="text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider py-4 px-4">
-                                    Expiration
-                                </th>
-                                <th className="text-right text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider py-4 px-4">
-                                    Actions
-                                </th>
-                            </tr>
-                        </thead>
-                        <tbody className="divide-y divide-gray-100 dark:divide-slate-700/50">
-                            {filteredSchools.length === 0 ? (
+            {/* Contenu de l'onglet Écoles */}
+            {activeTab === 'schools' && (
+                <Card className="overflow-hidden border border-gray-200 dark:border-slate-700 shadow-sm">
+                    <div className="overflow-x-auto">
+                        <table className="w-full">
+                            <thead className="bg-gray-50 dark:bg-slate-800/80 border-b border-gray-200 dark:border-slate-700">
                                 <tr>
-                                    <td colSpan={5} className="text-center py-12">
-                                        <div className="flex flex-col items-center text-gray-400">
-                                            <i className="fas fa-search text-4xl mb-3 opacity-50"></i>
-                                            <p>Aucune école trouvée</p>
-                                        </div>
-                                    </td>
+                                    <th className="text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider py-4 px-4">
+                                        École & Contact
+                                    </th>
+                                    <th className="text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider py-4 px-4">
+                                        Plan
+                                    </th>
+                                    <th className="text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider py-4 px-4">
+                                        Statut
+                                    </th>
+                                    <th className="text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider py-4 px-4">
+                                        Expiration
+                                    </th>
+                                    <th className="text-right text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider py-4 px-4">
+                                        Actions
+                                    </th>
                                 </tr>
-                            ) : (
-                                filteredSchools.map((school) => (
-                                    <tr key={school.id} className="hover:bg-gray-50 dark:hover:bg-slate-800/50 transition-colors group">
-                                        <td className="py-4 px-4">
-                                            <div className="flex items-center gap-3">
-                                                <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center text-white font-bold text-sm shadow-md">
-                                                    {school.name.charAt(0).toUpperCase()}
-                                                </div>
-                                                <div className="min-w-0">
-                                                    <p className="font-semibold text-gray-900 dark:text-white truncate group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors">
-                                                        {school.name}
-                                                    </p>
-                                                    <div className="flex items-center gap-1.5 text-sm text-gray-500 dark:text-gray-400">
-                                                        <i className="fas fa-envelope text-xs"></i>
-                                                        <span className="truncate">{school.owner_email}</span>
-                                                    </div>
-                                                </div>
-                                            </div>
-                                        </td>
-                                        <td className="py-4 px-4">
-                                            {getPlanBadge(school.subscription_plan || 'free')}
-                                        </td>
-                                        <td className="py-4 px-4">
-                                            {getStatusBadge(school)}
-                                        </td>
-                                        <td className="py-4 px-4">
-                                            <div className="flex flex-col">
-                                                <span className="text-sm text-gray-700 dark:text-gray-300 font-medium">
-                                                    {formatDate(school.subscription_expires_at)}
-                                                </span>
-                                                {school.subscription_expires_at && (
-                                                    <span className="text-xs text-gray-400">
-                                                        {Math.ceil((new Date(school.subscription_expires_at).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24))} jours restants
-                                                    </span>
-                                                )}
-                                            </div>
-                                        </td>
-                                        <td className="py-4 px-4">
-                                            <div className="flex items-center justify-end gap-2">
-                                                <button
-                                                    onClick={() => handleAddSubscription(school, 1)}
-                                                    className="px-3 py-1.5 bg-blue-50 hover:bg-blue-100 dark:bg-blue-500/10 dark:hover:bg-blue-500/20 text-blue-600 dark:text-blue-400 rounded-lg text-sm font-medium transition-all border border-blue-200 dark:border-blue-500/30 hover:shadow-sm"
-                                                    title="Ajouter 1 mois"
-                                                >
-                                                    +1M
-                                                </button>
-                                                <button
-                                                    onClick={() => handleAddSubscription(school, 3)}
-                                                    className="px-3 py-1.5 bg-violet-50 hover:bg-violet-100 dark:bg-violet-500/10 dark:hover:bg-violet-500/20 text-violet-600 dark:text-violet-400 rounded-lg text-sm font-medium transition-all border border-violet-200 dark:border-violet-500/30 hover:shadow-sm"
-                                                    title="Ajouter 3 mois"
-                                                >
-                                                    +3M
-                                                </button>
-                                                <button
-                                                    onClick={() => handleAddSubscription(school, 12)}
-                                                    className="px-3 py-1.5 bg-amber-50 hover:bg-amber-100 dark:bg-amber-500/10 dark:hover:bg-amber-500/20 text-amber-600 dark:text-amber-400 rounded-lg text-sm font-medium transition-all border border-amber-200 dark:border-amber-500/30 hover:shadow-sm"
-                                                    title="Ajouter 12 mois"
-                                                >
-                                                    +12M
-                                                </button>
+                            </thead>
+                            <tbody className="divide-y divide-gray-100 dark:divide-slate-700/50">
+                                {filteredSchools.length === 0 ? (
+                                    <tr>
+                                        <td colSpan={5} className="text-center py-12">
+                                            <div className="flex flex-col items-center text-gray-400">
+                                                <i className="fas fa-search text-4xl mb-3 opacity-50"></i>
+                                                <p>Aucune école trouvée</p>
                                             </div>
                                         </td>
                                     </tr>
-                                ))
-                            )}
-                        </tbody>
-                    </table>
-                </div>
-            </Card>
+                                ) : (
+                                    filteredSchools.map((school) => (
+                                        <tr key={school.id} className="hover:bg-gray-50 dark:hover:bg-slate-800/50 transition-colors group">
+                                            <td className="py-4 px-4">
+                                                <div className="flex items-center gap-3">
+                                                    <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center text-white font-bold text-sm shadow-md">
+                                                        {school.name.charAt(0).toUpperCase()}
+                                                    </div>
+                                                    <div className="min-w-0">
+                                                        <p className="font-semibold text-gray-900 dark:text-white truncate group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors">
+                                                            {school.name}
+                                                        </p>
+                                                        <div className="flex flex-col text-sm text-gray-500 dark:text-gray-400">
+                                                            <div className="flex items-center gap-1.5">
+                                                                <i className="fas fa-user text-[10px] opacity-70"></i>
+                                                                <span className="font-medium text-gray-700 dark:text-gray-300">
+                                                                    {(() => {
+                                                                        const owner = profiles.find(p => p.uid === school.owner_id);
+                                                                        return owner?.display_name || 'Chargement...';
+                                                                    })()}
+                                                                </span>
+                                                            </div>
+                                                            <div className="flex items-center gap-1.5">
+                                                                <i className="fas fa-envelope text-[10px] opacity-70"></i>
+                                                                <span className="truncate">
+                                                                    {(() => {
+                                                                        const owner = profiles.find(p => p.uid === school.owner_id);
+                                                                        return owner?.email || school.owner_email || 'N/A';
+                                                                    })()}
+                                                                </span>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </td>
+                                            <td className="py-4 px-4">
+                                                {getPlanBadge(school.subscription_plan || 'free')}
+                                            </td>
+                                            <td className="py-4 px-4">
+                                                {getStatusBadge(school)}
+                                            </td>
+                                            <td className="py-4 px-4">
+                                                <div className="flex flex-col">
+                                                    <span className="text-sm text-gray-700 dark:text-gray-300 font-medium">
+                                                        {formatDate(school.subscription_expires_at)}
+                                                    </span>
+                                                    {school.subscription_expires_at && (
+                                                        <span className="text-xs text-gray-400">
+                                                            {Math.ceil((new Date(school.subscription_expires_at).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24))} jours restants
+                                                        </span>
+                                                    )}
+                                                </div>
+                                            </td>
+                                            <td className="py-4 px-4">
+                                                <div className="flex items-center justify-end gap-2">
+                                                    <button
+                                                        onClick={() => handleAddSubscription(school, 1)}
+                                                        className="px-3 py-1.5 bg-blue-50 hover:bg-blue-100 dark:bg-blue-500/10 dark:hover:bg-blue-500/20 text-blue-600 dark:text-blue-400 rounded-lg text-sm font-medium transition-all border border-blue-200 dark:border-blue-500/30 hover:shadow-sm"
+                                                        title="Ajouter 1 mois"
+                                                    >
+                                                        +1M
+                                                    </button>
+                                                    <button
+                                                        onClick={() => handleAddSubscription(school, 3)}
+                                                        className="px-3 py-1.5 bg-violet-50 hover:bg-violet-100 dark:bg-violet-500/10 dark:hover:bg-violet-500/20 text-violet-600 dark:text-violet-400 rounded-lg text-sm font-medium transition-all border border-violet-200 dark:border-violet-500/30 hover:shadow-sm"
+                                                        title="Ajouter 3 mois"
+                                                    >
+                                                        +3M
+                                                    </button>
+                                                    <button
+                                                        onClick={() => handleAddSubscription(school, 12)}
+                                                        className="px-3 py-1.5 bg-amber-50 hover:bg-amber-100 dark:bg-amber-500/10 dark:hover:bg-amber-500/20 text-amber-600 dark:text-amber-400 rounded-lg text-sm font-medium transition-all border border-amber-200 dark:border-amber-500/30 hover:shadow-sm"
+                                                        title="Ajouter 12 mois"
+                                                    >
+                                                        +12M
+                                                    </button>
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    ))
+                                )}
+                            </tbody>
+                        </table>
+                    </div>
+                </Card>
+            )}
+
+            {/* Contenu de l'onglet Utilisateurs */}
+            {activeTab === 'users' && (
+                <Card className="overflow-hidden border border-gray-200 dark:border-slate-700 shadow-sm">
+                    <div className="overflow-x-auto">
+                        <table className="w-full">
+                            <thead className="bg-gray-50 dark:bg-slate-800/80 border-b border-gray-200 dark:border-slate-700">
+                                <tr>
+                                    <th className="text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider py-4 px-4">
+                                        Utilisateur
+                                    </th>
+                                    <th className="text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider py-4 px-4">
+                                        Email
+                                    </th>
+                                    <th className="text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider py-4 px-4">
+                                        Rôle
+                                    </th>
+                                    <th className="text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider py-4 px-4">
+                                        Date d'inscription
+                                    </th>
+                                    <th className="text-right text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider py-4 px-4">
+                                        Actions
+                                    </th>
+                                </tr>
+                            </thead>
+                            <tbody className="divide-y divide-gray-100 dark:divide-slate-700/50">
+                                {profiles.filter(p =>
+                                    (p.display_name || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+                                    p.email.toLowerCase().includes(searchTerm.toLowerCase())
+                                ).length === 0 ? (
+                                    <tr>
+                                        <td colSpan={5} className="text-center py-12">
+                                            <div className="flex flex-col items-center text-gray-400">
+                                                <i className="fas fa-user-slash text-4xl mb-3 opacity-50"></i>
+                                                <p>Aucun utilisateur trouvé</p>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                ) : (
+                                    profiles.filter(p =>
+                                        (p.display_name || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+                                        p.email.toLowerCase().includes(searchTerm.toLowerCase())
+                                    ).map((profile) => (
+                                        <tr key={profile.uid} className="hover:bg-gray-50 dark:hover:bg-slate-800/50 transition-colors group">
+                                            <td className="py-4 px-4">
+                                                <div className="flex items-center gap-3">
+                                                    {profile.photo_url ? (
+                                                        <img src={profile.photo_url} alt="" className="w-10 h-10 rounded-full border border-gray-200 dark:border-slate-700 shadow-sm" />
+                                                    ) : (
+                                                        <div className="w-10 h-10 rounded-full bg-slate-200 dark:bg-slate-700 flex items-center justify-center text-slate-500 dark:text-slate-400 font-bold shadow-sm">
+                                                            {(profile.display_name || profile.email).charAt(0).toUpperCase()}
+                                                        </div>
+                                                    )}
+                                                    <div className="min-w-0">
+                                                        <p className="font-semibold text-gray-900 dark:text-white truncate">
+                                                            {profile.display_name || 'Utilisateur sans nom'}
+                                                        </p>
+                                                    </div>
+                                                </div>
+                                            </td>
+                                            <td className="py-4 px-4">
+                                                <span className="text-sm text-gray-600 dark:text-gray-400">{profile.email}</span>
+                                            </td>
+                                            <td className="py-4 px-4">
+                                                <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold ${profile.role === 'admin' ? 'bg-amber-100 text-amber-700 border border-amber-200' : 'bg-slate-100 text-slate-700 border border-slate-200'}`}>
+                                                    {profile.role === 'admin' ? 'Administrateur' : 'Utilisateur'}
+                                                </span>
+                                            </td>
+                                            <td className="py-4 px-4">
+                                                <span className="text-sm text-gray-500">{formatDate(profile.created_at)}</span>
+                                            </td>
+                                            <td className="py-4 px-4">
+                                                <div className="flex items-center justify-end gap-2">
+                                                    <button
+                                                        onClick={() => handleToggleRole(profile)}
+                                                        disabled={profile.email === 'powerfulreach029@gmail.com'}
+                                                        className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-all border ${profile.role === 'admin' ? 'bg-rose-50 text-rose-600 border-rose-200 hover:bg-rose-100' : 'bg-blue-50 text-blue-600 border-blue-200 hover:bg-blue-100'} disabled:opacity-50 disabled:cursor-not-allowed`}
+                                                    >
+                                                        {profile.role === 'admin' ? 'Rayer Admin' : 'Donner Admin'}
+                                                    </button>
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    ))
+                                )}
+                            </tbody>
+                        </table>
+                    </div>
+                </Card>
+            )}
 
             {/* Modal de confirmation */}
             <Modal

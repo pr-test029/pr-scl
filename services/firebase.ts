@@ -385,7 +385,7 @@ export const clearDB = async () => {
 // Récupérer toutes les écoles (admin seulement)
 export const getAllSchools = async (): Promise<School[]> => {
     try {
-        const schoolsQuery = query(collection(db, "schools"), orderBy("created_at", "desc"));
+        const schoolsQuery = query(collection(db, "schools"));
         const querySnapshot = await getDocs(schoolsQuery);
         const schools = querySnapshot.docs.map(doc => {
             const data = doc.data();
@@ -409,7 +409,7 @@ export const getAllSchools = async (): Promise<School[]> => {
 
 // Souscription temps réel aux écoles (admin seulement)
 export const subscribeToSchools = (callback: (schools: School[]) => void): (() => void) => {
-    const schoolsQuery = query(collection(db, "schools"), orderBy("created_at", "desc"));
+    const schoolsQuery = query(collection(db, "schools"));
 
     return onSnapshot(schoolsQuery, (snapshot) => {
         const schools = snapshot.docs.map(doc => {
@@ -474,7 +474,7 @@ export interface UserProfile {
 // Récupérer tous les profils utilisateurs (admin seulement)
 export const getAllUserProfiles = async (): Promise<UserProfile[]> => {
     try {
-        const profilesQuery = query(collection(db, "profiles"), orderBy("created_at", "desc"));
+        const profilesQuery = query(collection(db, "profiles"));
         const querySnapshot = await getDocs(profilesQuery);
         const profiles = querySnapshot.docs.map(doc => {
             const data = doc.data();
@@ -497,7 +497,7 @@ export const getAllUserProfiles = async (): Promise<UserProfile[]> => {
 
 // Souscription temps réel aux profils (admin seulement)
 export const subscribeToUserProfiles = (callback: (profiles: UserProfile[]) => void): (() => void) => {
-    const profilesQuery = query(collection(db, "profiles"), orderBy("created_at", "desc"));
+    const profilesQuery = query(collection(db, "profiles"));
 
     return onSnapshot(profilesQuery, (snapshot) => {
         const profiles = snapshot.docs.map(doc => {
