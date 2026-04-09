@@ -1,12 +1,14 @@
 
 import React, { useState, useEffect, useContext, createContext } from 'react';
+import { doc, getDoc } from 'firebase/firestore';
 import {
-  Student, Grade, Cycle, Subject, AppSettings, View, SchoolContextType, UserSession
+  Student, Grade, Cycle, Subject, AppSettings, View, SchoolContextType, UserSession, School
 } from './types';
 import {
   INITIAL_CYCLES, INITIAL_SUBJECTS, INITIAL_SETTINGS, THEME_HEX_COLORS
 } from './constants';
 import * as api from './services/firebase';
+import { db, auth } from './services/firebase';
 
 // Feature Components
 import { Dashboard } from './features/dashboard/Dashboard';
@@ -15,6 +17,8 @@ import { StudentForm } from './features/students/StudentForm';
 import { Settings } from './features/settings/Settings';
 import { ChatBot } from './features/chat/ChatBot';
 import { LoginScreen } from './features/auth/LoginScreen';
+import { AdminPanel } from './features/admin/AdminPanel';
+import { SubscriptionGuard } from './features/subscription/SubscriptionGuard';
 import { Button } from './components/ui/Common';
 
 // Context creation
@@ -29,6 +33,7 @@ export const useSchool = () => {
 const App: React.FC = () => {
   // Session State
   const [session, setSession] = useState<UserSession | null>(null);
+  const [school, setSchool] = useState<School | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -58,6 +63,29 @@ const App: React.FC = () => {
     setLoading(true);
     setError(null);
     try {
+      // Load School Info
+      const user = auth.currentUser;
+      if (user) {
+        const profileDoc = await getDoc(doc(db, "profiles", user.uid));
+        if (profileDoc.exists()) {
+          const profileData = profileDoc.data();
+          const schoolDoc = await getDoc(doc(db, "schools", profileData.school_id));
+          if (schoolDoc.exists()) {
+            const schoolData = schoolDoc.data();
+            setSchool({
+              id: schoolDoc.id,
+              name: schoolData.name,
+              owner_id: schoolData.owner_id,
+              owner_email: schoolData.owner_email || 'N/A',
+              created_at: schoolData.created_at?.toDate() || null,
+              subscription_plan: schoolData.subscription_plan || 'free',
+              subscription_expires_at: schoolData.subscription_expires_at?.toDate() || null,
+              subscription_status: schoolData.subscription_status || 'free'
+            } as School);
+          }
+        }
+      }
+
       // Load Data
       const [
         fetchedStudents,
@@ -86,20 +114,51 @@ const App: React.FC = () => {
     }
   };
 
+  const refreshSchool = async () => {
+    const user = auth.currentUser;
+    if (user) {
+      const profileDoc = await getDoc(doc(db, "profiles", user.uid));
+      if (profileDoc.exists()) {
+        const profileData = profileDoc.data();
+        const schoolDoc = await getDoc(doc(db, "schools", profileData.school_id));
+        if (schoolDoc.exists()) {
+          const schoolData = schoolDoc.data();
+          setSchool({
+            id: schoolDoc.id,
+            name: schoolData.name,
+            owner_id: schoolData.owner_id,
+            owner_email: schoolData.owner_email || 'N/A',
+            created_at: schoolData.created_at?.toDate() || null,
+            subscription_plan: schoolData.subscription_plan || 'free',
+            subscription_expires_at: schoolData.subscription_expires_at?.toDate() || null,
+            subscription_status: schoolData.subscription_status || 'free'
+          } as School);
+        }
+      }
+    }
+  };
+
   const handleLoginSuccess = async (newSession: UserSession) => {
     setSession(newSession);
     await loadSchoolData();
-    setCurrentView('dashboard'); // Force redirection to dashboard
+    // Redirection basée sur le rôle
+    if (newSession.role === 'admin') {
+      setCurrentView('admin');
+    } else {
+      setCurrentView('dashboard');
+    }
   };
 
   const handleLogout = async () => {
     await api.signOut();
     setSession(null);
+    setSchool(null);
     setStudents([]);
     setGrades([]);
     setCycles(INITIAL_CYCLES);
     setSubjects(INITIAL_SUBJECTS);
     setSettings(INITIAL_SETTINGS);
+    setCurrentView('dashboard');
   };
 
   // Actions (Update UI Optimistically + Call DB)
@@ -110,7 +169,6 @@ const App: React.FC = () => {
     } catch (e: any) {
       console.error("Failed to save student", e);
       alert("Erreur lors de l'enregistrement de l'élève dans la base de données : " + e.message);
-      // Rollback local state
       setStudents(prev => prev.filter(p => p.id !== s.id));
     }
   };
@@ -133,7 +191,7 @@ const App: React.FC = () => {
       await api.deleteStudentDB(id);
     } catch (e: any) {
       alert("Erreur lors de la suppression : " + e.message);
-      loadSchoolData(); // Refresh from DB
+      loadSchoolData();
     }
   };
 
@@ -186,17 +244,19 @@ const App: React.FC = () => {
       setLoading(true);
       await api.clearDB();
 
-      // Save initial defaults back to DB for this school
       await api.saveSettingsDB(INITIAL_SETTINGS);
       await api.saveCyclesDB(INITIAL_CYCLES);
       await api.saveSubjectsDB(INITIAL_SUBJECTS);
 
-      await loadSchoolData(); // Reload clean state
+      await loadSchoolData();
     }
   };
 
+  const isAdmin = session?.role === 'admin' || session?.email === 'powerfulreach029@gmail.com';
+
   const contextValue: SchoolContextType = {
     session,
+    school,
     students, grades, cycles, subjects, settings,
     addStudent, updateStudent, deleteStudent,
     addGrade, updateGrade, deleteGrade,
@@ -204,7 +264,9 @@ const App: React.FC = () => {
     updateCycles: handleUpdateCycles,
     updateSubjects: handleUpdateSubjects,
     resetData,
-    logout: handleLogout
+    logout: handleLogout,
+    isAdmin,
+    refreshSchool
   };
 
   // Theme Logic
@@ -258,81 +320,107 @@ const App: React.FC = () => {
     );
   }
 
+  // Admin Panel View
+  if (currentView === 'admin' && isAdmin) {
+    return (
+      <SchoolContext.Provider value={contextValue}>
+        <div
+          className={`min-h-screen transition-all duration-300 ${settings.mode === 'dark' ? 'dark starry-bg text-gray-100' : 'bg-gray-100 text-gray-800'}`}
+          style={themeStyles}
+        >
+          <div className="relative z-10 p-8">
+            <AdminPanel onBack={() => setCurrentView('dashboard')} />
+          </div>
+        </div>
+      </SchoolContext.Provider>
+    );
+  }
+
   return (
     <SchoolContext.Provider value={contextValue}>
       <div
         className={`min-h-screen transition-all duration-300 ${settings.mode === 'dark' ? 'dark starry-bg text-gray-100' : 'bg-gray-100 text-gray-800'}`}
         style={themeStyles}
       >
-        <div className="flex flex-col md:flex-row font-sans min-h-screen relative z-10">
+        <SubscriptionGuard school={school}>
+          <div className="flex flex-col md:flex-row font-sans min-h-screen relative z-10">
 
-          {/* Mobile Header - FIXED */}
-          <div className="md:hidden fixed top-0 left-0 w-full z-50 h-16 bg-[var(--primary-color)] dark:glass-card text-white px-4 flex justify-between items-center shadow-md transition-colors duration-300 dark:border-b dark:border-white/10">
-            <div className="flex items-center gap-2 font-bold text-xl">
-              {settings.logo ? <img src={settings.logo} className="h-8 w-8 object-contain bg-white rounded-full" /> : <i className="fas fa-graduation-cap"></i>}
-              <span>{settings.appName}</span>
+            {/* Mobile Header - FIXED */}
+            <div className="md:hidden fixed top-0 left-0 w-full z-50 h-16 bg-[var(--primary-color)] dark:glass-card text-white px-4 flex justify-between items-center shadow-md transition-colors duration-300 dark:border-b dark:border-white/10">
+              <div className="flex items-center gap-2 font-bold text-xl">
+                {settings.logo ? <img src={settings.logo} className="h-8 w-8 object-contain bg-white rounded-full" /> : <i className="fas fa-graduation-cap"></i>}
+                <span>{settings.appName}</span>
+              </div>
+              <button className="p-2" onClick={() => {
+                const nav = document.getElementById('mobile-nav');
+                nav?.classList.toggle('hidden');
+              }}>
+                <i className="fas fa-bars text-xl"></i>
+              </button>
             </div>
-            <button className="p-2" onClick={() => {
-              const nav = document.getElementById('mobile-nav');
-              nav?.classList.toggle('hidden');
-            }}>
-              <i className="fas fa-bars text-xl"></i>
-            </button>
+
+            {/* Sidebar Navigation - FIXED DESKTOP */}
+            <nav id="mobile-nav" className="hidden md:flex flex-col fixed top-0 left-0 h-full w-64 bg-[var(--primary-color)] dark:bg-slate-900/80 dark:backdrop-blur-md dark:border-r dark:border-white/10 text-white shadow-xl transition-colors duration-300 z-40 pt-16 md:pt-0">
+              <div className="p-6 border-b border-white/10 hidden md:block">
+                <div className="flex items-center gap-3 font-bold text-2xl tracking-tight">
+                  {settings.logo ? <img src={settings.logo} className="h-10 w-10 object-contain bg-white rounded-full p-0.5" /> : <i className="fas fa-graduation-cap text-white drop-shadow-[0_0_8px_rgba(255,255,255,0.8)]"></i>}
+                  <span className="dark:text-white dark:drop-shadow-[0_0_5px_var(--primary-color)]">{settings.appName}</span>
+                </div>
+              </div>
+
+              <div className="flex-1 py-6 space-y-2 px-3 overflow-y-auto">
+                <NavItem icon="fa-chart-pie" label="Tableau de bord" active={currentView === 'dashboard'} onClick={() => setCurrentView('dashboard')} />
+                <NavItem icon="fa-user-plus" label="Inscription" active={currentView === 'inscription'} onClick={() => setCurrentView('inscription')} />
+                <NavItem icon="fa-users" label="Liste des élèves" active={currentView === 'students'} onClick={() => setCurrentView('students')} />
+                <NavItem icon="fa-cogs" label="Paramètres" active={currentView === 'settings'} onClick={() => setCurrentView('settings')} />
+                {isAdmin && (
+                  <NavItem icon="fa-shield-alt" label="Administration" active={currentView === 'admin'} onClick={() => setCurrentView('admin')} />
+                )}
+              </div>
+
+              <div className="p-4 border-t border-white/10 text-xs text-center text-white/60">
+                &copy; {new Date().getFullYear()} {settings.appName}
+                <div className="mt-1 flex items-center justify-center gap-1 text-[10px]">
+                  <span className="w-2 h-2 rounded-full bg-green-400 box-shadow-[0_0_5px_#4ade80]"></span>
+                  <span>{session?.school_name}</span>
+                </div>
+                {school?.subscription_status === 'active' && school?.subscription_expires_at && (
+                  <div className="mt-2 text-[10px] text-blue-300">
+                    Abonnement actif jusqu'au {new Date(school.subscription_expires_at).toLocaleDateString('fr-FR')}
+                  </div>
+                )}
+              </div>
+            </nav>
+
+            {/* Main Content - SCROLLABLE with PADDING */}
+            <main className="flex-1 w-full pt-20 md:pt-8 md:pl-64 min-h-screen transition-colors duration-300">
+              <div className="p-4 md:p-8 max-w-7xl mx-auto pb-24">
+                <header className="mb-8 flex justify-between items-center">
+                  <div>
+                    <h1 className="text-3xl font-bold text-gray-800 dark:text-white transition-colors dark:drop-shadow-md">
+                      {currentView === 'dashboard' && 'Tableau de bord'}
+                      {currentView === 'inscription' && 'Nouvelle Inscription'}
+                      {currentView === 'students' && 'Gestion des Élèves'}
+                      {currentView === 'settings' && 'Paramètres'}
+                    </h1>
+                    <p className="text-gray-500 dark:text-gray-300 mt-1">Bienvenue sur votre espace de gestion.</p>
+                  </div>
+                  <div className="hidden md:flex items-center gap-4 bg-white dark:glass-card px-4 py-2 rounded-full shadow-sm transition-colors border dark:border-white/10">
+                    <i className="far fa-calendar-alt text-gray-400 dark:text-gray-300"></i>
+                    <span className="text-sm font-medium dark:text-gray-200">{new Date().toLocaleDateString('fr-FR', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</span>
+                  </div>
+                </header>
+
+                {currentView === 'dashboard' && <Dashboard />}
+                {currentView === 'inscription' && <StudentForm onSuccess={() => setCurrentView('students')} />}
+                {currentView === 'students' && <StudentList />}
+                {currentView === 'settings' && <Settings />}
+              </div>
+            </main>
+
+            <ChatBot />
           </div>
-
-          {/* Sidebar Navigation - FIXED DESKTOP */}
-          <nav id="mobile-nav" className="hidden md:flex flex-col fixed top-0 left-0 h-full w-64 bg-[var(--primary-color)] dark:bg-slate-900/80 dark:backdrop-blur-md dark:border-r dark:border-white/10 text-white shadow-xl transition-colors duration-300 z-40 pt-16 md:pt-0">
-            <div className="p-6 border-b border-white/10 hidden md:block">
-              <div className="flex items-center gap-3 font-bold text-2xl tracking-tight">
-                {settings.logo ? <img src={settings.logo} className="h-10 w-10 object-contain bg-white rounded-full p-0.5" /> : <i className="fas fa-graduation-cap text-white drop-shadow-[0_0_8px_rgba(255,255,255,0.8)]"></i>}
-                <span className="dark:text-white dark:drop-shadow-[0_0_5px_var(--primary-color)]">{settings.appName}</span>
-              </div>
-            </div>
-
-            <div className="flex-1 py-6 space-y-2 px-3 overflow-y-auto">
-              <NavItem icon="fa-chart-pie" label="Tableau de bord" active={currentView === 'dashboard'} onClick={() => setCurrentView('dashboard')} />
-              <NavItem icon="fa-user-plus" label="Inscription" active={currentView === 'inscription'} onClick={() => setCurrentView('inscription')} />
-              <NavItem icon="fa-users" label="Liste des élèves" active={currentView === 'students'} onClick={() => setCurrentView('students')} />
-              <NavItem icon="fa-cogs" label="Paramètres" active={currentView === 'settings'} onClick={() => setCurrentView('settings')} />
-            </div>
-
-            <div className="p-4 border-t border-white/10 text-xs text-center text-white/60">
-              &copy; {new Date().getFullYear()} {settings.appName}
-              <div className="mt-1 flex items-center justify-center gap-1 text-[10px]">
-                <span className="w-2 h-2 rounded-full bg-green-400 box-shadow-[0_0_5px_#4ade80]"></span>
-                <span>{session?.school_name}</span>
-              </div>
-            </div>
-          </nav>
-
-          {/* Main Content - SCROLLABLE with PADDING */}
-          <main className="flex-1 w-full pt-20 md:pt-8 md:pl-64 min-h-screen transition-colors duration-300">
-            <div className="p-4 md:p-8 max-w-7xl mx-auto pb-24">
-              <header className="mb-8 flex justify-between items-center">
-                <div>
-                  <h1 className="text-3xl font-bold text-gray-800 dark:text-white transition-colors dark:drop-shadow-md">
-                    {currentView === 'dashboard' && 'Tableau de bord'}
-                    {currentView === 'inscription' && 'Nouvelle Inscription'}
-                    {currentView === 'students' && 'Gestion des Élèves'}
-                    {currentView === 'settings' && 'Paramètres'}
-                  </h1>
-                  <p className="text-gray-500 dark:text-gray-300 mt-1">Bienvenue sur votre espace de gestion.</p>
-                </div>
-                <div className="hidden md:flex items-center gap-4 bg-white dark:glass-card px-4 py-2 rounded-full shadow-sm transition-colors border dark:border-white/10">
-                  <i className="far fa-calendar-alt text-gray-400 dark:text-gray-300"></i>
-                  <span className="text-sm font-medium dark:text-gray-200">{new Date().toLocaleDateString('fr-FR', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</span>
-                </div>
-              </header>
-
-              {currentView === 'dashboard' && <Dashboard />}
-              {currentView === 'inscription' && <StudentForm onSuccess={() => setCurrentView('students')} />}
-              {currentView === 'students' && <StudentList />}
-              {currentView === 'settings' && <Settings />}
-            </div>
-          </main>
-
-          <ChatBot />
-        </div>
+        </SubscriptionGuard>
       </div>
     </SchoolContext.Provider>
   );
@@ -342,7 +430,6 @@ const NavItem: React.FC<{ icon: string; label: string; active: boolean; onClick:
   <button
     onClick={() => {
       onClick();
-      // Close mobile nav on click
       if (window.innerWidth < 768) document.getElementById('mobile-nav')?.classList.add('hidden');
     }}
     className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-all duration-200 text-left ${active ? 'bg-white text-gray-900 font-bold shadow-md dark:bg-white/10 dark:text-white dark:backdrop-blur-md dark:border dark:border-white/20' : 'text-white/90 hover:bg-white/10 hover:text-white'}`}

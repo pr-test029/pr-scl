@@ -1,0 +1,15 @@
+/* Fichier CSS principal - PR-SCL */
+/* Les styles principaux sont définis dans index.html */
+
+/* Reset et styles de base */
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+/* Styles globaux */
+html, body, #root {
+  height: 100%;
+  width: 100%;
+}

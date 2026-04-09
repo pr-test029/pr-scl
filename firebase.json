@@ -1,17 +1,13 @@
 {
   "firestore": {
     "database": "(default)",
-    "location": "nam5",
+    "location": "us-central1",
     "rules": "firestore.rules",
     "indexes": "firestore.indexes.json"
   },
   "auth": {
     "providers": {
-      "emailPassword": true,
-      "googleSignIn": {
-        "oAuthBrandDisplayName": "PR-SCL Cluster",
-        "supportEmail": "prtest029@gmail.com"
-      }
+      "emailPassword": true
     }
   }
 }

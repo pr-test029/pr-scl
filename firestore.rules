@@ -1,18 +1,110 @@
-rules_version='2'
+rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
-    match /{document=**} {
-      // This rule allows anyone with your database reference to view, edit,
-      // and delete all data in your database. It is useful for getting
-      // started, but it is configured to expire after 30 days because it
-      // leaves your app open to attackers. At that time, all client
-      // requests to your database will be denied.
-      //
-      // Make sure to write security rules for your app before that time, or
-      // else all client requests to your database will be denied until you
-      // update your rules.
-      allow read, write: if request.time < timestamp.date(2026, 3, 24);
+    // Fonction utilitaire pour vérifier si l'utilisateur est authentifié
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    // Fonction pour vérifier si l'utilisateur est l'administrateur
+    function isAdmin() {
+      return isAuthenticated() &&
+             request.auth.token.email == 'powerfulreach029@gmail.com';
+    }
+
+    // Fonction pour vérifier si l'utilisateur appartient à l'école spécifiée
+    function belongsToSchool(schoolId) {
+      return isAuthenticated() &&
+             get(/databases/$(database)/documents/profiles/$(request.auth.uid)).data.school_id == schoolId;
+    }
+
+    // Fonction pour vérifier si l'utilisateur est le propriétaire de l'école
+    function isSchoolOwner(schoolId) {
+      return isAuthenticated() &&
+             get(/databases/$(database)/documents/schools/$(schoolId)).data.owner_id == request.auth.uid;
+    }
+
+    // --- COLLECTION PROFILES ---
+    match /profiles/{userId} {
+      // Lecture: l'utilisateur peut lire son propre profil
+      allow read: if isAuthenticated() && request.auth.uid == userId;
+
+      // Création: uniquement lors de l'inscription initiale
+      allow create: if isAuthenticated() && request.auth.uid == userId;
+
+      // Mise à jour: uniquement l'admin peut modifier les rôles
+      allow update: if isAdmin() ||
+                      (isAuthenticated() && request.auth.uid == userId &&
+                       !request.resource.data.diff(resource.data).affectedKeys().hasAny(['role']));
+    }
+
+    // --- COLLECTION SCHOOLS ---
+    match /schools/{schoolId} {
+      // Lecture: l'admin peut tout lire, les utilisateurs peuvent lire leur école
+      allow read: if isAdmin() || belongsToSchool(schoolId);
+
+      // Création: authentifié uniquement lors de l'inscription
+      allow create: if isAuthenticated();
+
+      // Mise à jour:
+      // - L'admin peut tout modifier (notamment les champs d'abonnement)
+      // - Le propriétaire peut modifier les infos de base mais PAS les abonnements
+      allow update: if isAdmin() ||
+                      (isSchoolOwner(schoolId) &&
+                       !request.resource.data.diff(resource.data).affectedKeys().hasAny([
+                         'subscription_plan', 'subscription_expires_at', 'subscription_status'
+                       ]));
+    }
+
+    // --- COLLECTION STUDENTS ---
+    match /students/{studentId} {
+      // Lecture: appartient à l'école de l'étudiant
+      allow read: if isAuthenticated() &&
+                     resource.data.school_id == get(/databases/$(database)/documents/profiles/$(request.auth.uid)).data.school_id;
+
+      // Écriture: appartient à la même école
+      allow create: if isAuthenticated() &&
+                     request.resource.data.school_id == get(/databases/$(database)/documents/profiles/$(request.auth.uid)).data.school_id;
+
+      allow update, delete: if isAuthenticated() &&
+                               resource.data.school_id == get(/databases/$(database)/documents/profiles/$(request.auth.uid)).data.school_id;
+    }
+
+    // --- COLLECTION GRADES ---
+    match /grades/{gradeId} {
+      // Lecture: appartient à l'école de la note
+      allow read: if isAuthenticated() &&
+                     resource.data.school_id == get(/databases/$(database)/documents/profiles/$(request.auth.uid)).data.school_id;
+
+      // Écriture: appartient à la même école
+      allow create: if isAuthenticated() &&
+                     request.resource.data.school_id == get(/databases/$(database)/documents/profiles/$(request.auth.uid)).data.school_id;
+
+      allow update, delete: if isAuthenticated() &&
+                               resource.data.school_id == get(/databases/$(database)/documents/profiles/$(request.auth.uid)).data.school_id;
+    }
+
+    // --- COLLECTION APP_CONFIG ---
+    match /app_config/{configId} {
+      // Lecture: appartient à l'école
+      allow read: if isAuthenticated() &&
+                     resource.data.school_id == get(/databases/$(database)/documents/profiles/$(request.auth.uid)).data.school_id;
+
+      // Écriture: appartient à la même école
+      allow create, update: if isAuthenticated() &&
+                     request.resource.data.school_id == get(/databases/$(database)/documents/profiles/$(request.auth.uid)).data.school_id;
+
+      allow delete: if isAuthenticated() &&
+                       resource.data.school_id == get(/databases/$(database)/documents/profiles/$(request.auth.uid)).data.school_id;
+    }
+
+    // --- COLLECTION ADMIN_LOGS (pour traçabilité) ---
+    match /admin_logs/{logId} {
+      // Lecture: admin uniquement
+      allow read: if isAdmin();
+      // Écriture: admin uniquement
+      allow create: if isAdmin();
     }
   }
 }

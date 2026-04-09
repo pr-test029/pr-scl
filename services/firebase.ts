@@ -22,9 +22,12 @@ import {
     where,
     serverTimestamp,
     writeBatch,
-    enableIndexedDbPersistence
+    enableIndexedDbPersistence,
+    onSnapshot,
+    orderBy,
+    Timestamp
 } from "firebase/firestore";
-import { Student, Grade, AppSettings, Cycle, Subject, UserSession } from '../types';
+import { Student, Grade, AppSettings, Cycle, Subject, UserSession, School } from '../types';
 import { INITIAL_CYCLES, INITIAL_SUBJECTS, INITIAL_SETTINGS } from '../constants';
 
 // --- CONFIGURATION FIREBASE RÉELLE ---
@@ -52,6 +55,14 @@ enableIndexedDbPersistence(db).catch((err) => {
 
 const googleProvider = new GoogleAuthProvider();
 
+// Email de l'administrateur
+const ADMIN_EMAIL = 'powerfulreach029@gmail.com';
+
+// Vérifier si l'utilisateur est admin
+export const isAdmin = (email: string | null | undefined): boolean => {
+    return email === ADMIN_EMAIL;
+};
+
 // Variable locale persistée pour stocker l'ID de l'école
 let currentSchoolId: string | null = localStorage.getItem('pr_scl_school_id');
 let currentSchoolName: string | null = localStorage.getItem('pr_scl_school_name');
@@ -76,17 +87,25 @@ const setupNewSchoolProfile = async (user: any, schoolName: string) => {
     // Générer un ID d'école unique
     const schoolId = `school_${user.uid}`;
 
-    // Créer l'école
+    // Créer l'école avec les champs d'abonnement
     await setDoc(doc(db, "schools", schoolId), {
         name: schoolName,
         owner_id: user.uid,
-        created_at: serverTimestamp()
+        owner_email: user.email,
+        created_at: serverTimestamp(),
+        subscription_plan: 'free',
+        subscription_expires_at: null,
+        subscription_status: 'free'
     });
 
-    // Créer le profil utilisateur
+    // Créer le profil utilisateur avec rôle et informations Google
     await setDoc(doc(db, "profiles", user.uid), {
         school_id: schoolId,
-        email: user.email
+        email: user.email,
+        display_name: user.displayName || null,
+        photo_url: user.photoURL || null,
+        role: isAdmin(user.email) ? 'admin' : 'user',
+        created_at: serverTimestamp()
     });
 
     currentSchoolId = schoolId;
@@ -164,8 +183,11 @@ export const fetchUserSession = async (): Promise<UserSession | null> => {
                 resolve({
                     user_id: user.uid,
                     email: user.email!,
+                    display_name: user.displayName || profileData.display_name || null,
+                    photo_url: user.photoURL || profileData.photo_url || null,
                     school_id: currentSchoolId!,
-                    school_name: currentSchoolName!
+                    school_name: currentSchoolName!,
+                    role: profileData.role || (isAdmin(user.email) ? 'admin' : 'user')
                 });
             } catch (e) {
                 console.error("fetchUserSession error", e);
@@ -356,4 +378,149 @@ export const clearDB = async () => {
     configSnap.forEach(snapDoc => batch.delete(snapDoc.ref));
 
     await batch.commit();
+};
+
+// --- API ADMIN ---
+
+// Récupérer toutes les écoles (admin seulement)
+export const getAllSchools = async (): Promise<School[]> => {
+    try {
+        const schoolsQuery = query(collection(db, "schools"), orderBy("created_at", "desc"));
+        const querySnapshot = await getDocs(schoolsQuery);
+        const schools = querySnapshot.docs.map(doc => {
+            const data = doc.data();
+            return {
+                id: doc.id,
+                name: data.name,
+                owner_id: data.owner_id,
+                owner_email: data.owner_email || 'N/A',
+                created_at: data.created_at?.toDate() || null,
+                subscription_plan: data.subscription_plan || 'free',
+                subscription_expires_at: data.subscription_expires_at?.toDate() || null,
+                subscription_status: data.subscription_status || 'free'
+            } as School;
+        });
+        return schools;
+    } catch (error) {
+        console.error("getAllSchools Error:", error);
+        return [];
+    }
+};
+
+// Souscription temps réel aux écoles (admin seulement)
+export const subscribeToSchools = (callback: (schools: School[]) => void): (() => void) => {
+    const schoolsQuery = query(collection(db, "schools"), orderBy("created_at", "desc"));
+
+    return onSnapshot(schoolsQuery, (snapshot) => {
+        const schools = snapshot.docs.map(doc => {
+            const data = doc.data();
+            return {
+                id: doc.id,
+                name: data.name,
+                owner_id: data.owner_id,
+                owner_email: data.owner_email || 'N/A',
+                created_at: data.created_at?.toDate() || null,
+                subscription_plan: data.subscription_plan || 'free',
+                subscription_expires_at: data.subscription_expires_at?.toDate() || null,
+                subscription_status: data.subscription_status || 'free'
+            } as School;
+        });
+        callback(schools);
+    }, (error) => {
+        console.error("subscribeToSchools Error:", error);
+    });
+};
+
+// Définir l'abonnement d'une école
+export const setSubscription = async (
+    schoolId: string,
+    plan: 'monthly' | 'quarterly' | 'annual'
+): Promise<void> => {
+    const now = new Date();
+    let expiresAt: Date;
+
+    switch (plan) {
+        case 'monthly':
+            expiresAt = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000); // +30 jours
+            break;
+        case 'quarterly':
+            expiresAt = new Date(now.getTime() + 90 * 24 * 60 * 60 * 1000); // +90 jours
+            break;
+        case 'annual':
+            expiresAt = new Date(now.getTime() + 365 * 24 * 60 * 60 * 1000); // +365 jours
+            break;
+    }
+
+    await updateDoc(doc(db, "schools", schoolId), {
+        subscription_plan: plan,
+        subscription_expires_at: Timestamp.fromDate(expiresAt),
+        subscription_status: 'active'
+    });
+};
+
+// --- API PROFILES ---
+
+// Interface pour les profils utilisateurs
+export interface UserProfile {
+    uid: string;
+    email: string;
+    display_name: string | null;
+    photo_url: string | null;
+    school_id: string;
+    role: 'admin' | 'user';
+    created_at: Date | null;
+}
+
+// Récupérer tous les profils utilisateurs (admin seulement)
+export const getAllUserProfiles = async (): Promise<UserProfile[]> => {
+    try {
+        const profilesQuery = query(collection(db, "profiles"), orderBy("created_at", "desc"));
+        const querySnapshot = await getDocs(profilesQuery);
+        const profiles = querySnapshot.docs.map(doc => {
+            const data = doc.data();
+            return {
+                uid: doc.id,
+                email: data.email || 'N/A',
+                display_name: data.display_name || null,
+                photo_url: data.photo_url || null,
+                school_id: data.school_id,
+                role: data.role || 'user',
+                created_at: data.created_at?.toDate() || null
+            } as UserProfile;
+        });
+        return profiles;
+    } catch (error) {
+        console.error("getAllUserProfiles Error:", error);
+        return [];
+    }
+};
+
+// Souscription temps réel aux profils (admin seulement)
+export const subscribeToUserProfiles = (callback: (profiles: UserProfile[]) => void): (() => void) => {
+    const profilesQuery = query(collection(db, "profiles"), orderBy("created_at", "desc"));
+
+    return onSnapshot(profilesQuery, (snapshot) => {
+        const profiles = snapshot.docs.map(doc => {
+            const data = doc.data();
+            return {
+                uid: doc.id,
+                email: data.email || 'N/A',
+                display_name: data.display_name || null,
+                photo_url: data.photo_url || null,
+                school_id: data.school_id,
+                role: data.role || 'user',
+                created_at: data.created_at?.toDate() || null
+            } as UserProfile;
+        });
+        callback(profiles);
+    }, (error) => {
+        console.error("subscribeToUserProfiles Error:", error);
+    });
+};
+
+// Mettre à jour le rôle d'un utilisateur (admin seulement)
+export const updateUserRole = async (userId: string, newRole: 'admin' | 'user'): Promise<void> => {
+    await updateDoc(doc(db, "profiles", userId), {
+        role: newRole
+    });
 };

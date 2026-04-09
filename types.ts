@@ -75,18 +75,36 @@ export interface AppSettings {
   bulletin: BulletinSettings;
 }
 
-export type View = 'dashboard' | 'students' | 'inscription' | 'settings';
+export type View = 'dashboard' | 'students' | 'inscription' | 'settings' | 'admin';
 
 // Nouveau type pour la session utilisateur
 export interface UserSession {
   user_id: string;
   email: string;
+  display_name: string | null;
+  photo_url: string | null;
   school_id: string;
   school_name: string;
+  role: 'admin' | 'user';
+}
+
+// Type pour les écoles (gestion admin)
+export interface School {
+  id: string;
+  name: string;
+  owner_id: string;
+  owner_email: string;
+  owner_name?: string | null;  // Nom du propriétaire (Google displayName)
+  owner_photo?: string | null; // Photo du propriétaire (Google photoURL)
+  created_at: Date | null;
+  subscription_plan: 'free' | 'monthly' | 'quarterly' | 'annual';
+  subscription_expires_at: Date | null;
+  subscription_status: 'active' | 'expired' | 'free';
 }
 
 export interface SchoolContextType {
   session: UserSession | null;
+  school: School | null;
   students: Student[];
   grades: Grade[];
   cycles: Record<string, Cycle>;
@@ -103,4 +121,6 @@ export interface SchoolContextType {
   updateSubjects: (className: string, subjects: Subject[]) => void;
   resetData: () => void;
   logout: () => void;
+  isAdmin: boolean;
+  refreshSchool: () => Promise<void>;
 }
