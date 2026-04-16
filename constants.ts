@@ -100,7 +100,14 @@ export const INITIAL_SETTINGS: AppSettings = {
       { min: 10, max: 12, text: "Passable" },
       { min: 8, max: 10, text: "Insuffisant" },
       { min: 0, max: 8, text: "Faible" }
-    ]
+    ],
+    republicName: "RÉPUBLIQUE DU CONGO",
+    republicMotto: "Unité - Travail - Progrès",
+    ministryName: "MINISTÈRE DE L'ENSEIGNEMENT PRÉSCOLAIRE, PRIMAIRE, SECONDAIRE ET DE L'ALPHABÉTISATION",
+    departmentalDirection: "DIRECTION DÉPARTEMENTALE DE L'ENSEIGNEMENT PRÉSCOLAIRE, PRIMAIRE, SECONDAIRE ET DE L'ALPHABÉTISATION DE BRAZZAVILLE",
+    inspectionName: "INSPECTION DES COLLÈGES D'ENSEIGNEMENT GÉNÉRAL",
+    schoolLocation: "BRAZZAVILLE II",
+    schoolMotto: "Discipline - Travail - Succès"
   }
 };
 

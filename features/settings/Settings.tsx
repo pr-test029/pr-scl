@@ -212,17 +212,64 @@ export const Settings: React.FC = () => {
                          <span>Afficher la colonne Appréciation</span>
                      </label>
                  </div>
-
+ 
                  <h4 className="font-bold mb-4 text-gray-700 dark:text-gray-200">En-tête personnalisé</h4>
                  <Input 
-                    label="Sous-titre / Description de l'école"
+                    label="Sous-titre / Description de l'école (Affichage classique)"
                     value={localSettings.bulletin.customHeaderText || ''}
                     onChange={e => setLocalSettings({
                         ...localSettings, 
                         bulletin: { ...localSettings.bulletin, customHeaderText: e.target.value }
                     })}
-                    placeholder="Ex: Ministère de l'Éducation Nationale"
+                    placeholder="Ex: Établissement d'Enseignement Général"
                  />
+
+                 <div className="mt-8 p-4 bg-blue-50/50 dark:bg-white/5 rounded-xl border border-blue-100 dark:border-white/10">
+                     <h4 className="font-bold mb-4 text-blue-700 dark:text-blue-300 flex items-center gap-2">
+                         <i className="fas fa-file-invoice"></i> Convention Nationale du Bulletin
+                     </h4>
+                     <div className="space-y-4">
+                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                             <Input 
+                                label="Nom de la République" 
+                                value={localSettings.bulletin.republicName || ''} 
+                                onChange={e => setLocalSettings({...localSettings, bulletin: {...localSettings.bulletin, republicName: e.target.value}})}
+                             />
+                             <Input 
+                                label="Devise Nationale" 
+                                value={localSettings.bulletin.republicMotto || ''} 
+                                onChange={e => setLocalSettings({...localSettings, bulletin: {...localSettings.bulletin, republicMotto: e.target.value}})}
+                             />
+                         </div>
+                         <Input 
+                            label="Ministère de Tutelle" 
+                            value={localSettings.bulletin.ministryName || ''} 
+                            onChange={e => setLocalSettings({...localSettings, bulletin: {...localSettings.bulletin, ministryName: e.target.value}})}
+                         />
+                         <Input 
+                            label="Direction Départementale" 
+                            value={localSettings.bulletin.departmentalDirection || ''} 
+                            onChange={e => setLocalSettings({...localSettings, bulletin: {...localSettings.bulletin, departmentalDirection: e.target.value}})}
+                         />
+                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                             <Input 
+                                label="Inspection (Primaire/Collège/Lycée)" 
+                                value={localSettings.bulletin.inspectionName || ''} 
+                                onChange={e => setLocalSettings({...localSettings, bulletin: {...localSettings.bulletin, inspectionName: e.target.value}})}
+                             />
+                             <Input 
+                                label="Zone / Emplacement (ex: Brazzaville II)" 
+                                value={localSettings.bulletin.schoolLocation || ''} 
+                                onChange={e => setLocalSettings({...localSettings, bulletin: {...localSettings.bulletin, schoolLocation: e.target.value}})}
+                             />
+                         </div>
+                         <Input 
+                            label="Devise de l'École" 
+                            value={localSettings.bulletin.schoolMotto || ''} 
+                            onChange={e => setLocalSettings({...localSettings, bulletin: {...localSettings.bulletin, schoolMotto: e.target.value}})}
+                         />
+                     </div>
+                 </div>
              </div>
 
              {/* Right Column: Appreciation Rules */}

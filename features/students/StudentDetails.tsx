@@ -491,28 +491,59 @@ export const StudentDetails: React.FC<StudentDetailsProps> = ({ student, onBack 
                     <h1 className="text-9xl font-bold transform -rotate-45 whitespace-nowrap">{settings.appName}</h1>
                 </div>
 
-                {/* Header */}
-                <div className="flex justify-between items-start border-b-2 border-black pb-6 mb-6 relative z-10">
-                    <div className="flex items-start gap-5">
-                        {settings.logo && <img src={settings.logo} className="h-24 w-24 object-contain" alt="Logo"/>}
-                        <div>
-                            <h1 className="text-3xl font-bold uppercase tracking-wide text-gray-900">{settings.appName}</h1>
-                            {settings.bulletin?.customHeaderText && <p className="text-base font-semibold italic text-gray-700 mt-1">{settings.bulletin.customHeaderText}</p>}
-                            <div className="mt-3 text-sm space-y-0.5 text-gray-600">
-                                <p>Année Académique : <strong>{new Date().getFullYear()}-{new Date().getFullYear()+1}</strong></p>
-                                <p>Période : <strong>{isUniversity ? `Semestre ${activeTrimestre.replace('S','')}` : `${activeTrimestre}${activeTrimestre === '1' ? 'er' : 'ème'} Trimestre`}</strong></p>
-                            </div>
+                {/* Header Section (National Convention Revision) */}
+                <div className="flex justify-between items-start border-b-2 border-black pb-8 mb-6 relative z-10 text-[11px] leading-tight">
+                    {/* Left Column (Ministry & School) */}
+                    <div className="w-[50%] flex flex-col items-center text-center space-y-1">
+                        <div className="font-bold uppercase">
+                            {settings.bulletin.ministryName || "MINISTÈRE DE L'ENSEIGNEMENT PRÉSCOLAIRE, PRIMAIRE, SECONDAIRE ET DE L'ALPHABÉTISATION"}
+                        </div>
+                        <div className="w-10 h-px bg-gray-400 my-1"></div>
+                        <div className="font-semibold uppercase">
+                            {settings.bulletin.departmentalDirection || "DIRECTION DÉPARTEMENTALE DE L'ENSEIGNEMENT PRÉSCOLAIRE, PRIMAIRE, SECONDAIRE ET DE L'ALPHABÉTISATION DE BRAZZAVILLE"}
+                        </div>
+                        <div className="w-10 h-px bg-gray-400 my-1"></div>
+                        <div className="font-semibold uppercase">
+                            {settings.bulletin.inspectionName} {settings.bulletin.schoolLocation}
+                        </div>
+                        
+                        <div className="h-4"></div> {/* Spacing */}
+                        
+                        {settings.logo && <img src={settings.logo} className="h-20 w-20 object-contain mb-1" alt="Logo"/>}
+                        <h1 className="text-2xl font-black uppercase tracking-wider text-gray-900 leading-none">
+                            {settings.appName}
+                        </h1>
+                        <div className="text-[10px] font-bold italic border-t border-gray-200 pt-1 mt-1">
+                            {settings.bulletin.schoolMotto || "Discipline - Travail - Succès"}
                         </div>
                     </div>
-                    <div className="flex flex-col items-center">
-                        <div id="qrcode-target" className="w-[90px] h-[90px] bg-white border border-gray-200 p-1 mb-1 flex items-center justify-center">
-                            {qrCodeDataUrl ? (
-                                <img src={qrCodeDataUrl} alt="QR Code" className="w-full h-full object-contain" />
-                            ) : (
-                                <span className="text-[10px] text-gray-400">Génération...</span>
-                            )}
+
+                    {/* Right Column (Republic & QR) */}
+                    <div className="w-[45%] flex flex-col items-center text-center">
+                        <div className="font-black text-sm uppercase tracking-tighter">
+                            {settings.bulletin.republicName || "RÉPUBLIQUE DU CONGO"}
                         </div>
-                        <span className="text-[9px] font-bold uppercase tracking-widest text-gray-500">Scan Vérification</span>
+                        <div className="italic font-semibold text-[10px] mt-1">
+                            {settings.bulletin.republicMotto || "Unité - Travail - Progrès"}
+                        </div>
+                        <div className="w-24 h-px bg-black my-4"></div>
+                        
+                        {/* Period & QR Area */}
+                        <div className="flex flex-col items-center mt-2">
+                            <div id="qrcode-target" className="w-[85px] h-[85px] bg-white border border-gray-300 p-1 mb-1 flex items-center justify-center">
+                                {qrCodeDataUrl ? (
+                                    <img src={qrCodeDataUrl} alt="QR Code" className="w-full h-full object-contain" />
+                                ) : (
+                                    <span className="text-[10px] text-gray-400">Génération...</span>
+                                )}
+                            </div>
+                            <span className="text-[8px] font-black uppercase tracking-widest text-gray-500">Vérification Officielle</span>
+                            
+                            <div className="mt-4 space-y-1 text-right w-full text-[10px]">
+                                <p>Année Académique : <span className="font-bold">{new Date().getFullYear()}-{new Date().getFullYear()+1}</span></p>
+                                <p>Période : <span className="font-bold uppercase">{isUniversity ? `Semestre ${activeTrimestre.replace('S','')}` : `${activeTrimestre}${activeTrimestre === '1' ? 'er' : 'ème'} Trimestre`}</span></p>
+                            </div>
+                        </div>
                     </div>
                 </div>
 

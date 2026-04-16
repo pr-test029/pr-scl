@@ -65,6 +65,15 @@ export interface BulletinSettings {
   showAppreciation: boolean;
   customHeaderText?: string; // Texte supplémentaire sous le nom de l'école
   appreciationRules: AppreciationRule[];
+  
+  // Convention Nationale (Congo-Brazzaville)
+  republicName?: string;
+  republicMotto?: string;
+  ministryName?: string;
+  departmentalDirection?: string;
+  inspectionName?: string;
+  schoolLocation?: string;
+  schoolMotto?: string;
 }
 
 export interface AppSettings {
