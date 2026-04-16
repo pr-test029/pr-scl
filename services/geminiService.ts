@@ -1,4 +1,4 @@
-import { GoogleGenAI } from "@google/genai";
+import { GoogleGenerativeAI } from "@google/generative-ai";
 
 export const sendMessageToGemini = async (
   message: string,
@@ -6,41 +6,49 @@ export const sendMessageToGemini = async (
   history: { role: 'user' | 'model'; parts: { text: string }[] }[]
 ): Promise<string> => {
   try {
-    // The API key must be obtained exclusively from the environment variable process.env.API_KEY.
-    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+    const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
     
-    // For the specific prompt "gemini-3-pro-preview"
-    const model = "gemini-3-pro-preview"; 
+    if (!apiKey || apiKey === 'PLACEHOLDER_API_KEY') {
+      return "L'IA n'est pas encore configurée. Veuillez ajouter votre clé VITE_GEMINI_API_KEY dans le fichier .env.local.";
+    }
 
-    const chat = ai.chats.create({
-      model: model,
-      history: history,
-      config: {
-        systemInstruction: `Tu es un assistant intelligent pour l'application PR-SCL (Système de Gestion Scolaire). 
+    const genAI = new GoogleGenerativeAI(apiKey);
+    
+    // Utilisation de gemini-1.5-flash pour sa rapidité et son efficacité
+    const model = genAI.getGenerativeModel({ 
+      model: "gemini-1.5-flash",
+      systemInstruction: `Tu es un assistant intelligent pour l'application PR-SCL (Système de Gestion Scolaire). 
         
-        INFORMATIONS IMPORTANTES SUR LE CRÉATEUR (À CITER SI DEMANDÉ) :
-        - L'application a été conçue et créée par le Groupe "POWERFUL REACH".
-        - Le Concepteur, Chef d'entreprise et Fondateur du Groupe est Monsieur Paul Roger GOSSAKI NDAMBA.
-        - Contacts WhatsApp : +242 06 769 61 57 ou +242 05 013 32 71.
+        INFORMATIONS SUR LE CRÉATEUR :
+        - Créé par le Groupe "POWERFUL REACH".
+        - Fondateur : Monsieur Paul Roger GOSSAKI NDAMBA.
+        - Contact WhatsApp : +242 06 769 61 57 / +242 05 013 32 71.
         - Emails : powerfulreach029@gmail.com / paulndamba2@gmail.com.
 
-        RÈGLES IMPORTANTES :
-        1. Tes réponses doivent être COURTES et PRÉCISES. Évite les longs paragraphes.
-        2. Utilise le formatage Markdown pour rendre le texte lisible :
-           - Utilise le **gras** pour les éléments importants.
-           - Utilise des listes à puces pour énumérer des éléments.
-        3. Ton rôle est d'aider à la gestion de l'école (élèves, notes, cycles) et de fournir les infos de support/créateur si nécessaire.
-        4. Si on te demande de modifier des données, explique la procédure dans l'interface (tu ne peux pas agir directement sur la BDD).
+        RÈGLES DE RÉPONSE :
+        1. Sois COURT, PRÉCIS et PROFESSIONNEL.
+        2. Utilise le Markdown (**gras**, listes à puces).
+        3. Aide l'utilisateur avec ses données d'école (élèves, notes, cycles).
+        4. Ne donne jamais de conseils médicaux ou juridiques.
+        5. Pour toute action complexe (suppression, modification), explique comment faire dans l'interface de l'application.
         
-        Voici le contexte actuel de l'école :
-        ${context}`,
-      }
+        CONTEXTE ACTUEL DE L'ÉCOLE :
+        ${context}`
     });
 
-    const result = await chat.sendMessage({ message });
-    return result.text || "Désolé, je n'ai pas pu générer de réponse.";
-  } catch (error) {
+    // Formatting history for Google SDK
+    const chat = model.startChat({
+      history: history.length > 0 ? history : [],
+    });
+
+    const result = await chat.sendMessage(message);
+    const response = await result.response;
+    return response.text() || "Désolé, je n'ai pas pu générer de réponse.";
+  } catch (error: any) {
     console.error("Gemini Error:", error);
-    return "Une erreur s'est produite lors de la communication avec l'IA.";
+    if (error.message?.includes("API key not valid")) {
+      return "Clé API invalide. Veuillez vérifier votre clé dans le fichier .env.local.";
+    }
+    return "Une erreur s'est produite lors de la communication avec l'IA. Vérifiez votre connexion et votre configuration.";
   }
 };

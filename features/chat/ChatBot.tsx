@@ -29,15 +29,34 @@ export const ChatBot: React.FC = () => {
   const getContext = () => {
     const studentCount = students.length;
     const gradeCount = grades.length;
-    const cycleNames = Object.values(cycles).map((c: Cycle) => c.name).join(', ');
+    const cycleList = Object.values(cycles);
+    const cycleNames = cycleList.map((c: Cycle) => c.name).join(', ');
     
+    // Group students by class for better context
+    const studentsByClass = students.reduce((acc: Record<string, number>, s) => {
+        acc[s.classe] = (acc[s.classe] || 0) + 1;
+        return acc;
+    }, {});
+
+    const classDistribution = Object.entries(studentsByClass)
+        .map(([cls, count]) => `- ${cls}: ${count} élèves`)
+        .join('\n');
+
     return `
-      Nom de l'école: ${settings.appName}
-      Nombre d'élèves: ${studentCount}
-      Nombre de notes: ${gradeCount}
-      Cycles actifs: ${cycleNames}
+      Date d'aujourd'hui : ${new Date().toLocaleDateString('fr-FR')}
+      Nom de l'établissement: ${settings.appName}
+      Description: ${settings.bulletin.customHeaderText}
       
-      Dernier élève inscrit: ${students[students.length - 1]?.nom || 'Aucun'}
+      STATISTIQUES GÉNÉRALES :
+      - Nombre total d'élèves: ${studentCount}
+      - Nombre total de notes enregistrées: ${gradeCount}
+      - Cycles d'enseignement: ${cycleNames}
+      
+      RÉPARTITION PAR CLASSE :
+      ${classDistribution || 'Aucun élève inscrit pour le moment.'}
+      
+      DERNIÈRES ACTIVITÉS :
+      - Dernier élève inscrit: ${students[students.length - 1] ? `${students[students.length - 1].nom} ${students[students.length - 1].prenom}` : 'Aucun'}
     `;
   };
 
