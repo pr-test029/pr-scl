@@ -232,24 +232,34 @@ export const addStudentDB = async (student: Student) => {
         console.warn("addStudentDB: No schoolId found");
         return;
     }
+    const docId = `${schoolId}_${student.id}`;
+    const dataToSave = {
+        ...student,
+        school_id: schoolId,
+        id: student.id
+    };
+
     try {
-        // Namespace l'ID du document pour éviter les collisions entre écoles
-        const docId = `${schoolId}_${student.id}`;
-        const dataToSave = {
-            ...student,
-            school_id: schoolId,
-            id: student.id
-        };
-
-        // Log de taille si photo présente
-        if (student.photo && student.photo.length > 500000) {
-            console.warn("Large photo detected:", student.photo.length, "chars");
-        }
-
         await setDoc(doc(db, "students", docId), cleanData(dataToSave));
-    } catch (error) {
-        console.error("addStudentDB Error:", error);
-        throw error;
+    } catch (error: any) {
+        // Si l'erreur est liée à la taille du document (limite Firestore de 1Mo)
+        if (error.code === 'invalid-argument' || error.message?.includes('too large') || error.code === 'resource-exhausted') {
+            console.warn("Données d'élève trop volumineuses (probablement la photo), tentative d'enregistrement sans la photo...");
+            
+            const fallbackData = { ...dataToSave };
+            delete fallbackData.photo;
+            
+            try {
+                await setDoc(doc(db, "students", docId), cleanData(fallbackData));
+                alert("Attention : La photo était trop volumineuse et n'a pas été enregistrée. L'élève a tout de même été enregistré sans sa photo.");
+            } catch (fallbackError) {
+                console.error("Échec de l'enregistrement même sans photo:", fallbackError);
+                throw fallbackError;
+            }
+        } else {
+            console.error("addStudentDB Error:", error);
+            throw error;
+        }
     }
 };
 
@@ -257,7 +267,23 @@ export const updateStudentDB = async (student: Student) => {
     const schoolId = await ensureSchoolId();
     if (!schoolId) return;
     const docId = `${schoolId}_${student.id}`;
-    await updateDoc(doc(db, "students", docId), cleanData(student));
+    try {
+        await updateDoc(doc(db, "students", docId), cleanData(student));
+    } catch (error: any) {
+        if (error.code === 'invalid-argument' || error.message?.includes('too large') || error.code === 'resource-exhausted') {
+            console.warn("Mise à jour trop volumineuse, tentative sans la photo...");
+            const fallbackData = { ...student };
+            delete fallbackData.photo;
+            try {
+                await updateDoc(doc(db, "students", docId), cleanData(fallbackData));
+                alert("Attention : La nouvelle photo était trop volumineuse. Les autres informations ont été mises à jour, mais la photo n'a pas été modifiée.");
+            } catch (fallbackError) {
+                throw fallbackError;
+            }
+        } else {
+            throw error;
+        }
+    }
 };
 
 export const deleteStudentDB = async (id: string) => {
