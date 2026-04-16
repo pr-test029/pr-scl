@@ -18,7 +18,51 @@ export const ChatBot: React.FC = () => {
     { id: 'welcome', role: 'model', text: 'Bonjour ! Je suis l\'assistant PR-SCL. Comment puis-je vous aider ?' }
   ]);
   const [isLoading, setIsLoading] = useState(false);
+  const [isListening, setIsListening] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  // Reconnaissance vocale (Web Speech API)
+  const recognitionRef = useRef<any>(null);
+
+  useEffect(() => {
+    const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+    if (SpeechRecognition) {
+      recognitionRef.current = new SpeechRecognition();
+      recognitionRef.current.lang = 'fr-FR';
+      recognitionRef.current.continuous = false;
+      recognitionRef.current.interimResults = false;
+
+      recognitionRef.current.onresult = (event: any) => {
+        const transcript = event.results[0][0].transcript;
+        setInput(transcript);
+        setIsListening(false);
+        // On pourrait envoyer automatiquement ici si on voulait
+      };
+
+      recognitionRef.current.onerror = (event: any) => {
+        console.error('Speech recognition error:', event.error);
+        setIsListening(false);
+      };
+
+      recognitionRef.current.onend = () => {
+        setIsListening(false);
+      };
+    }
+  }, []);
+
+  const toggleListening = () => {
+    if (!recognitionRef.current) {
+      alert("Votre navigateur ne supporte pas la reconnaissance vocale.");
+      return;
+    }
+
+    if (isListening) {
+      recognitionRef.current.stop();
+    } else {
+      setIsListening(true);
+      recognitionRef.current.start();
+    }
+  };
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -71,12 +115,18 @@ export const ChatBot: React.FC = () => {
 
     const context = getContext();
     
-    const history = messages.map(m => ({
+    // CORRECTION: L'historique doit commencer par 'user' pour le SDK Gemini
+    // On ignore les messages 'model' s'ils sont au tout début de l'historique
+    const rawHistory = messages.map(m => ({
         role: m.role,
         parts: [{ text: m.text }]
     }));
 
-    const responseText = await sendMessageToGemini(userMessage.text, context, history);
+    // On cherche l'index du premier message 'user'
+    const firstUserIndex = rawHistory.findIndex(h => h.role === 'user');
+    const filteredHistory = firstUserIndex !== -1 ? rawHistory.slice(firstUserIndex) : [];
+
+    const responseText = await sendMessageToGemini(userMessage.text, context, filteredHistory);
     
     setMessages(prev => [...prev, { id: (Date.now() + 1).toString(), role: 'model', text: responseText }]);
     setIsLoading(false);
@@ -162,22 +212,40 @@ export const ChatBot: React.FC = () => {
           </div>
 
           {/* Input */}
-          <form onSubmit={handleSend} className="p-3 bg-white dark:bg-transparent border-t dark:border-white/10 flex gap-2">
-            <input
-              type="text"
-              value={input}
-              onChange={e => setInput(e.target.value)}
-              placeholder="Posez une question..."
-              className="flex-1 bg-gray-100 dark:bg-slate-800/50 dark:text-white border-0 rounded-full px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary-color)] dark:placeholder-gray-400 transition-colors"
-              disabled={isLoading}
-            />
-            <button
-              type="submit"
-              disabled={isLoading || !input.trim()}
-              className="bg-[var(--primary-color)] text-white w-9 h-9 rounded-full flex items-center justify-center hover:opacity-90 disabled:opacity-50 shadow-md transition-all neon-button"
-            >
-              <i className="fas fa-paper-plane text-xs"></i>
-            </button>
+          <form onSubmit={handleSend} className="p-3 bg-white dark:bg-transparent border-t dark:border-white/10 flex flex-col gap-2">
+            <div className="flex gap-2 items-center">
+                <input
+                  type="text"
+                  value={input}
+                  onChange={e => setInput(e.target.value)}
+                  placeholder={isListening ? "Écoute en cours..." : "Posez une question..."}
+                  className={`flex-1 bg-gray-100 dark:bg-slate-800/50 dark:text-white border-0 rounded-full px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary-color)] dark:placeholder-gray-400 transition-all ${isListening ? 'ring-2 ring-red-500 bg-red-50 dark:bg-red-900/10' : ''}`}
+                  disabled={isLoading}
+                />
+                
+                {/* Microphone Button */}
+                <button
+                  type="button"
+                  onClick={toggleListening}
+                  className={`w-9 h-9 rounded-full flex items-center justify-center transition-all ${isListening ? 'bg-red-500 text-white animate-pulse' : 'bg-gray-100 dark:bg-slate-800 text-gray-500 hover:bg-gray-200 dark:hover:bg-slate-700'}`}
+                  title={isListening ? "Arrêter l'écoute" : "Parler"}
+                >
+                  <i className={`fas ${isListening ? 'fa-microphone' : 'fa-microphone-alt'}`}></i>
+                </button>
+
+                <button
+                  type="submit"
+                  disabled={isLoading || !input.trim()}
+                  className="bg-[var(--primary-color)] text-white w-9 h-9 rounded-full flex items-center justify-center hover:opacity-90 disabled:opacity-50 shadow-md transition-all neon-button"
+                >
+                  <i className="fas fa-paper-plane text-xs"></i>
+                </button>
+            </div>
+            {isListening && (
+                <div className="text-[10px] text-red-500 text-center animate-pulse font-medium">
+                    Je vous écoute...
+                </div>
+            )}
           </form>
         </div>
       )}
