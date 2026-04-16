@@ -14,9 +14,9 @@ export const sendMessageToGemini = async (
 
     const genAI = new GoogleGenerativeAI(apiKey);
     
-    // Utilisation de gemini-1.5-flash pour sa rapidité et son efficacité
+    // Utilisation du modèle gemini-3.1-flash-lite-preview comme demandé
     const model = genAI.getGenerativeModel({ 
-      model: "gemini-1.5-flash",
+      model: "gemini-3.1-flash-lite-preview",
       systemInstruction: `Tu es un assistant intelligent pour l'application PR-SCL (Système de Gestion Scolaire). 
         
         INFORMATIONS SUR LE CRÉATEUR :
