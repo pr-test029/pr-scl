@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { School } from '../../types';
-import { auth } from '../../services/firebase';
+import { auth, signOut } from '../../services/firebase';
 import { onAuthStateChanged } from 'firebase/auth';
 
 interface SubscriptionGuardProps {
@@ -112,7 +112,7 @@ export const SubscriptionGuard: React.FC<SubscriptionGuardProps> = ({ school, ch
     }
 
     if (showPaywall) {
-        return <PaywallModal />;
+        return <PaywallModal email={currentUserEmail} />;
     }
 
     const isAdminUser = isUserAdmin(currentUserEmail);
@@ -132,7 +132,20 @@ export const SubscriptionGuard: React.FC<SubscriptionGuardProps> = ({ school, ch
     );
 };
 
-const PaywallModal: React.FC = () => {
+interface PaywallModalProps {
+    email: string | null;
+}
+
+const PaywallModal: React.FC<PaywallModalProps> = ({ email }) => {
+    const handleSwitchAccount = async () => {
+        try {
+            await signOut();
+            window.location.reload();
+        } catch (error) {
+            console.error("Error signing out:", error);
+        }
+    };
+
     return (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-gradient-to-br from-gray-100 to-gray-200 dark:from-slate-950 dark:to-slate-900 p-4">
             {/* Motif décoratif */}
@@ -161,9 +174,14 @@ const PaywallModal: React.FC = () => {
                     {/* Contenu */}
                     <div className="p-6 text-center">
                         <div className="mb-6">
-                            <p className="text-gray-600 dark:text-gray-300 mb-4 text-lg">
+                            <p className="text-gray-600 dark:text-gray-300 mb-2 text-lg">
                                 Votre abonnement est <span className="font-semibold text-rose-500">expiré</span> ou <span className="font-semibold text-rose-500">inexistant</span>.
                             </p>
+                            {email && (
+                                <p className="text-sm text-gray-400 dark:text-gray-500 mb-4">
+                                    Connecté en tant que : <span className="italic font-medium">{email}</span>
+                                </p>
+                            )}
 
                             <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-500/30 rounded-xl p-4 mb-6">
                                 <div className="flex items-start gap-3">
@@ -175,22 +193,34 @@ const PaywallModal: React.FC = () => {
                             </div>
                         </div>
 
-                        {/* Bouton WhatsApp stylisé */}
-                        <a
-                            href="https://wa.me/242050133271"
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="group inline-flex items-center justify-center gap-3 w-full bg-gradient-to-r from-green-500 via-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 text-white font-semibold py-4 px-6 rounded-xl transition-all duration-300 shadow-lg shadow-green-500/30 hover:shadow-green-500/50 transform hover:-translate-y-0.5"
-                        >
-                            <div className="w-10 h-10 bg-white/20 rounded-full flex items-center justify-center group-hover:scale-110 transition-transform">
-                                <i className="fab fa-whatsapp text-2xl"></i>
-                            </div>
-                            <div className="text-left">
-                                <span className="block text-sm opacity-90">Contacter via</span>
-                                <span className="font-bold">WhatsApp</span>
-                            </div>
-                            <i className="fas fa-external-link-alt ml-auto opacity-70 group-hover:translate-x-1 transition-transform"></i>
-                        </a>
+                        {/* Actions */}
+                        <div className="flex flex-col gap-3">
+                            {/* Bouton WhatsApp stylisé */}
+                            <a
+                                href="https://wa.me/242050133271"
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="group inline-flex items-center justify-center gap-3 w-full bg-gradient-to-r from-green-500 via-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 text-white font-semibold py-4 px-6 rounded-xl transition-all duration-300 shadow-lg shadow-green-500/30 hover:shadow-green-500/50 transform hover:-translate-y-0.5"
+                            >
+                                <div className="w-10 h-10 bg-white/20 rounded-full flex items-center justify-center group-hover:scale-110 transition-transform">
+                                    <i className="fab fa-whatsapp text-2xl"></i>
+                                </div>
+                                <div className="text-left">
+                                    <span className="block text-sm opacity-90">Contacter via</span>
+                                    <span className="font-bold">WhatsApp</span>
+                                </div>
+                                <i className="fas fa-external-link-alt ml-auto opacity-70 group-hover:translate-x-1 transition-transform"></i>
+                            </a>
+
+                            {/* Bouton Retour / Changer de compte */}
+                            <button
+                                onClick={handleSwitchAccount}
+                                className="inline-flex items-center justify-center gap-2 w-full bg-gray-100 hover:bg-gray-200 dark:bg-slate-700 dark:hover:bg-slate-600 text-gray-700 dark:text-gray-200 font-medium py-3 px-6 rounded-xl transition-all duration-200 border border-gray-200 dark:border-slate-600"
+                            >
+                                <i className="fas fa-sign-out-alt"></i>
+                                <span>Changer de compte</span>
+                            </button>
+                        </div>
 
                         {/* Info contact */}
                         <div className="mt-6 pt-6 border-t border-gray-100 dark:border-slate-700">
