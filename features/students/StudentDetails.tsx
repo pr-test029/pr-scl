@@ -283,8 +283,19 @@ export const StudentDetails: React.FC<StudentDetailsProps> = ({ student, onBack 
                 try {
                     const qr = qrcode(0, 'M'); 
                     
-                    const verificationUrl = `${window.location.origin}/?view=verify&v=${student.id}&s=${session?.school_id}`;
-                    qr.addData(verificationUrl);
+                    const secureData = {
+                        ecole: settings.appName,
+                        eleve: `${student.nom} ${student.prenom}`,
+                        id: student.id,
+                        classe: subjectKey,
+                        periode: activeTrimestre,
+                        moy_periode: activeStats.average?.toFixed(2) || 'N/A',
+                        rang: `${currentRank.rank}/${currentRank.total}`,
+                        moy_ann: (isUniversity && activeTrimestre === 'S2') || (!isUniversity && activeTrimestre === '3') ? (annualStats.annualAverage?.toFixed(2) || 'N/A') : 'N/A',
+                        date: new Date().toLocaleDateString('fr-FR')
+                    };
+                    
+                    qr.addData(JSON.stringify(secureData));
                     qr.make();
                     
                     const imgTagString = qr.createImgTag(4); 

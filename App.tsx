@@ -19,7 +19,6 @@ import { ChatBot } from './features/chat/ChatBot';
 import { LoginScreen } from './features/auth/LoginScreen';
 import { AdminPanel } from './features/admin/AdminPanel';
 import { SubscriptionGuard } from './features/subscription/SubscriptionGuard';
-import { PublicVerification } from './features/verify/PublicVerification';
 import { Button } from './components/ui/Common';
 
 // Context creation
@@ -47,21 +46,9 @@ const App: React.FC = () => {
 
   const [currentView, setCurrentView] = useState<View>('dashboard');
 
-  // Check auth and URL params on load
+  // Check auth on load
   useEffect(() => {
     const checkSession = async () => {
-      // Logic for public verification
-      const urlParams = new URLSearchParams(window.location.search);
-      const isVerifyMode = urlParams.get('view') === 'verify';
-      const vId = urlParams.get('v');
-      const sId = urlParams.get('s');
-
-      if (isVerifyMode && vId && sId) {
-          setCurrentView('verify' as any);
-          setLoading(false);
-          return;
-      }
-
       const userSession = await api.fetchUserSession();
       if (userSession) {
         setSession(userSession);
@@ -288,12 +275,6 @@ const App: React.FC = () => {
     '--primary-color': activeThemeColors.primary,
     '--primary-hover': activeThemeColors.hover,
   } as React.CSSProperties;
-
-  // Public Verification View (NO AUTH REQUIRED)
-  if (currentView === 'verify' as any) {
-      const urlParams = new URLSearchParams(window.location.search);
-      return <PublicVerification studentId={urlParams.get('v') || ''} schoolId={urlParams.get('s') || ''} />;
-  }
 
   // Render Login Screen if not connected
   if (!session && !loading) {
