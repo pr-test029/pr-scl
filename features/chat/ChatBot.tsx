@@ -124,18 +124,12 @@ export const ChatBot: React.FC = () => {
     const firstUserIndex = rawHistory.findIndex(h => h.role === 'user');
     const filteredHistory = firstUserIndex !== -1 ? rawHistory.slice(firstUserIndex) : [];
 
-    console.log("[ChatBot] Tentative d'envoi à Gemini...", { 
-        text: userMessage.text, 
-        historyLength: filteredHistory.length 
-    });
-
     try {
         const responseText = await sendMessageToGemini(userMessage.text, context, filteredHistory);
-        console.log("[ChatBot] Réponse reçue de Gemini :", responseText);
         setMessages(prev => [...prev, { id: (Date.now() + 1).toString(), role: 'model', text: responseText }]);
     } catch (err) {
-        console.error("[ChatBot] Erreur fatale lors de l'appel :", err);
-        setMessages(prev => [...prev, { id: Date.now().toString(), role: 'model', text: "Une erreur critique est survenue. Vérifiez la console." }]);
+        console.error("Chat Error:", err);
+        setMessages(prev => [...prev, { id: Date.now().toString(), role: 'model', text: "Désolé, une erreur est survenue." }]);
     } finally {
         setIsLoading(false);
     }
