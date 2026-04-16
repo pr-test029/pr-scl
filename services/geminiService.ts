@@ -7,16 +7,21 @@ export const sendMessageToGemini = async (
 ): Promise<string> => {
   try {
     const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
+    console.log("[GeminiService] Vérification de la clé API...");
     
     if (!apiKey || apiKey === 'PLACEHOLDER_API_KEY') {
+      console.warn("[GeminiService] Clé API manquante ou placeholder.");
       return "L'IA n'est pas encore configurée. Veuillez ajouter votre clé VITE_GEMINI_API_KEY dans le fichier .env.local.";
     }
 
     const genAI = new GoogleGenerativeAI(apiKey);
     
     // Utilisation du modèle gemini-3.1-flash-lite-preview comme demandé
+    const modelId = "gemini-3.1-flash-lite-preview";
+    console.log(`[GeminiService] Utilisation du modèle: ${modelId}`);
+
     const model = genAI.getGenerativeModel({ 
-      model: "gemini-3.1-flash-lite-preview",
+      model: modelId,
       systemInstruction: `Tu es un assistant intelligent pour l'application PR-SCL (Système de Gestion Scolaire). 
         
         INFORMATIONS SUR LE CRÉATEUR :
@@ -36,19 +41,22 @@ export const sendMessageToGemini = async (
         ${context}`
     });
 
-    // Formatting history for Google SDK
+    console.log("[GeminiService] Démarrage du chat avec l'historique...");
     const chat = model.startChat({
       history: history.length > 0 ? history : [],
     });
 
+    console.log("[GeminiService] Envoi du message au modèle...");
     const result = await chat.sendMessage(message);
     const response = await result.response;
-    return response.text() || "Désolé, je n'ai pas pu générer de réponse.";
+    const text = response.text();
+    console.log("[GeminiService] Réponse texte générée avec succès.");
+    return text || "Désolé, je n'ai pas pu générer de réponse.";
   } catch (error: any) {
-    console.error("Gemini Error:", error);
+    console.error("[GeminiService] Erreur attrapée :", error);
     if (error.message?.includes("API key not valid")) {
       return "Clé API invalide. Veuillez vérifier votre clé dans le fichier .env.local.";
     }
-    return "Une erreur s'est produite lors de la communication avec l'IA. Vérifiez votre connexion et votre configuration.";
+    return `Erreur Gemini : ${error.message || "Une erreur inconnue s'est produite"}`;
   }
 };
