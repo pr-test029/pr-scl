@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { Student, Grade } from '../../types';
 import { Card, Button, Modal, Input, Select } from '../../components/ui/Common';
 import { useSchool } from '../../App';
@@ -8,732 +8,455 @@ declare const qrcode: any; // Correct global variable for qrcode-generator
 declare const html2pdf: any;
 
 interface StudentDetailsProps {
-  student: Student;
-  onBack: () => void;
+    student: Student;
+    onBack: () => void;
 }
 
 export const StudentDetails: React.FC<StudentDetailsProps> = ({ student, onBack }) => {
-  const { students, grades, subjects, addGrade, deleteGrade, settings } = useSchool();
-  
-  // Détection du cycle universitaire
-  const isUniversity = student.cycle === 'universite';
-  const periods = isUniversity ? ['S1', 'S2'] : ['1', '2', '3'];
-  const defaultPeriod = isUniversity ? 'S1' : '1';
+    const { session, students, grades, subjects, addGrade, deleteGrade, settings } = useSchool();
 
-  const [activeTrimestre, setActiveTrimestre] = useState<string>(defaultPeriod);
-  const [isGradeModalOpen, setIsGradeModalOpen] = useState(false);
-  const [isBulletinModalOpen, setIsBulletinModalOpen] = useState(false);
-  const [qrCodeDataUrl, setQrCodeDataUrl] = useState<string>('');
-  
-  // Grade Form State
-  const [gradeForm, setGradeForm] = useState<Partial<Grade>>({
-    trimestre: defaultPeriod,
-    type: isUniversity ? 'dst' : 'devoir',
-    coefficient: 1,
-    valeur: 0,
-    matiere: ''
-  });
+    // Détection du cycle universitaire
+    const isUniversity = student.cycle === 'universite';
+    const periods = isUniversity ? ['S1', 'S2'] : ['1', '2', '3'];
+    const defaultPeriod = isUniversity ? 'S1' : '1';
 
-  // Récupération dynamique des matières pour la classe de l'élève
-  const subjectKey = student.serie ? `${student.classe} ${student.serie}` : student.classe;
-  const classSubjects = subjects[subjectKey] || [];
+    const [activeTrimestre, setActiveTrimestre] = useState<string>(defaultPeriod);
+    const [isGradeModalOpen, setIsGradeModalOpen] = useState(false);
+    const [isBulletinModalOpen, setIsBulletinModalOpen] = useState(false);
+    const [qrCodeDataUrl, setQrCodeDataUrl] = useState<string>('');
 
-  // Récupérer toutes les notes de l'élève une seule fois
-  const allStudentGrades = grades.filter(g => g.studentId === student.id);
-  const currentTrimesterGrades = allStudentGrades.filter(g => g.trimestre === activeTrimestre);
+    // Grade Form State
+    const [gradeForm, setGradeForm] = useState<Partial<Grade>>({
+        trimestre: defaultPeriod,
+        type: isUniversity ? 'dst' : 'devoir',
+        coefficient: 1,
+        valeur: 0,
+        matiere: ''
+    });
 
-  const handleGradeSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (gradeForm.valeur === undefined || !gradeForm.matiere) return;
+    // Récupération dynamique des matières pour la classe de l'élève
+    const subjectKey = student.serie ? `${student.classe} ${student.serie}` : student.classe;
+    const allClassSubjects = subjects[subjectKey] || [];
 
-    const subject = classSubjects.find(s => s.nom === gradeForm.matiere);
-    const finalCoeff = subject ? subject.coefficient : (gradeForm.coefficient || 1);
+    // Calculs complexes pour le bulletin
+    const bulletinData = useMemo(() => {
+        const classStudents = students.filter(s => s.classe === student.classe);
+        
+        const getPeriodAverage = (targetTrimestre: string) => {
+            const studentGrades = grades.filter(g => g.studentId === student.id && g.trimestre === targetTrimestre);
+            if (studentGrades.length === 0) return null;
+            const subData: Record<string, { total: number, count: number, coeff: number, compoNote: number | null }> = {};
+            studentGrades.forEach(g => {
+                if (!subData[g.matiere]) {
+                    const subInfo = (subjects[student.serie ? `${student.classe} ${student.serie}` : student.classe] || []).find(sub => sub.nom === g.matiere);
+                    subData[g.matiere] = { total: 0, count: 0, coeff: subInfo?.coefficient || g.coefficient || 1, compoNote: null };
+                }
+                if (g.type === 'composition' || g.type === 'session') subData[g.matiere].compoNote = g.valeur;
+                else { subData[g.matiere].total += g.valeur; subData[g.matiere].count += 1; }
+            });
+            const points = Object.values(subData).reduce((acc, d) => {
+                const moyDev = d.count > 0 ? d.total / d.count : (d.compoNote || 0);
+                const final = d.compoNote !== null ? (moyDev + d.compoNote) / 2 : moyDev;
+                return acc + (final * d.coeff);
+            }, 0);
+            const coeffs = Object.values(subData).reduce((acc, d) => acc + d.coeff, 0);
+            return coeffs > 0 ? points / coeffs : 0;
+        };
 
-    const newGrade: Grade = {
-      id: Date.now().toString(),
-      studentId: student.id,
-      trimestre: activeTrimestre,
-      type: gradeForm.type as any,
-      matiere: gradeForm.matiere,
-      valeur: parseFloat(gradeForm.valeur.toString()),
-      coefficient: finalCoeff,
-      date: new Date().toISOString().split('T')[0]
+        const t1Avg = getPeriodAverage('1');
+        const t2Avg = getPeriodAverage('2');
+
+        const classSubjectStats: Record<string, { totalPoints: number, count: number }> = {};
+        const studentAverages = classStudents.map(s => {
+            const studentGrades = grades.filter(g => g.studentId === s.id && g.trimestre === activeTrimestre);
+            const subData: Record<string, { total: number, count: number, coeff: number, compoNote: number | null }> = {};
+            studentGrades.forEach(g => {
+                if (!subData[g.matiere]) {
+                    const subInfo = (subjects[s.serie ? `${s.classe} ${s.serie}` : s.classe] || []).find(sub => sub.nom === g.matiere);
+                    subData[g.matiere] = { total: 0, count: 0, coeff: subInfo?.coefficient || g.coefficient || 1, compoNote: null };
+                }
+                if (g.type === 'composition' || g.type === 'session') subData[g.matiere].compoNote = g.valeur;
+                else { subData[g.matiere].total += g.valeur; subData[g.matiere].count += 1; }
+            });
+            const detailed = Object.entries(subData).map(([name, d]) => {
+                const moyDev = d.count > 0 ? d.total / d.count : (d.compoNote || 0);
+                const final = d.compoNote !== null ? (moyDev + d.compoNote) / 2 : moyDev;
+                if (!classSubjectStats[name]) classSubjectStats[name] = { totalPoints: 0, count: 0 };
+                classSubjectStats[name].totalPoints += final;
+                classSubjectStats[name].count += 1;
+                return { name, moyDevoirs: moyDev, compoNote: d.compoNote, average: final, coefficient: d.coeff };
+            });
+            const pts = detailed.reduce((acc, s) => acc + (s.average * s.coefficient), 0);
+            const cfs = detailed.reduce((acc, s) => acc + s.coefficient, 0);
+            return { id: s.id, average: cfs > 0 ? pts / cfs : 0, totalPoints: pts, totalCoeffs: cfs, subjects: detailed };
+        });
+
+        const sorted = [...studentAverages].sort((a, b) => b.average - a.average);
+        const rank = sorted.findIndex(a => a.id === student.id) + 1;
+        const currentData = studentAverages.find(a => a.id === student.id);
+        const finalSubjects = (currentData?.subjects || []).map(s => ({
+            ...s,
+            classMoy: classSubjectStats[s.name].totalPoints / classSubjectStats[s.name].count
+        }));
+
+        let annualAvg = null;
+        if (activeTrimestre === '3') {
+            const avgs = [t1Avg, t2Avg, currentData?.average || 0].filter(a => a !== null && a !== undefined) as number[];
+            if (avgs.length > 0) annualAvg = avgs.reduce((acc, v) => acc + v, 0) / avgs.length;
+        }
+
+        return { subjects: finalSubjects, generalAverage: currentData?.average || 0, totalPoints: currentData?.totalPoints || 0, totalCoeffs: currentData?.totalCoeffs || 0, rank, classSize: classStudents.length, t1Avg, t2Avg, annualAvg };
+    }, [students, grades, activeTrimestre, student.id, student.classe, subjects]);
+
+    // Restriction Professeur
+    const staffRecord = useMemo(() => settings.staff?.find(s => s.matricule === session?.matricule), [settings.staff, session]);
+    const teacherAssignment = useMemo(() => staffRecord?.assignments?.find(a => a.classe === student.classe), [staffRecord, student.classe]);
+    const visibleSubjects = useMemo(() => {
+        if (session?.role === 'professeur' && teacherAssignment) {
+            if (teacherAssignment.subjects.length === 0) return allClassSubjects;
+            return allClassSubjects.filter(s => teacherAssignment.subjects.includes(s.nom));
+        }
+        return allClassSubjects;
+    }, [allClassSubjects, session, teacherAssignment]);
+
+    const allStudentGrades = useMemo(() => grades.filter(g => g.studentId === student.id), [grades, student.id]);
+    const currentTrimesterGrades = useMemo(() => allStudentGrades.filter(g => g.trimestre === activeTrimestre), [allStudentGrades, activeTrimestre]);
+
+    const handleGradeSubmit = (e: React.FormEvent) => {
+        e.preventDefault();
+        if (gradeForm.valeur === undefined || !gradeForm.matiere) return;
+        const newGrade: Grade = {
+            id: `grade_${Date.now()}`,
+            studentId: student.id,
+            trimestre: activeTrimestre,
+            matiere: gradeForm.matiere,
+            valeur: Number(gradeForm.valeur),
+            coefficient: Number(gradeForm.coefficient || 1),
+            type: gradeForm.type || 'devoir',
+            date: new Date().toISOString()
+        };
+        addGrade(newGrade);
+        setIsGradeModalOpen(false);
+        setGradeForm({ ...gradeForm, valeur: 0 });
     };
 
-    addGrade(newGrade);
-    setIsGradeModalOpen(false);
-    setGradeForm({ 
-        trimestre: activeTrimestre, 
-        type: isUniversity ? 'dst' : 'devoir', 
-        valeur: 0, 
-        matiere: '', 
-        coefficient: 1 
-    });
-  };
-
-  const handleMatiereChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
-      const selectedMatiereName = e.target.value;
-      const selectedSubject = classSubjects.find(s => s.nom === selectedMatiereName);
-      
-      setGradeForm({
-          ...gradeForm,
-          matiere: selectedMatiereName,
-          coefficient: selectedSubject ? selectedSubject.coefficient : 1
-      });
-  };
-
-  // --- Moteur de Calcul ---
-
-  const calculateSimpleAvg = (grades: Grade[]) => {
-      if (!grades || grades.length === 0) return null;
-      const sum = grades.reduce((acc, curr) => acc + curr.valeur, 0);
-      return sum / grades.length;
-  };
-
-  // Calcul pour une matière et un trimestre/semestre donnés pour un élève spécifique
-  const calculateSubjectStats = (targetStudentId: string, subjectName: string, period: string) => {
-      const targetGrades = grades.filter(g => g.studentId === targetStudentId && g.matiere === subjectName && g.trimestre === period);
-      
-      if (isUniversity) {
-          // Logique Université : DST (40%) et Sessions (60%)
-          const dsts = targetGrades.filter(g => g.type === 'dst');
-          const sessions = targetGrades.filter(g => g.type === 'session');
-
-          const avgDST = calculateSimpleAvg(dsts);
-          const avgSession = calculateSimpleAvg(sessions);
-
-          let moyEleve = null;
-          
-          if (avgDST !== null || avgSession !== null) {
-              const valDst = avgDST || 0;
-              const valSession = avgSession || 0;
-              moyEleve = (valDst * 0.4) + (valSession * 0.6);
-          }
-
-          return { col1: avgDST, col2: avgSession, moyEleve };
-
-      } else {
-          // Logique Standard
-          const devoirs = targetGrades.filter(g => g.type === 'devoir');
-          const departementaux = targetGrades.filter(g => g.type === 'departemental');
-          const compositions = targetGrades.filter(g => g.type === 'composition');
-
-          const avgDevoir = calculateSimpleAvg(devoirs);
-          const avgDepart = calculateSimpleAvg(departementaux);
-          
-          let moyClasse = null;
-          if (avgDevoir !== null && avgDepart !== null) {
-              moyClasse = (avgDevoir + avgDepart) / 2;
-          } else if (avgDevoir !== null) {
-              moyClasse = avgDevoir;
-          } else if (avgDepart !== null) {
-              moyClasse = avgDepart;
-          }
-
-          const moyCompo = calculateSimpleAvg(compositions);
-
-          let moyEleve = null;
-          if (moyClasse !== null && moyCompo !== null) {
-              moyEleve = (moyClasse + moyCompo) / 2;
-          } else if (moyClasse !== null) {
-              moyEleve = moyClasse;
-          } else if (moyCompo !== null) {
-              moyEleve = moyCompo;
-          }
-
-          return { col1: moyClasse, col2: moyCompo, moyEleve };
-      }
-  };
-
-  // Calcul Moyenne Générale pour un élève et une période
-  const calculateGeneralAverage = (targetStudentId: string, period: string) => {
-      let totalPoints = 0;
-      let totalCoeffs = 0;
-      
-      // On utilise classSubjects (les matières de la classe de l'élève actuel)
-      // Cela suppose que tous les élèves de la même classe ont les mêmes matières
-      classSubjects.forEach(sub => {
-        const { moyEleve } = calculateSubjectStats(targetStudentId, sub.nom, period);
-        if (moyEleve !== null) {
-          totalPoints += moyEleve * sub.coefficient;
-          totalCoeffs += sub.coefficient;
+    const removeGrade = (id: string) => {
+        if (confirm("Supprimer cette note ?")) {
+            deleteGrade(id);
         }
-      });
+    };
 
-      const average = totalCoeffs ? (totalPoints / totalCoeffs) : null;
-      return { totalPoints, totalCoeffs, average };
-  };
-
-  // Stats pour l'élève affiché
-  const activeStats = calculateGeneralAverage(student.id, activeTrimestre);
-
-  // Stats Annuelles pour l'élève affiché
-  const getAnnualStats = (targetStudentId: string) => {
-      const stats: Record<string, number | null> = {};
-      let sum = 0;
-      let count = 0;
-
-      periods.forEach(p => {
-          const avg = calculateGeneralAverage(targetStudentId, p).average;
-          stats[p] = avg;
-          if (avg !== null) {
-              sum += avg;
-              count++;
-          }
-      });
-
-      const annualAverage = count > 0 ? sum / count : null;
-      return { ...stats, annualAverage };
-  };
-
-  const annualStats = getAnnualStats(student.id);
-
-  // --- CALCUL DU RANG ---
-  const calculateRank = (period: string, isAnnual: boolean) => {
-      // 1. Filtrer les camarades de classe
-      const classmates = students.filter(s => 
-          s.cycle === student.cycle && 
-          s.classe === student.classe && 
-          s.serie === student.serie
-      );
-
-      // 2. Calculer la moyenne pour chaque camarade
-      const scores = classmates.map(mate => {
-          let avg = 0;
-          if (isAnnual) {
-              const mateAnnualStats = getAnnualStats(mate.id);
-              avg = mateAnnualStats.annualAverage || 0;
-          } else {
-              const mateStats = calculateGeneralAverage(mate.id, period);
-              avg = mateStats.average || 0;
-          }
-          return { id: mate.id, avg };
-      });
-
-      // 3. Trier décroissant
-      scores.sort((a, b) => b.avg - a.avg);
-
-      // 4. Trouver l'index de l'élève actuel
-      const index = scores.findIndex(s => s.id === student.id);
-      
-      return {
-          rank: index + 1,
-          total: classmates.length
-      };
-  };
-
-  const currentRank = calculateRank(activeTrimestre, false);
-  const annualRank = calculateRank('', true); // Period ignored if isAnnual is true
-
-  const formatRank = (rank: number) => {
-      return rank === 1 ? `${rank}er` : `${rank}ème`;
-  };
-
-  const getAppreciation = (avg: number | null): string => {
-      if (avg === null) return '';
-      const rules = settings.bulletin?.appreciationRules || [];
-      const rule = rules.find(r => avg >= r.min && avg <= r.max);
-      return rule ? rule.text : '-';
-  };
-
-  const getCouncilDecision = () => {
-      const isEndYear = isUniversity ? activeTrimestre === 'S2' : activeTrimestre === '3';
-
-      if (isEndYear) {
-          const avg = annualStats.annualAverage;
-          if (avg === null) return "Données insuffisantes.";
-          
-          if (avg >= 10) {
-              return "Admis(e) en classe supérieure.";
-          } else {
-              return "Redouble sa classe.";
-          }
-      } 
-      else {
-          const avg = activeStats.average;
-          if (avg === null) return "Données insuffisantes.";
-          return avg >= 10 
-              ? "Travail satisfaisant. Continuez ainsi." 
-              : "Des efforts sont attendus pour la suite.";
-      }
-  };
-
-  // PDF Download
-  const handleDownloadPDF = () => {
-      const element = document.querySelector('.bulletin-container');
-      if (!element || typeof html2pdf === 'undefined') {
-          alert("Erreur: Impossible de générer le PDF.");
-          return;
-      }
-      const opt = {
-          margin: 0,
-          filename: `bulletin_${student.nom}_${activeTrimestre}.pdf`,
-          image: { type: 'jpeg', quality: 0.98 },
-          html2canvas: { scale: 2, useCORS: true, logging: false },
-          jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
-      };
-      html2pdf().set(opt).from(element).save();
-  };
-
-  // QR Code Generation Logic
-  useEffect(() => {
-    if (isBulletinModalOpen) {
-        setTimeout(() => {
-            if (typeof qrcode !== 'undefined') {
-                try {
-                    const qr = qrcode(0, 'M'); 
-                    
-                    const secureData = {
-                        ecole: settings.appName,
-                        eleve: `${student.nom} ${student.prenom}`,
-                        id: student.id,
-                        classe: subjectKey,
-                        periode: activeTrimestre,
-                        moy_periode: activeStats.average?.toFixed(2) || 'N/A',
-                        rang: `${currentRank.rank}/${currentRank.total}`,
-                        moy_ann: (isUniversity && activeTrimestre === 'S2') || (!isUniversity && activeTrimestre === '3') ? (annualStats.annualAverage?.toFixed(2) || 'N/A') : 'N/A',
-                        date: new Date().toLocaleDateString('fr-FR')
-                    };
-                    
-                    qr.addData(JSON.stringify(secureData));
-                    qr.make();
-                    
-                    const imgTagString = qr.createImgTag(4); 
-                    const parser = new DOMParser();
-                    const doc = parser.parseFromString(imgTagString, 'text/html');
-                    const img = doc.querySelector('img');
-                    
-                    if (img) {
-                        setQrCodeDataUrl(img.src);
-                    }
-                } catch (e) {
-                    console.error("Erreur génération QR Code", e);
-                }
+    useEffect(() => {
+        if (isBulletinModalOpen && typeof qrcode !== 'undefined') {
+            try {
+                const qr = qrcode(0, 'M');
+                const verificationData = {
+                    eleve: `${student.prenom} ${student.nom}`,
+                    classe: student.classe,
+                    periode: activeTrimestre,
+                    moyenne: bulletinData.generalAverage.toFixed(2),
+                    ecole: settings.appName
+                };
+                qr.addData(JSON.stringify(verificationData));
+                qr.make();
+                setQrCodeDataUrl(qr.createDataURL(4));
+            } catch (e) {
+                console.error("QR Code Error", e);
             }
-        }, 100);
-    }
-  }, [isBulletinModalOpen, activeStats.average, student, subjectKey, activeTrimestre, settings.appName, currentRank]);
+        }
+    }, [isBulletinModalOpen, student.matricule, activeTrimestre, bulletinData.generalAverage, settings.appName]);
 
-  return (
-    <div className="space-y-6 animate-fade-in">
-      <div className="flex items-center justify-between no-print">
-        <Button variant="secondary" onClick={onBack} icon={<i className="fas fa-arrow-left"></i>}>Retour</Button>
-        <div className="space-x-2">
-            <Button variant="success" onClick={() => setIsGradeModalOpen(true)} icon={<i className="fas fa-plus"></i>}>Ajouter une note</Button>
-            <Button variant="primary" onClick={() => setIsBulletinModalOpen(true)} icon={<i className="fas fa-print"></i>}>Bulletin</Button>
-        </div>
-      </div>
+    const downloadPDF = () => {
+        const element = document.getElementById('bulletin-content');
+        if (!element) return;
+        const opt = {
+            margin: 0,
+            filename: `Bulletin_${student.nom}_${student.prenom}.pdf`,
+            image: { type: 'jpeg', quality: 0.98 },
+            html2canvas: { scale: 2, useCORS: true },
+            jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
+        };
+        html2pdf().set(opt).from(element).save();
+    };
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 no-print">
-        {/* Profile Card */}
-        <Card className="md:col-span-1">
-            <div className="flex flex-col items-center text-center">
-                <img src={student.photo || 'https://picsum.photos/200/200'} alt="Profile" className="w-32 h-32 rounded-full object-cover border-4 border-gray-100 dark:border-white/20 shadow-md mb-4"/>
-                <h2 className="text-xl font-bold text-gray-800 dark:text-white">{student.nom} {student.prenom}</h2>
-                <p className="text-[var(--primary-color)] font-medium mb-4">{subjectKey}</p>
-                <div className="w-full space-y-3 text-left text-sm text-gray-600 dark:text-gray-300 bg-gray-50 dark:bg-white/5 p-4 rounded-lg border dark:border-white/5">
-                    <p><strong>Né(e) le:</strong> {student.dateNaissance}</p>
-                    <p><strong>Matricule:</strong> {student.id.substring(0,8).toUpperCase()}</p>
-                    <p><strong>Téléphone:</strong> {student.telephone}</p>
-                    <p><strong>Inscrit le:</strong> {student.dateInscription}</p>
-                    {isUniversity && <p className="text-xs italic text-purple-600 dark:text-purple-400 mt-2 font-bold uppercase">Cycle Universitaire</p>}
-                </div>
-            </div>
-        </Card>
-
-        {/* Grades Panel */}
-        <div className="md:col-span-2 space-y-4">
-            <div className="flex bg-white dark:bg-transparent dark:glass-card rounded-lg shadow-sm p-1 border dark:border-white/10">
-                {periods.map(p => (
-                    <button
-                        key={p}
-                        onClick={() => setActiveTrimestre(p)}
-                        className={`flex-1 py-2 text-center rounded-md font-medium transition-colors ${activeTrimestre === p ? 'bg-[var(--primary-color)] text-white shadow' : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-white/10'}`}
-                    >
-                        {isUniversity ? `Semestre ${p.replace('S','')}` : `Trimestre ${p}`}
-                    </button>
-                ))}
-            </div>
-
-            <Card>
-                <div className="flex justify-between items-center mb-4">
-                    <h3 className="text-lg font-bold text-gray-800 dark:text-white">
-                        Relevé de notes ({isUniversity ? 'Semestre' : 'Trimestre'} {activeTrimestre.replace('S','')})
-                    </h3>
-                    {activeStats.average !== null && (
-                        <div className="text-right">
-                             <span className="px-4 py-1 bg-blue-100 dark:bg-blue-900/40 text-blue-800 dark:text-blue-200 rounded-full font-bold">
-                                Moy: {activeStats.average.toFixed(2)} / 20
-                            </span>
-                            <div className="text-xs text-gray-500 dark:text-gray-400 mt-1 font-medium">
-                                Rang: {formatRank(currentRank.rank)} / {currentRank.total}
-                            </div>
-                        </div>
+    return (
+        <div className="space-y-6 animate-fade-in pb-10">
+            {/* Action Bar */}
+            <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+                <Button variant="secondary" onClick={onBack} icon={<i className="fas fa-arrow-left"></i>}>
+                    Retour à la liste
+                </Button>
+                <div className="flex gap-2">
+                    {['dirigeant', 'gestionnaire', 'professeur'].includes(session?.role || '') && (
+                        <Button onClick={() => setIsGradeModalOpen(true)} icon={<i className="fas fa-plus-circle"></i>}>
+                            Ajouter une note
+                        </Button>
                     )}
+                    <Button variant="secondary" onClick={() => setIsBulletinModalOpen(true)} icon={<i className="fas fa-file-invoice"></i>}>
+                        Voir Bulletin
+                    </Button>
                 </div>
-
-                <div className="space-y-6">
-                    {classSubjects.length === 0 ? (
-                        <div className="text-center text-gray-500 dark:text-gray-400 py-4 italic bg-gray-50 dark:bg-white/5 rounded p-4 border dark:border-white/5">
-                            <i className="fas fa-exclamation-circle text-yellow-500 mb-2 text-xl block"></i>
-                            <p>Aucune matière configurée pour la classe <strong>"{subjectKey}"</strong>.</p>
-                        </div>
-                    ) : (
-                        classSubjects.map(subject => {
-                            const { moyEleve } = calculateSubjectStats(student.id, subject.nom, activeTrimestre);
-                            const subjectGrades = currentTrimesterGrades.filter(g => g.matiere === subject.nom);
-                            
-                            return (
-                                <div key={subject.nom} className="border-b dark:border-white/10 last:border-0 pb-4">
-                                    <div className="flex justify-between items-center mb-2">
-                                        <h4 className="font-semibold text-gray-700 dark:text-gray-200">{subject.nom} <span className="text-xs text-gray-400 font-normal">(Coeff: {subject.coefficient})</span></h4>
-                                        <span className={`font-bold ${moyEleve && moyEleve >= 10 ? 'text-green-600 dark:text-green-400' : 'text-red-500 dark:text-red-400'}`}>
-                                            {moyEleve !== null ? moyEleve.toFixed(2) : '-'}
-                                        </span>
-                                    </div>
-                                    {subjectGrades.length > 0 ? (
-                                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-                                            {subjectGrades.map(g => (
-                                                <div key={g.id} className="bg-gray-50 dark:bg-white/10 p-2 rounded text-xs flex justify-between group relative text-gray-800 dark:text-gray-200 border dark:border-white/5">
-                                                    <span>{g.valeur} <span className="text-gray-400">/20</span></span>
-                                                    <span className="text-gray-400 uppercase text-[10px]">{g.type.substring(0,4)}</span>
-                                                    <button 
-                                                        onClick={() => deleteGrade(g.id)}
-                                                        className="absolute -top-1 -right-1 bg-red-500 text-white rounded-full w-4 h-4 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
-                                                    >
-                                                        &times;
-                                                    </button>
-                                                </div>
-                                            ))}
-                                        </div>
-                                    ) : (
-                                        <p className="text-xs text-gray-400 italic">Aucune note</p>
-                                    )}
-                                </div>
-                            );
-                        })
-                    )}
-                </div>
-            </Card>
-        </div>
-      </div>
-
-      {/* Add Grade Modal */}
-      <Modal isOpen={isGradeModalOpen} onClose={() => setIsGradeModalOpen(false)} title="Ajouter une note">
-        <form onSubmit={handleGradeSubmit} className="space-y-4">
-            {classSubjects.length === 0 ? (
-                 <div className="text-red-500 bg-red-50 dark:bg-red-900/20 p-3 rounded text-sm border border-red-200 dark:border-red-500/30">
-                    <p className="font-bold mb-1">Configuration manquante</p>
-                    Aucune matière n'est configurée pour la classe <strong>{subjectKey}</strong>.
-                 </div>
-            ) : (
-                <>
-                    <div>
-                        <Select 
-                            label="Matière"
-                            options={[{value: '', label: 'Choisir une matière...'}, ...classSubjects.map(s => ({ value: s.nom, label: s.nom }))]}
-                            value={gradeForm.matiere}
-                            onChange={handleMatiereChange}
-                            required
-                        />
-                        {gradeForm.matiere && (
-                            <p className="text-xs text-gray-500 dark:text-gray-400 mt-1 ml-1">
-                                Coefficient appliqué : <strong>{gradeForm.coefficient}</strong>
-                            </p>
-                        )}
-                    </div>
-                    
-                    <Select 
-                        label="Type d'évaluation"
-                        options={isUniversity ? [
-                            {value: 'dst', label: 'DST (Devoir sur Table)'},
-                            {value: 'session', label: 'Session (Examen)'},
-                        ] : [
-                            {value: 'devoir', label: 'Devoir de classe'},
-                            {value: 'departemental', label: 'Devoir Départemental'},
-                            {value: 'composition', label: 'Composition'},
-                        ]}
-                        value={gradeForm.type}
-                        onChange={e => setGradeForm({...gradeForm, type: e.target.value as any})}
-                    />
-                    
-                    <Input 
-                        type="number" label="Note obtenue (/20)" step="0.25" min="0" max="20" 
-                        value={gradeForm.valeur}
-                        onChange={e => setGradeForm({...gradeForm, valeur: parseFloat(e.target.value)})}
-                        required
-                    />
-                    <div className="pt-4 flex justify-end gap-2">
-                        <Button type="button" variant="secondary" onClick={() => setIsGradeModalOpen(false)}>Annuler</Button>
-                        <Button type="submit">Enregistrer</Button>
-                    </div>
-                </>
-            )}
-        </form>
-      </Modal>
-
-      {/* Bulletin Modal (Toujours en Light Mode pour l'impression) */}
-      {isBulletinModalOpen && (
-        <div className="fixed inset-0 z-[60] bg-gray-900/50 backdrop-blur-sm overflow-auto flex flex-col items-center py-8">
-            <div className="w-full max-w-4xl px-4 mb-4 flex flex-col md:flex-row justify-between items-center gap-4 no-print">
-                 <h2 className="text-2xl font-bold text-white shadow-sm">Aperçu du Bulletin ({activeTrimestre})</h2>
-                 <div className="flex gap-2">
-                     <Button variant="secondary" onClick={() => setIsBulletinModalOpen(false)} icon={<i className="fas fa-times"></i>}>Fermer</Button>
-                     <Button variant="success" onClick={handleDownloadPDF} icon={<i className="fas fa-file-pdf"></i>}>Télécharger PDF</Button>
-                     <Button variant="primary" onClick={() => window.print()} icon={<i className="fas fa-print"></i>}>Imprimer</Button>
-                 </div>
             </div>
-            
-            {/* Structure A4 (Force Light Theme) */}
-            <div className="bg-white p-10 w-[210mm] min-h-[297mm] shadow-2xl bulletin-container text-black font-serif relative mx-auto my-0 light">
-                {/* Watermark */}
-                <div className="absolute inset-0 flex items-center justify-center opacity-[0.03] pointer-events-none select-none overflow-hidden">
-                    <h1 className="text-9xl font-bold transform -rotate-45 whitespace-nowrap">{settings.appName}</h1>
-                </div>
 
-                {/* Header Section (National Convention Revision) */}
-                <div className="flex justify-between items-start border-b-2 border-black pb-8 mb-6 relative z-10 text-[11px] leading-tight">
-                    {/* Left Column (Ministry & School) */}
-                    <div className="w-[50%] flex flex-col items-center text-center space-y-1">
-                        <div className="font-bold uppercase">
-                            {settings.bulletin.ministryName || "MINISTÈRE DE L'ENSEIGNEMENT PRÉSCOLAIRE, PRIMAIRE, SECONDAIRE ET DE L'ALPHABÉTISATION"}
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                <Card className="lg:col-span-1 border-t-4 border-blue-600">
+                    <div className="flex flex-col items-center text-center p-4">
+                        <div className="w-32 h-32 rounded-3xl bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center text-5xl text-blue-600 font-bold mb-4 shadow-inner overflow-hidden border-4 border-white dark:border-white/10">
+                            {student.photo ? <img src={student.photo} className="w-full h-full object-cover" /> : student.prenom[0]}
                         </div>
-                        <div className="w-10 h-px bg-gray-400 my-1"></div>
-                        <div className="font-semibold uppercase">
-                            {settings.bulletin.departmentalDirection || "DIRECTION DÉPARTEMENTALE DE L'ENSEIGNEMENT PRÉSCOLAIRE, PRIMAIRE, SECONDAIRE ET DE L'ALPHABÉTISATION DE BRAZZAVILLE"}
-                        </div>
-                        <div className="w-10 h-px bg-gray-400 my-1"></div>
-                        <div className="font-semibold uppercase">
-                            {settings.bulletin.inspectionName} {settings.bulletin.schoolLocation}
-                        </div>
-                        
-                        <div className="h-4"></div> {/* Spacing */}
-                        
-                        {settings.logo && <img src={settings.logo} className="h-20 w-20 object-contain mb-1" alt="Logo"/>}
-                        <h1 className="text-2xl font-black uppercase tracking-wider text-gray-900 leading-none">
-                            {settings.appName}
-                        </h1>
-                        <div className="text-[10px] font-bold italic border-t border-gray-200 pt-1 mt-1">
-                            {settings.bulletin.schoolMotto || "Discipline - Travail - Succès"}
+                        <h2 className="text-2xl font-black text-gray-900 dark:text-white uppercase tracking-tight">{student.prenom} {student.nom}</h2>
+                        <span className="px-3 py-1 bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 rounded-full text-xs font-black mt-2">
+                            {student.matricule}
+                        </span>
+                        <div className="w-full mt-8 space-y-3 text-left">
+                            <InfoRow label="Classe" value={student.classe} />
+                            <InfoRow label="Cycle" value={student.cycle} />
+                            <InfoRow label="Genre" value={student.genre} />
                         </div>
                     </div>
+                </Card>
 
-                    {/* Right Column (Republic & QR) */}
-                    <div className="w-[45%] flex flex-col items-center text-center">
-                        <div className="font-black text-sm uppercase tracking-tighter">
-                            {settings.bulletin.republicName || "RÉPUBLIQUE DU CONGO"}
-                        </div>
-                        <div className="italic font-semibold text-[10px] mt-1">
-                            {settings.bulletin.republicMotto || "Unité - Travail - Progrès"}
-                        </div>
-                        <div className="w-24 h-px bg-black my-4"></div>
-                        
-                        {/* Period & QR Area */}
-                        <div className="flex flex-col items-center mt-2">
-                            <div id="qrcode-target" className="w-[85px] h-[85px] bg-white border border-gray-300 p-1 mb-1 flex items-center justify-center">
-                                {qrCodeDataUrl ? (
-                                    <img src={qrCodeDataUrl} alt="QR Code" className="w-full h-full object-contain" />
-                                ) : (
-                                    <span className="text-[10px] text-gray-400">Génération...</span>
-                                )}
-                            </div>
-                            <span className="text-[8px] font-black uppercase tracking-widest text-gray-500">Vérification Officielle</span>
-                            
-                            <div className="mt-4 space-y-1 text-right w-full text-[10px]">
-                                <p>Année Académique : <span className="font-bold">{new Date().getFullYear()}-{new Date().getFullYear()+1}</span></p>
-                                <p>Période : <span className="font-bold uppercase">{isUniversity ? `Semestre ${activeTrimestre.replace('S','')}` : `${activeTrimestre}${activeTrimestre === '1' ? 'er' : 'ème'} Trimestre`}</span></p>
-                            </div>
+                <Card className="lg:col-span-2" title={
+                    <div className="flex items-center justify-between w-full">
+                        <span className="dark:text-white font-bold"><i className="fas fa-graduation-cap mr-2 text-blue-600"></i>Notes Périodiques</span>
+                        <div className="flex bg-gray-100 dark:bg-white/5 p-1 rounded-lg">
+                            {periods.map(p => (
+                                <button key={p} onClick={() => setActiveTrimestre(p)} className={`px-3 py-1 rounded text-xs font-black transition-all ${activeTrimestre === p ? 'bg-blue-600 text-white shadow-md' : 'text-gray-500'}`}>
+                                    {isUniversity ? `S${p}` : `T${p}`}
+                                </button>
+                            ))}
                         </div>
                     </div>
-                </div>
-
-                {/* Student Info Box */}
-                <div className="relative z-10 bg-gray-50 border border-gray-300 p-4 rounded-lg mb-6 grid grid-cols-2 gap-8 shadow-sm">
-                    <div className="space-y-2 text-sm">
-                        <p className="flex justify-between border-b border-gray-200 pb-1"><span className="text-gray-500">Nom :</span> <span className="font-bold text-base">{student.nom.toUpperCase()}</span></p>
-                        <p className="flex justify-between border-b border-gray-200 pb-1"><span className="text-gray-500">Prénom :</span> <span className="font-bold text-base">{student.prenom}</span></p>
-                        <p className="flex justify-between"><span className="text-gray-500">Matricule :</span> <span className="font-medium font-mono">{student.id.substring(0,8).toUpperCase()}</span></p>
-                    </div>
-                    <div className="space-y-2 text-sm">
-                        <p className="flex justify-between border-b border-gray-200 pb-1"><span className="text-gray-500">Classe :</span> <span className="font-bold text-base">{student.classe} {student.serie ? `(${student.serie})` : ''}</span></p>
-                        <p className="flex justify-between border-b border-gray-200 pb-1"><span className="text-gray-500">Cycle :</span> <span className="font-medium">{student.cycle.toUpperCase().replace('_', ' ')}</span></p>
-                        <p className="flex justify-between"><span className="text-gray-500">Date d'édition :</span> <span className="font-medium">{new Date().toLocaleDateString('fr-FR')}</span></p>
-                    </div>
-                </div>
-
-                {/* Grades Table */}
-                <div className="relative z-10 mb-6">
-                    <table className="w-full border-collapse border border-black text-sm">
-                        <thead>
-                            <tr className="bg-gray-100 text-gray-800">
-                                <th className="border border-black p-2 text-left">Matière</th>
-                                {/* Colonnes dynamiques selon Université ou Standard */}
-                                <th className="border border-black p-2 text-center w-20 leading-tight">
-                                    {isUniversity ? <>Moy.<br/>DST</> : <>Moy.<br/>Classe</>}
-                                </th>
-                                <th className="border border-black p-2 text-center w-20 leading-tight">
-                                    {isUniversity ? <>Note<br/>Session</> : <>Note<br/>Compo</>}
-                                </th>
-                                <th className="border border-black p-2 text-center w-20 leading-tight">
-                                    {isUniversity ? <>Moy.<br/>Semestre</> : <>Moy.<br/>Trimestre</>}
-                                </th>
-                                <th className="border border-black p-2 text-center w-14">Coeff</th>
-                                <th className="border border-black p-2 text-center w-20 bg-gray-200">Total</th>
-                                {settings.bulletin?.showAppreciation && <th className="border border-black p-2 text-left">Appréciation</th>}
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {classSubjects.map((sub, index) => {
-                                const { col1, col2, moyEleve } = calculateSubjectStats(student.id, sub.nom, activeTrimestre);
-                                return (
-                                    <tr key={sub.nom} className={index % 2 === 0 ? 'bg-white' : 'bg-gray-50/50'}>
-                                        <td className="border border-black p-2 pl-3 font-medium align-middle">
-                                            {sub.nom}
-                                            {settings.bulletin?.showTeacher && sub.teacher && (
-                                                <div className="text-[10px] font-normal text-gray-500 italic mt-0.5">{sub.teacher}</div>
+                }>
+                    <div className="overflow-x-auto">
+                        <table className="w-full text-left">
+                            <thead>
+                                <tr className="border-b dark:border-white/10 text-[10px] font-black text-gray-400 uppercase tracking-widest">
+                                    <th className="px-2 py-3">Matière</th>
+                                    <th className="px-2 py-3">Type</th>
+                                    <th className="px-2 py-3">Note</th>
+                                    <th className="px-2 py-3">Coeff</th>
+                                    <th className="px-2 py-3 text-right">Action</th>
+                                </tr>
+                            </thead>
+                            <tbody className="divide-y dark:divide-white/5">
+                                {currentTrimesterGrades.map(g => (
+                                    <tr key={g.id} className="text-sm hover:bg-gray-50 dark:hover:bg-white/5">
+                                        <td className="px-2 py-4 font-bold dark:text-white uppercase">{g.matiere}</td>
+                                        <td className="px-2 py-4 capitalize text-gray-500">{g.type}</td>
+                                        <td className="px-2 py-4"><span className={`font-black ${g.valeur >= 10 ? 'text-green-600' : 'text-red-600'}`}>{g.valeur}</span></td>
+                                        <td className="px-2 py-4 text-gray-500">{g.coefficient}</td>
+                                        <td className="px-2 py-4 text-right">
+                                            {['dirigeant', 'admin', 'gestionnaire'].includes(session?.role || '') && (
+                                                <button onClick={() => removeGrade(g.id)} className="text-gray-400 hover:text-red-600"><i className="fas fa-trash-alt"></i></button>
                                             )}
                                         </td>
-                                        <td className="border border-black p-2 text-center align-middle text-gray-700">
-                                            {col1 !== null ? col1.toFixed(2) : '-'}
-                                        </td>
-                                        <td className="border border-black p-2 text-center align-middle text-gray-700">
-                                            {col2 !== null ? col2.toFixed(2) : '-'}
-                                        </td>
-                                        <td className="border border-black p-2 text-center align-middle font-bold text-base">
-                                            {moyEleve !== null ? moyEleve.toFixed(2) : '-'}
-                                        </td>
-                                        <td className="border border-black p-2 text-center align-middle">{sub.coefficient}</td>
-                                        <td className="border border-black p-2 text-center align-middle bg-gray-50 font-medium">
-                                            {moyEleve !== null ? (moyEleve * sub.coefficient).toFixed(2) : '-'}
-                                        </td>
-                                        {settings.bulletin?.showAppreciation && (
-                                            <td className="border border-black p-2 pl-3 align-middle italic text-xs text-gray-600">
-                                                {getAppreciation(moyEleve)}
-                                            </td>
-                                        )}
                                     </tr>
-                                );
-                            })}
-                        </tbody>
-                        <tfoot>
-                            {/* Row 1: Totals */}
-                            <tr className="bg-white">
-                                <td className="border border-black p-2 text-right font-bold uppercase text-xs" colSpan={4}>
-                                    Totaux
-                                </td>
-                                <td className="border border-black p-2 text-center font-bold text-base">{activeStats.totalCoeffs}</td>
-                                <td className="border border-black p-2 text-center font-bold text-base">{activeStats.totalPoints.toFixed(2)}</td>
-                                {settings.bulletin?.showAppreciation && <td className="border border-black bg-gray-100"></td>}
-                            </tr>
-                            
-                            {/* Row 2: General Average & RANK */}
-                            <tr className="bg-gray-800 text-white print:bg-gray-200 print:text-black">
-                                <td className="border border-black p-3 text-right font-bold uppercase text-sm" colSpan={4}>
-                                    Moyenne Générale
-                                </td>
-                                <td className="border border-black p-3 text-center font-bold text-xl" colSpan={2 + (settings.bulletin?.showAppreciation ? 1 : 0)}>
-                                    <div className="flex justify-between items-center px-4">
-                                        <div className="text-2xl">
-                                            {activeStats.average !== null ? activeStats.average.toFixed(2) + ' / 20' : '-'}
-                                        </div>
-                                        {activeStats.average !== null && (
-                                            <div className="text-base border-l border-gray-500 pl-4 ml-2">
-                                                Rang : <strong>{formatRank(currentRank.rank)}</strong> <span className="text-sm opacity-70">/ {currentRank.total}</span>
-                                            </div>
-                                        )}
-                                    </div>
-                                    {activeStats.average !== null && (
-                                        <div className="text-[10px] font-normal mt-1 opacity-80 uppercase tracking-widest text-center">
-                                            {getAppreciation(activeStats.average)}
-                                        </div>
-                                    )}
-                                </td>
-                            </tr>
-                        </tfoot>
-                    </table>
-                </div>
+                                ))}
+                            </tbody>
+                        </table>
+                    </div>
+                </Card>
+            </div>
 
-                {/* --- BLOC SPÉCIFIQUE FIN D'ANNÉE : BILAN ANNUEL --- */}
-                {((!isUniversity && activeTrimestre === '3') || (isUniversity && activeTrimestre === 'S2')) && (
-                    <div className="relative z-10 mb-6 border-2 border-gray-800 rounded-lg overflow-hidden">
-                        <div className="bg-gray-800 text-white text-center py-2 font-bold uppercase tracking-widest text-sm">Bilan Annuel</div>
-                        <div className={`grid ${isUniversity ? 'grid-cols-3' : 'grid-cols-4'} divide-x divide-gray-300 bg-gray-50`}>
-                            {!isUniversity ? (
-                                // Standard: 3 Trimestres
-                                <>
-                                    <div className="p-3 text-center">
-                                        <div className="text-xs text-gray-500 uppercase">Trimestre 1</div>
-                                        <div className="font-bold text-lg">{annualStats['1'] !== null && annualStats['1'] !== undefined ? annualStats['1'].toFixed(2) : '-'}</div>
-                                    </div>
-                                    <div className="p-3 text-center">
-                                        <div className="text-xs text-gray-500 uppercase">Trimestre 2</div>
-                                        <div className="font-bold text-lg">{annualStats['2'] !== null && annualStats['2'] !== undefined ? annualStats['2'].toFixed(2) : '-'}</div>
-                                    </div>
-                                    <div className="p-3 text-center">
-                                        <div className="text-xs text-gray-500 uppercase">Trimestre 3</div>
-                                        <div className="font-bold text-lg">{annualStats['3'] !== null && annualStats['3'] !== undefined ? annualStats['3'].toFixed(2) : '-'}</div>
-                                    </div>
-                                </>
-                            ) : (
-                                // Université: 2 Semestres
-                                <>
-                                    <div className="p-3 text-center">
-                                        <div className="text-xs text-gray-500 uppercase">Semestre 1</div>
-                                        <div className="font-bold text-lg">{annualStats['S1'] !== null && annualStats['S1'] !== undefined ? annualStats['S1'].toFixed(2) : '-'}</div>
-                                    </div>
-                                    <div className="p-3 text-center">
-                                        <div className="text-xs text-gray-500 uppercase">Semestre 2</div>
-                                        <div className="font-bold text-lg">{annualStats['S2'] !== null && annualStats['S2'] !== undefined ? annualStats['S2'].toFixed(2) : '-'}</div>
-                                    </div>
-                                </>
-                            )}
-                            
-                            <div className="p-3 text-center bg-gray-200">
-                                <div className="text-xs text-gray-600 uppercase font-bold">Moyenne Annuelle</div>
-                                <div className={`font-bold text-xl ${annualStats.annualAverage && annualStats.annualAverage >= 10 ? 'text-green-700' : 'text-red-700'}`}>
-                                    {annualStats.annualAverage !== null ? annualStats.annualAverage.toFixed(2) : '-'}
+            {/* Modal Grade */}
+            <Modal isOpen={isGradeModalOpen} onClose={() => setIsGradeModalOpen(false)} title="Ajouter une note">
+                <form onSubmit={handleGradeSubmit} className="space-y-4">
+                    <Select
+                        label="Matière"
+                        value={gradeForm.matiere}
+                        onChange={e => {
+                            const sub = allClassSubjects.find(s => s.nom === e.target.value);
+                            setGradeForm({ ...gradeForm, matiere: e.target.value, coefficient: sub?.coefficient || 1 });
+                        }}
+                        options={[{ value: '', label: 'Choisir une matière' }, ...visibleSubjects.map(s => ({ value: s.nom, label: s.nom }))]}
+                        required
+                    />
+                    <div className="grid grid-cols-2 gap-4">
+                        <Select
+                            label="Type"
+                            value={gradeForm.type}
+                            onChange={e => setGradeForm({ ...gradeForm, type: e.target.value })}
+                            options={isUniversity ? [{ value: 'dst', label: 'DST' }, { value: 'session', label: 'Session' }] : [{ value: 'devoir', label: 'Devoir' }, { value: 'composition', label: 'Composition' }]}
+                        />
+                        <Input label="Coefficient" type="number" value={gradeForm.coefficient || 1} onChange={e => setGradeForm({ ...gradeForm, coefficient: Number(e.target.value) })} />
+                    </div>
+                    <Input label="Note / 20" type="number" step="0.25" min="0" max="20" value={gradeForm.valeur} onChange={e => setGradeForm({ ...gradeForm, valeur: Number(e.target.value) })} required />
+                    <div className="flex justify-end gap-2 pt-4">
+                        <Button variant="secondary" onClick={() => setIsGradeModalOpen(false)}>Annuler</Button>
+                        <Button type="submit">Enregistrer</Button>
+                    </div>
+                </form>
+            </Modal>
+
+            {/* Modal Bulletin */}
+            <Modal isOpen={isBulletinModalOpen} onClose={() => setIsBulletinModalOpen(false)} title="Aperçu du Bulletin" maxWidth="max-w-4xl">
+                <div className="flex flex-col gap-6">
+                    <div className="flex justify-end">
+                        <Button onClick={downloadPDF} icon={<i className="fas fa-download"></i>}>Télécharger en PDF</Button>
+                    </div>
+                    
+                    <div className="w-full overflow-x-auto pb-4 custom-scrollbar">
+                        <div id="bulletin-content" className="bg-white text-[#1a1a1a] p-10 font-serif leading-tight shadow-xl min-w-[850px] mx-auto">
+                        {/* 1. Header & Branding Blocks */}
+                        <div className="flex justify-between items-start mb-6">
+                            {/* Left Block: Institution + School Branding */}
+                            <div className="w-1/2 flex flex-col items-center text-center space-y-4">
+                                <div className="space-y-1">
+                                    <p className="text-[14px] font-black uppercase leading-[1.2]">
+                                        {settings.bulletin.ministryName}
+                                    </p>
+                                    <div className="w-8 h-[1px] bg-black mx-auto"></div>
+                                    <p className="text-[10px] font-bold uppercase leading-tight">
+                                        {settings.bulletin.departmentalDirection}<br/>
+                                        {settings.bulletin.inspectionName}
+                                    </p>
                                 </div>
-                                {annualStats.annualAverage !== null && (
-                                    <div className="text-xs font-bold text-gray-600 mt-1">
-                                        Rang : {formatRank(annualRank.rank)} / {annualRank.total}
+                                <div className="flex flex-col items-center pt-2">
+                                    {settings.logo && <img src={settings.logo} className="w-24 h-24 object-contain mb-1" />}
+                                    <h1 className="text-lg font-black tracking-tighter uppercase">{settings.appName}</h1>
+                                    <p className="text-[9px] italic font-bold tracking-wide">{settings.bulletin.schoolMotto}</p>
+                                </div>
+                            </div>
+
+                            {/* Right Block: Republic + QR Verification */}
+                            <div className="w-[40%] flex flex-col items-center text-center space-y-4">
+                                <div className="space-y-1 border-t border-black pt-1 w-full">
+                                    <h2 className="text-[14px] font-black uppercase tracking-tight">{settings.bulletin.republicName}</h2>
+                                    <p className="text-[11px] italic font-medium">"{settings.bulletin.republicMotto}"</p>
+                                </div>
+                                <div className="flex flex-col items-center pt-1">
+                                    {qrCodeDataUrl && <img src={qrCodeDataUrl} className="w-24 h-24 border border-gray-100 p-0.5 mb-0.5 shadow-sm" />}
+                                    <p className="text-[7px] font-bold text-gray-400 tracking-widest uppercase mb-2">Vérification Officielle</p>
+                                    
+                                    <div className="text-[10px] space-y-0.5">
+                                        <p className="font-medium italic">Année Académique : <span className="font-bold">2023-2024</span></p>
+                                        <p className="font-black uppercase underline">Période : {isUniversity ? `SEMESTRE ${activeTrimestre}` : `${activeTrimestre === '1' ? '1ER' : activeTrimestre + 'ÈME'} TRIMESTRE`}</p>
                                     </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div className="w-full h-[2px] bg-black mb-4"></div>
+
+                        {/* 3. Student Info Box */}
+                        <div className="grid grid-cols-2 gap-x-12 gap-y-2 bg-[#f8f9fa] p-4 border border-gray-200 rounded-sm mb-4 text-[12px]">
+                            <div className="grid grid-cols-2 gap-1">
+                                <span className="text-gray-500 font-medium">Nom :</span>
+                                <span className="font-black uppercase">{student.nom}</span>
+                                <span className="text-gray-500 font-medium">Prénom :</span>
+                                <span className="font-bold">{student.prenom}</span>
+                                <span className="text-gray-500 font-medium">Matricule :</span>
+                                <span className="font-bold text-blue-600">{student.matricule}</span>
+                            </div>
+                            <div className="grid grid-cols-2 gap-1">
+                                <span className="text-gray-500 font-medium">Classe :</span>
+                                <span className="font-black uppercase">{student.classe}</span>
+                                <span className="text-gray-500 font-medium">Cycle :</span>
+                                <span className="font-black uppercase">{student.cycle}</span>
+                                <span className="text-gray-500 font-medium">Date d'édition :</span>
+                                <span className="font-bold">{new Date().toLocaleDateString('fr-FR')}</span>
+                            </div>
+                        </div>
+
+                        {/* 4. Grades Table */}
+                        <table className="w-full border-collapse border border-black mb-0 text-[10px]">
+                            <thead>
+                                <tr className="bg-white">
+                                    <th className="border border-black px-2 py-2 text-left font-black w-[25%] uppercase">Matière</th>
+                                    <th className="border border-black px-1 py-2 text-center font-bold">Moy. Classe</th>
+                                    <th className="border border-black px-1 py-2 text-center font-bold">Note Compo</th>
+                                    <th className="border border-black px-1 py-2 text-center font-bold">Moy. Trimestre</th>
+                                    <th className="border border-black px-1 py-2 text-center font-bold">Coeff</th>
+                                    <th className="border border-black px-1 py-2 text-center font-bold">Total</th>
+                                    <th className="border border-black px-2 py-2 text-left font-bold w-[25%]">Appréciation</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {bulletinData.subjects.map((s, idx) => {
+                                    const appreciation = settings.bulletin.appreciationRules.find(r => s.average >= r.min && s.average <= r.max)?.text || "-";
+                                    return (
+                                        <tr key={idx} className="h-6 border-b border-gray-300">
+                                            <td className="border-x border-black px-2 font-bold uppercase">{s.name}</td>
+                                            <td className="border-x border-black text-center text-gray-400 font-medium">{s.classMoy.toFixed(2)}</td>
+                                            <td className="border-x border-black text-center font-medium">{s.compoNote !== null ? s.compoNote : '-'}</td>
+                                            <td className="border-x border-black text-center font-bold">{s.average.toFixed(2)}</td>
+                                            <td className="border-x border-black text-center">{s.coefficient}</td>
+                                            <td className="border-x border-black text-center">{(s.average * s.coefficient).toFixed(2)}</td>
+                                            <td className="border-x border-black px-2 italic text-[9px] leading-[1.1]">{appreciation}</td>
+                                        </tr>
+                                    );
+                                })}
+                            </tbody>
+                            <tfoot>
+                                <tr className="bg-white font-black text-right border-t border-black">
+                                    <td colSpan={4} className="border-x border-black px-2 py-1 uppercase text-[9px]">TOTAUX</td>
+                                    <td className="border-x border-black text-center py-1">{bulletinData.totalCoeffs}</td>
+                                    <td className="border-x border-black text-center py-1">{bulletinData.totalPoints.toFixed(2)}</td>
+                                    <td className="border-x border-black"></td>
+                                </tr>
+                                {activeTrimestre === '3' && (
+                                    <tr className="bg-gray-50 text-[9px] font-bold border border-black">
+                                        <td colSpan={2} className="px-2 text-center py-1 border-r border-black">MOYENNE T1: {bulletinData.t1Avg?.toFixed(2) || '-'}</td>
+                                        <td colSpan={2} className="px-2 text-center py-1 border-r border-black">MOYENNE T2: {bulletinData.t2Avg?.toFixed(2) || '-'}</td>
+                                        <td colSpan={3} className="px-2 text-center py-1 bg-yellow-50">MOYENNE ANNUELLE: {bulletinData.annualAvg?.toFixed(2) || '-'}</td>
+                                    </tr>
                                 )}
+                                <tr className="bg-[#1e293b] text-white font-black h-10 uppercase text-[11px]">
+                                    <td colSpan={3} className="text-center tracking-widest">MOYENNE GÉNÉRALE DU TRIMESTRE</td>
+                                    <td colSpan={4} className="text-left pl-6 text-xl">{bulletinData.generalAverage.toFixed(2)}</td>
+                                </tr>
+                            </tfoot>
+                        </table>
+
+                        {/* 5. Bottom Boxes */}
+                        <div className="grid grid-cols-2 gap-8 mt-6">
+                            <div className="border border-gray-200 p-4 rounded-md min-h-[140px] bg-[#fdfdfd]">
+                                <h3 className="text-xs font-black uppercase underline mb-3">Décision du conseil</h3>
+                                <div className="space-y-2 text-[11px]">
+                                    <p className="font-black text-lg">
+                                        {bulletinData.subjects.length === 0 ? "Données insuffisantes" : (
+                                            bulletinData.generalAverage >= 10 
+                                                ? (student.genre === 'Fille' || student.genre === 'F' ? "Admise" : "Admis")
+                                                : "Echoué"
+                                        )}
+                                    </p>
+                                    <p className="font-bold text-gray-800">
+                                        Rang de l'élève : <span className="text-blue-600 text-lg">{bulletinData.rank}{bulletinData.rank === 1 ? 'er' : 'ème'}</span> sur {bulletinData.classSize} élèves.
+                                    </p>
+                                    <div className="pt-1">
+                                        <p className="text-[9px] text-gray-400 uppercase font-black tracking-tighter">Observations :</p>
+                                        <div className="w-full h-[1px] bg-gray-100 mt-4"></div>
+                                        <div className="w-full h-[1px] bg-gray-100 mt-3"></div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div className="border border-gray-200 p-4 rounded-md text-center flex flex-col justify-between min-h-[140px] bg-[#fdfdfd]">
+                                <div>
+                                    <h3 className="text-xs font-black uppercase underline">Le Directeur</h3>
+                                    <div className="w-12 h-[1px] bg-black mx-auto mt-1"></div>
+                                </div>
+                                <p className="text-[9px] italic text-gray-400 mb-2">(Signature et Cachet)</p>
                             </div>
                         </div>
-                    </div>
-                )}
 
-                {/* Footer Section - Signatures */}
-                <div className="relative z-10 grid grid-cols-2 gap-16 mt-4">
-                    {/* Decision Box */}
-                    <div className="p-4 h-36 flex flex-col border border-gray-300 rounded">
-                        <h4 className="font-bold underline text-lg mb-4 text-gray-800">Décision du conseil</h4>
-                        <div className="flex-1 italic text-gray-900 leading-relaxed font-medium">
-                            {getCouncilDecision()}
-                            {/* Petit rappel du rang ici aussi */}
-                            <div className="mt-2 text-sm not-italic">
-                                Rang de l'élève : <strong>{formatRank(currentRank.rank)}</strong> sur {currentRank.total} élèves.
-                            </div>
-                        </div>
-                        <p className="text-xs text-gray-400 mt-2 border-t pt-1">Observations : ________________________</p>
-                    </div>
-
-                    {/* Director Signature Box */}
-                    <div className="p-4 h-36 flex flex-col text-center items-center border border-gray-300 rounded">
-                        <h4 className="font-bold underline text-lg mb-8 text-gray-800">Le Directeur</h4>
-                        <div className="w-full flex-1">
-                            <p className="text-xs italic text-gray-400 mt-auto">(Signature et Cachet)</p>
+                        {/* 6. Footer */}
+                        <div className="mt-8 text-center border-t border-gray-50 pt-3">
+                            <p className="text-[7px] font-bold text-gray-300 uppercase tracking-widest">
+                                DOCUMENT GÉNÉRÉ PAR {settings.appName} - SYSTÈME DE GESTION SCOLAIRE
+                            </p>
                         </div>
                     </div>
-                </div>
-                
-                {/* Bottom Watermark / Info */}
-                <div className="absolute bottom-4 left-0 w-full text-center">
-                    <p className="text-[9px] text-gray-400 uppercase tracking-widest">Document généré par PR-SCL - Système de Gestion Scolaire</p>
                 </div>
             </div>
+            </Modal>
         </div>
-      )}
-    </div>
-  );
+    );
 };
+
+const InfoRow: React.FC<{ label: string, value: string }> = ({ label, value }) => (
+    <div className="flex justify-between items-center py-2 border-b dark:border-white/5 last:border-0">
+        <span className="text-xs font-black text-gray-400 uppercase tracking-widest">{label}</span>
+        <span className="text-sm font-bold dark:text-gray-200">{value}</span>
+    </div>
+);

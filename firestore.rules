@@ -3,100 +3,85 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
     // Fonction utilitaire pour vérifier si l'utilisateur est authentifié
+    // Fonction utilitaire pour vérifier si l'utilisateur est authentifié
     function isAuthenticated() {
       return request.auth != null;
     }
 
-    // Fonction pour vérifier si l'utilisateur est l'administrateur
+    // Fonction pour vérifier si l'utilisateur appartient à l'école spécifiée
+    // Gère à la fois les profils (dirigeants) et les sessions anonymes (élèves/staff)
+    function belongsToSchool(schoolId) {
+      if (!isAuthenticated()) return false;
+      
+      // Vérifier dans les profils (Dirigeants)
+      let profilePath = /databases/$(database)/documents/profiles/$(request.auth.uid);
+      if (exists(profilePath)) {
+        return get(profilePath).data.school_id == schoolId;
+      }
+      
+      // Vérifier dans les sessions (Élèves/Staff connectés par matricule)
+      let sessionPath = /databases/$(database)/documents/sessions/$(request.auth.uid);
+      if (exists(sessionPath)) {
+        return get(sessionPath).data.school_id == schoolId;
+      }
+      
+      return false;
+    }
+
+    // Fonction pour vérifier si l'utilisateur est l'administrateur système
     function isAdmin() {
       return isAuthenticated() &&
              request.auth.token.email == 'powerfulreach029@gmail.com';
     }
 
-    // Fonction pour vérifier si l'utilisateur appartient à l'école spécifiée
-    function belongsToSchool(schoolId) {
-      return isAuthenticated() &&
-             get(/databases/$(database)/documents/profiles/$(request.auth.uid)).data.school_id == schoolId;
-    }
-
     // Fonction pour vérifier si l'utilisateur est le propriétaire de l'école
     function isSchoolOwner(schoolId) {
-      return isAuthenticated() &&
-             get(/databases/$(database)/documents/schools/$(schoolId)).data.owner_id == request.auth.uid;
+      if (!isAuthenticated()) return false;
+      let schoolPath = /databases/$(database)/documents/schools/$(schoolId);
+      return exists(schoolPath) && get(schoolPath).data.owner_id == request.auth.uid;
     }
 
     // --- COLLECTION PROFILES ---
     match /profiles/{userId} {
-      // Lecture: l'admin peut tout lire, l'utilisateur peut lire son propre profil
       allow read: if isAdmin() || (isAuthenticated() && request.auth.uid == userId);
-
-      // Création: uniquement lors de l'inscription initiale
       allow create: if isAuthenticated() && request.auth.uid == userId;
+      allow update: if isAdmin() || (isAuthenticated() && request.auth.uid == userId && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['role']));
+    }
 
-      // Mise à jour: uniquement l'admin peut modifier les rôles
-      allow update: if isAdmin() ||
-                      (isAuthenticated() && request.auth.uid == userId &&
-                       !request.resource.data.diff(resource.data).affectedKeys().hasAny(['role']));
+    // --- COLLECTION SESSIONS (Anonymes) ---
+    match /sessions/{userId} {
+      allow read, write: if isAuthenticated() && request.auth.uid == userId;
     }
 
     // --- COLLECTION SCHOOLS ---
     match /schools/{schoolId} {
-      // Lecture: l'admin peut tout lire, les utilisateurs peuvent lire leur école
       allow read: if isAdmin() || belongsToSchool(schoolId);
-
-      // Création: authentifié uniquement lors de l'inscription
       allow create: if isAuthenticated();
-
-      // Mise à jour:
-      // - L'admin peut tout modifier (notamment les champs d'abonnement)
-      // - Le propriétaire peut modifier les infos de base mais PAS les abonnements
-      allow update: if isAdmin() ||
-                      (isSchoolOwner(schoolId) &&
-                       !request.resource.data.diff(resource.data).affectedKeys().hasAny([
-                         'subscription_plan', 'subscription_expires_at', 'subscription_status'
-                       ]));
+      allow update: if isAdmin() || (isSchoolOwner(schoolId) && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['subscription_plan', 'subscription_expires_at', 'subscription_status']));
     }
 
     // --- COLLECTION STUDENTS ---
     match /students/{studentId} {
-      // Lecture: appartient à l'école de l'étudiant
-      allow read: if isAuthenticated() &&
-                     resource.data.school_id == get(/databases/$(database)/documents/profiles/$(request.auth.uid)).data.school_id;
-
-      // Écriture: appartient à la même école
-      allow create: if isAuthenticated() &&
-                     request.resource.data.school_id == get(/databases/$(database)/documents/profiles/$(request.auth.uid)).data.school_id;
-
-      allow update, delete: if isAuthenticated() &&
-                               resource.data.school_id == get(/databases/$(database)/documents/profiles/$(request.auth.uid)).data.school_id;
+      // Un utilisateur ne peut lister que les élèves de son école
+      allow list: if isAdmin() || belongsToSchool(resource.data.school_id); 
+      
+      allow get: if isAdmin() || belongsToSchool(resource.data.school_id);
+      allow create, update, delete: if isAdmin() || belongsToSchool(request.resource.data.school_id);
     }
 
     // --- COLLECTION GRADES ---
     match /grades/{gradeId} {
-      // Lecture: appartient à l'école de la note
-      allow read: if isAuthenticated() &&
-                     resource.data.school_id == get(/databases/$(database)/documents/profiles/$(request.auth.uid)).data.school_id;
-
-      // Écriture: appartient à la même école
-      allow create: if isAuthenticated() &&
-                     request.resource.data.school_id == get(/databases/$(database)/documents/profiles/$(request.auth.uid)).data.school_id;
-
-      allow update, delete: if isAuthenticated() &&
-                               resource.data.school_id == get(/databases/$(database)/documents/profiles/$(request.auth.uid)).data.school_id;
+      allow read: if isAdmin() || belongsToSchool(resource.data.school_id);
+      allow create, update, delete: if isAdmin() || belongsToSchool(request.resource.data.school_id);
     }
 
     // --- COLLECTION APP_CONFIG ---
     match /app_config/{configId} {
-      // Lecture: appartient à l'école
-      allow read: if isAuthenticated() &&
-                     resource.data.school_id == get(/databases/$(database)/documents/profiles/$(request.auth.uid)).data.school_id;
+      // Un utilisateur ne peut lister que les configs de son école
+      allow list: if isAdmin() || belongsToSchool(resource.data.school_id);
 
-      // Écriture: appartient à la même école
-      allow create, update: if isAuthenticated() &&
-                     request.resource.data.school_id == get(/databases/$(database)/documents/profiles/$(request.auth.uid)).data.school_id;
-
-      allow delete: if isAuthenticated() &&
-                       resource.data.school_id == get(/databases/$(database)/documents/profiles/$(request.auth.uid)).data.school_id;
+      allow get: if isAdmin() || belongsToSchool(resource.data.school_id);
+      allow create, update, delete: if isAdmin() || belongsToSchool(request.resource.data.school_id);
     }
 
     // --- COLLECTION ADMIN_LOGS (pour traçabilité) ---

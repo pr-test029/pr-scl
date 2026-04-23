@@ -108,35 +108,58 @@ export const INITIAL_SETTINGS: AppSettings = {
     inspectionName: "INSPECTION DES COLLÈGES D'ENSEIGNEMENT GÉNÉRAL",
     schoolLocation: "BRAZZAVILLE II",
     schoolMotto: "Discipline - Travail - Succès"
-  }
+  },
+  accounting: {
+    classFees: {}
+  },
+  staff: [] // Initialisation du personnel
 };
 
 // Couleurs Hexadécimales pour les variables CSS
-export const THEME_HEX_COLORS = {
-  blue: { primary: '#2563eb', hover: '#1d4ed8' },   // blue-600, blue-700
-  green: { primary: '#16a34a', hover: '#15803d' },  // green-600, green-700
-  purple: { primary: '#9333ea', hover: '#7e22ce' }, // purple-600, purple-700
-  red: { primary: '#dc2626', hover: '#b91c1c' },    // red-600, red-700
+export const THEME_HEX_COLORS: Record<string, { primary: string, hover: string }> = {
+  blue: { primary: '#2563eb', hover: '#1d4ed8' },
+  green: { primary: '#16a34a', hover: '#15803d' },
+  purple: { primary: '#9333ea', hover: '#7e22ce' },
+  red: { primary: '#dc2626', hover: '#b91c1c' },
+  emerald: { primary: '#059669', hover: '#047857' },
+  amber: { primary: '#d97706', hover: '#b45309' },
+  indigo: { primary: '#4f46e5', hover: '#4338ca' },
+  crimson: { primary: '#be123c', hover: '#9f1239' },
+  slate: { primary: '#475569', hover: '#334155' },
 };
 
-// Gardé pour compatibilité si nécessaire, mais on privilégiera les variables CSS
-export const THEME_COLORS = {
+export const THEME_COLORS: Record<string, string> = {
   blue: 'bg-blue-600',
   green: 'bg-green-600',
   purple: 'bg-purple-600',
   red: 'bg-red-600',
+  emerald: 'bg-emerald-600',
+  amber: 'bg-amber-600',
+  indigo: 'bg-indigo-600',
+  crimson: 'bg-rose-700',
+  slate: 'bg-slate-600',
 };
 
-export const THEME_TEXT_COLORS = {
+export const THEME_TEXT_COLORS: Record<string, string> = {
   blue: 'text-blue-600',
   green: 'text-green-600',
   purple: 'text-purple-600',
   red: 'text-red-600',
+  emerald: 'text-emerald-600',
+  amber: 'text-amber-600',
+  indigo: 'text-indigo-600',
+  crimson: 'text-rose-700',
+  slate: 'text-slate-600',
 };
 
-export const THEME_HOVER_COLORS = {
+export const THEME_HOVER_COLORS: Record<string, string> = {
   blue: 'hover:bg-blue-700',
   green: 'hover:bg-green-700',
   purple: 'hover:bg-purple-700',
   red: 'hover:bg-red-700',
+  emerald: 'hover:bg-emerald-700',
+  amber: 'hover:bg-amber-700',
+  indigo: 'hover:bg-indigo-700',
+  crimson: 'hover:bg-rose-800',
+  slate: 'hover:bg-slate-700',
 };

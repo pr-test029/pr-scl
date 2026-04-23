@@ -7,8 +7,11 @@ import {
     signOut as firebaseSignOut,
     onAuthStateChanged,
     GoogleAuthProvider,
-    signInWithPopup
+    signInWithPopup,
+    signInAnonymously
 } from "firebase/auth";
+
+export { signInAnonymously };
 import {
     getFirestore,
     collection,
@@ -25,9 +28,10 @@ import {
     enableIndexedDbPersistence,
     onSnapshot,
     orderBy,
-    Timestamp
+    Timestamp,
+    limit
 } from "firebase/firestore";
-import { Student, Grade, AppSettings, Cycle, Subject, UserSession, School } from '../types';
+import { Student, Grade, AppSettings, Cycle, Subject, UserSession, School, Payment } from '../types';
 import { INITIAL_CYCLES, INITIAL_SUBJECTS, INITIAL_SETTINGS } from '../constants';
 
 // --- CONFIGURATION FIREBASE RÉELLE ---
@@ -104,7 +108,7 @@ const setupNewSchoolProfile = async (user: any, schoolName: string) => {
         email: user.email,
         display_name: user.displayName || null,
         photo_url: user.photoURL || null,
-        role: isAdmin(user.email) ? 'admin' : 'user',
+        role: 'dirigeant', // Le créateur est toujours dirigeant
         created_at: serverTimestamp()
     });
 
@@ -139,12 +143,108 @@ export const signInWithGoogle = async () => {
     return user;
 };
 
+// Recherche d'identité (Élève ou Personnel) par matricule
+export const findIdentityByMatricule = async (matricule: string, schoolId?: string): Promise<{ type: 'eleve' | 'staff', data: any, schoolId: string } | null> => {
+    console.log("findIdentityByMatricule: Début de recherche pour", matricule, schoolId ? `dans l'école ${schoolId}` : "globale");
+    try {
+        // 1. Chercher dans les élèves
+        let studentsQ = query(collection(db, "students"), where("matricule", "==", matricule));
+        if (schoolId) {
+            studentsQ = query(collection(db, "students"), where("school_id", "==", schoolId), where("matricule", "==", matricule));
+        }
+        
+        const studentsSnap = await getDocs(studentsQ);
+        if (!studentsSnap.empty) {
+            const student = studentsSnap.docs[0].data();
+            console.log("findIdentityByMatricule: Élève trouvé", student.prenom);
+            return { type: 'eleve', data: student, schoolId: student.school_id };
+        }
+
+        // 2. Chercher dans le personnel
+        console.log("findIdentityByMatricule: Recherche dans le personnel...");
+        let staffQ;
+        if (schoolId) {
+            // Si on a l'école, on cherche directement son document de config
+            const docRef = doc(db, "app_config", `${schoolId}_settings`);
+            const docSnap = await getDoc(docRef);
+            if (docSnap.exists()) {
+                const settings = docSnap.data().data as AppSettings;
+                const staffMember = settings.staff?.find(s => s.matricule === matricule);
+                if (staffMember) {
+                    return { type: 'staff', data: staffMember, schoolId: schoolId };
+                }
+            }
+        } else {
+            // Recherche globale (fallback)
+            staffQ = query(collection(db, "app_config"), where("key", "==", "settings"), limit(100));
+            const staffSnap = await getDocs(staffQ);
+            for (const docSnap of staffSnap.docs) {
+                const settings = docSnap.data().data as AppSettings;
+                const staffMember = settings.staff?.find(s => s.matricule === matricule);
+                if (staffMember) {
+                    console.log("findIdentityByMatricule: Personnel trouvé", staffMember.prenom);
+                    return { type: 'staff', data: staffMember, schoolId: docSnap.data().school_id };
+                }
+            }
+        }
+
+        console.log("findIdentityByMatricule: Aucune identité trouvée.");
+        return null;
+    } catch (error) {
+        console.error("findIdentityByMatricule Error:", error);
+        throw error;
+    }
+};
+
+export const loginWithMatricule = async (matricule: string, schoolId?: string): Promise<UserSession | null> => {
+    // 1. Trouver l'identité
+    const identity = await findIdentityByMatricule(matricule, schoolId);
+    if (!identity) throw new Error("Matricule non trouvé.");
+
+    // 2. Authentification Anonyme Firebase
+    // Cela permet d'avoir un request.auth.uid valide pour les règles de sécurité
+    const userCredential = await signInAnonymously(auth);
+    const user = userCredential.user;
+
+    // 3. Créer le document de session dans Firestore pour les règles de sécurité
+    // Cela DOIT être fait avant de lire d'autres documents car les règles se basent sur cette session
+    const role = identity.type === 'eleve' ? 'eleve' : identity.data.role;
+    
+    await setDoc(doc(db, "sessions", user.uid), {
+        school_id: identity.schoolId,
+        role: role,
+        matricule: matricule,
+        created_at: serverTimestamp()
+    });
+
+    // 4. Maintenant que la session est créée, on peut lire les infos de l'école
+    const schoolDoc = await getDoc(doc(db, "schools", identity.schoolId));
+    const schoolName = schoolDoc.exists() ? schoolDoc.data().name : "Mon École";
+
+    const session: UserSession = {
+        user_id: user.uid,
+        email: identity.data.email || null,
+        display_name: `${identity.data.prenom} ${identity.data.nom}`,
+        photo_url: identity.data.photo || null,
+        school_id: identity.schoolId,
+        school_name: schoolName,
+        role: role,
+        matricule: matricule
+    };
+
+    // Stocker localement pour persistance rapide
+    localStorage.setItem('pr_scl_matricule_session', JSON.stringify(session));
+    localStorage.setItem('pr_scl_school_id', identity.schoolId);
+    localStorage.setItem('pr_scl_school_name', schoolName);
+    
+    return session;
+};
+
 export const signOut = async () => {
     await firebaseSignOut(auth);
-    currentSchoolId = null;
-    currentSchoolName = null;
-    localStorage.removeItem('pr_scl_school_id');
-    localStorage.removeItem('pr_scl_school_name');
+    // On ne réinitialise PAS currentSchoolId/Name pour permettre le retour au choix des rôles
+    localStorage.removeItem('pr_scl_matricule_session');
+    localStorage.removeItem('pr_scl_user_uid');
 };
 
 export const fetchUserSession = async (): Promise<UserSession | null> => {
@@ -152,43 +252,71 @@ export const fetchUserSession = async (): Promise<UserSession | null> => {
         const unsubscribe = onAuthStateChanged(auth, async (user) => {
             unsubscribe();
             if (!user) {
-                console.log("fetchUserSession: No user authenticated");
-                localStorage.removeItem('pr_scl_school_id');
-                localStorage.removeItem('pr_scl_school_name');
+                // Tentative de restauration via localStorage uniquement si Auth est déconnecté
+                // (Peut arriver si la session anonyme a expiré mais qu'on a gardé le local)
+                const localSession = localStorage.getItem('pr_scl_matricule_session');
+                if (localSession) {
+                    try {
+                        const parsed = JSON.parse(localSession);
+                        currentSchoolId = parsed.school_id;
+                        currentSchoolName = parsed.school_name;
+                        resolve(parsed);
+                        return;
+                    } catch (e) { resolve(null); return; }
+                }
                 resolve(null);
                 return;
             }
 
             try {
-                const profileDoc = await getDoc(doc(db, "profiles", user.uid));
-                if (!profileDoc.exists()) {
-                    console.warn("fetchUserSession: Profile not found for UID", user.uid);
-                    resolve(null);
-                    return;
+                if (user.isAnonymous) {
+                    // Session Élève / Staff
+                    const sessionDoc = await getDoc(doc(db, "sessions", user.uid));
+                    const localSession = localStorage.getItem('pr_scl_matricule_session');
+                    
+                    if (sessionDoc.exists()) {
+                        const sessionData = sessionDoc.data();
+                        const schoolDoc = await getDoc(doc(db, "schools", sessionData.school_id));
+                        const schoolName = schoolDoc.exists() ? schoolDoc.data().name : "Mon École";
+                        
+                        currentSchoolId = sessionData.school_id;
+                        currentSchoolName = schoolName;
+
+                        const session: UserSession = localSession ? JSON.parse(localSession) : {
+                            user_id: user.uid,
+                            school_id: sessionData.school_id,
+                            school_name: schoolName,
+                            role: sessionData.role,
+                            matricule: sessionData.matricule,
+                            display_name: "Utilisateur"
+                        };
+                        resolve(session);
+                        return;
+                    }
+                } else {
+                    // Session Dirigeant
+                    const profileDoc = await getDoc(doc(db, "profiles", user.uid));
+                    if (profileDoc.exists()) {
+                        const profileData = profileDoc.data();
+                        const schoolDoc = await getDoc(doc(db, "schools", profileData.school_id));
+                        const schoolName = schoolDoc.exists() ? schoolDoc.data().name : "Mon École";
+                        
+                        currentSchoolId = profileData.school_id;
+                        currentSchoolName = schoolName;
+
+                        resolve({
+                            user_id: user.uid,
+                            email: user.email,
+                            display_name: user.displayName || profileData.display_name,
+                            photo_url: user.photoURL || profileData.photo_url,
+                            school_id: profileData.school_id,
+                            school_name: schoolName,
+                            role: profileData.role || 'dirigeant'
+                        });
+                        return;
+                    }
                 }
-
-                const profileData = profileDoc.data();
-                currentSchoolId = profileData.school_id;
-
-                const schoolDoc = await getDoc(doc(db, "schools", currentSchoolId!));
-                currentSchoolName = schoolDoc.exists() ? schoolDoc.data().name : "Mon École";
-
-                // Persistance locale sécurisée
-                localStorage.setItem('pr_scl_school_id', currentSchoolId!);
-                localStorage.setItem('pr_scl_school_name', currentSchoolName!);
-                localStorage.setItem('pr_scl_user_uid', user.uid); // Track current UID
-
-                console.log("fetchUserSession: Session established for", currentSchoolName);
-
-                resolve({
-                    user_id: user.uid,
-                    email: user.email!,
-                    display_name: user.displayName || profileData.display_name || null,
-                    photo_url: user.photoURL || profileData.photo_url || null,
-                    school_id: currentSchoolId!,
-                    school_name: currentSchoolName!,
-                    role: profileData.role || (isAdmin(user.email) ? 'admin' : 'user')
-                });
+                resolve(null);
             } catch (e) {
                 console.error("fetchUserSession error", e);
                 resolve(null);
@@ -200,11 +328,27 @@ export const fetchUserSession = async (): Promise<UserSession | null> => {
 // Fonction interne pour garantir que currentSchoolId est chargé avant une opération
 const ensureSchoolId = async () => {
     // Vérifier si le cache appartient au bon utilisateur
+    const matriculeSession = localStorage.getItem('pr_scl_matricule_session');
+    if (matriculeSession) {
+        const session = JSON.parse(matriculeSession);
+        return session.school_id;
+    }
+
     const cachedUid = localStorage.getItem('pr_scl_user_uid');
     if (currentSchoolId && cachedUid === auth.currentUser?.uid) return currentSchoolId;
 
     const session = await fetchUserSession();
     return session?.school_id || null;
+};
+
+// --- UTILITAIRES ---
+export const generateMatricule = (): string => {
+    const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+    let result = '';
+    for (let i = 0; i < 6; i++) {
+        result += chars.charAt(Math.floor(Math.random() * chars.length));
+    }
+    return `SCL-${result}`;
 };
 
 // --- API STUDENTS ---
@@ -404,6 +548,70 @@ export const clearDB = async () => {
     configSnap.forEach(snapDoc => batch.delete(snapDoc.ref));
 
     await batch.commit();
+};
+
+// --- API ACCOUNTING ---
+
+export const fetchPayments = async (): Promise<Payment[]> => {
+    const schoolId = await ensureSchoolId();
+    if (!schoolId) return [];
+    try {
+        const q = query(collection(db, "payments"), where("school_id", "==", schoolId));
+        const querySnapshot = await getDocs(q);
+        return querySnapshot.docs.map(doc => doc.data() as Payment);
+    } catch (error) {
+        console.error("fetchPayments Error:", error);
+        return [];
+    }
+};
+
+export const addPaymentDB = async (payment: Payment) => {
+    const schoolId = await ensureSchoolId();
+    if (!schoolId) return;
+    try {
+        const docId = `${schoolId}_${payment.id}`;
+        const dataToSave = {
+            ...payment,
+            school_id: schoolId,
+            id: payment.id
+        };
+        await setDoc(doc(db, "payments", docId), cleanData(dataToSave));
+        
+        // Update student totalPaid
+        const studentDocId = `${schoolId}_${payment.studentId}`;
+        const studentDoc = await getDoc(doc(db, "students", studentDocId));
+        if (studentDoc.exists()) {
+            const currentTotal = studentDoc.data().totalPaid || 0;
+            await updateDoc(doc(db, "students", studentDocId), {
+                totalPaid: currentTotal + payment.amount
+            });
+        }
+    } catch (error) {
+        console.error("addPaymentDB Error:", error);
+        throw error;
+    }
+};
+
+export const migrateExistingStudents = async (students: Student[]): Promise<boolean> => {
+    const schoolId = await ensureSchoolId();
+    if (!schoolId) return false;
+
+    const studentsToMigrate = students.filter(s => !s.matricule);
+    if (studentsToMigrate.length === 0) return false;
+
+    console.log(`Migrating ${studentsToMigrate.length} students...`);
+    const batch = writeBatch(db);
+    
+    studentsToMigrate.forEach(student => {
+        const docId = `${schoolId}_${student.id}`;
+        batch.update(doc(db, "students", docId), {
+            matricule: generateMatricule(),
+            totalPaid: student.totalPaid || 0
+        });
+    });
+
+    await batch.commit();
+    return true;
 };
 
 // --- API ADMIN ---

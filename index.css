@@ -1,15 +1,186 @@
-/* Fichier CSS principal - PR-SCL */
-/* Les styles principaux sont définis dans index.html */
+/* PR-SCL Professional Design System */
 
-/* Reset et styles de base */
+:root {
+  --primary-color: #3b82f6;
+  --primary-hover: #2563eb;
+  --bg-light: #f8fafc;
+  --bg-dark: #0f172a;
+  --card-light: #ffffff;
+  --card-dark: rgba(30, 41, 59, 0.7);
+  --border-light: #e2e8f0;
+  --border-dark: rgba(255, 255, 255, 0.1);
+  --text-light: #1e293b;
+  --text-dark: #f1f5f9;
+}
+
 * {
   margin: 0;
   padding: 0;
   box-sizing: border-box;
+  -webkit-tap-highlight-color: transparent;
 }
 
-/* Styles globaux */
-html, body, #root {
-  height: 100%;
-  width: 100%;
+body {
+  font-family: 'Inter', sans-serif;
+  overflow-x: hidden;
+  background-color: var(--bg-light);
+  color: var(--text-light);
+  line-height: 1.5;
+}
+
+/* --- Responsive Layout Utilities --- */
+.safe-area-bottom {
+  padding-bottom: env(safe-area-inset-bottom);
+}
+
+@media (max-width: 768px) {
+  .mobile-card-grid {
+    grid-template-columns: 1fr !important;
+  }
+  
+  .responsive-padding {
+    padding: 1rem !important;
+  }
+}
+
+/* --- Scrollbar Customization --- */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(0, 0, 0, 0.1);
+  border-radius: 10px;
+}
+
+.dark ::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--primary-color);
+}
+
+/* --- Animations --- */
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.animate-fade-in {
+  animation: fadeIn 0.4s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+}
+
+@keyframes slideInRight {
+  from { transform: translateX(100%); }
+  to { transform: translateX(0); }
+}
+
+.animate-slide-in {
+  animation: slideInRight 0.3s ease-out;
+}
+
+/* --- Glassmorphism & Effects --- */
+.glass-card {
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid var(--border-dark);
+}
+
+.dark .glass-card {
+  background: var(--card-dark);
+}
+
+.dark.starry-bg, .dark .starry-bg {
+  background: radial-gradient(ellipse at bottom, #1B2735 0%, #090A0F 100%) !important;
+  min-height: 100vh;
+  position: relative;
+}
+
+.dark.starry-bg::before, .dark .starry-bg::before {
+  content: "";
+  position: fixed;
+  top: 0; left: 0; width: 100%; height: 100%;
+  background-image: 
+      radial-gradient(white, rgba(255,255,255,.2) 2px, transparent 3px),
+      radial-gradient(white, rgba(255,255,255,.15) 1px, transparent 2px),
+      radial-gradient(white, rgba(255,255,255,.1) 2px, transparent 4px);
+  background-size: 550px 550px, 350px 350px, 250px 250px;
+  background-position: 0 0, 40px 60px, 130px 270px;
+  animation: starsAnimation 150s linear infinite, twinkle 10s ease-in-out infinite;
+  z-index: 0;
+  pointer-events: none;
+}
+
+@keyframes twinkle {
+  0%, 100% { opacity: 0.2; }
+  50% { opacity: 0.5; }
+}
+
+@keyframes starsAnimation {
+  from { transform: translateY(0); }
+  to { transform: translateY(-550px); }
+}
+
+/* --- Form Elements Premium --- */
+input, select, textarea {
+  transition: all 0.2s ease;
+  outline: none !important;
+}
+
+input:focus, select:focus {
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.2);
+}
+
+.dark input:focus, .dark select:focus {
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.4);
+}
+
+/* --- Printing --- */
+@media print {
+  .no-print { display: none !important; }
+  body { background: white !important; color: black !important; }
+  .dark { background: white !important; color: black !important; }
+}
+
+/* --- Mobile Specific Overrides --- */
+@media (max-width: 640px) {
+  h1 { font-size: 1.5rem !important; }
+  .p-8 { padding: 1rem !important; }
+  .gap-6 { gap: 1rem !important; }
+}
+
+/* --- Premium Buttons --- */
+.btn-premium {
+  position: relative;
+  overflow: hidden;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.btn-premium::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 5px;
+  height: 5px;
+  background: rgba(255, 255, 255, .5);
+  opacity: 0;
+  border-radius: 100%;
+  transform: scale(1, 1) translate(-50%);
+  transform-origin: 50% 50%;
+}
+
+.btn-premium:active::after {
+  animation: ripple 0.6s ease-out;
+}
+
+@keyframes ripple {
+  0% { transform: scale(0, 0); opacity: 0.5; }
+  100% { transform: scale(20, 20); opacity: 0; }
 }

@@ -2,6 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { Card, Input, Select, Button } from '../../components/ui/Common';
 import { useSchool } from '../../App';
+import { generateMatricule } from '../../services/firebase';
 import { Student, Cycle } from '../../types';
 
 interface StudentFormProps {
@@ -16,7 +17,8 @@ export const StudentForm: React.FC<StudentFormProps> = ({ onSuccess, initialData
   // Initialisation de l'état
   const [formData, setFormData] = useState<Partial<Student>>({
     genre: 'Masculin',
-    dateInscription: new Date().toLocaleDateString('fr-FR')
+    dateInscription: new Date().toLocaleDateString('fr-FR'),
+    totalPaid: 0
   });
   const [selectedFile, setSelectedFile] = useState<string | null>(null);
 
@@ -77,8 +79,15 @@ export const StudentForm: React.FC<StudentFormProps> = ({ onSuccess, initialData
       serie: formData.serie,
       photo: selectedFile || undefined,
       notes_info: formData.notes_info,
-      dateInscription: formData.dateInscription || new Date().toLocaleDateString('fr-FR')
+      dateInscription: formData.dateInscription || new Date().toLocaleDateString('fr-FR'),
+      totalPaid: formData.totalPaid || 0,
+      matricule: initialData ? initialData.matricule : (formData.matricule || '')
     };
+
+    // Si nouveau, on génère un matricule s'il n'existe pas
+    if (!initialData && !studentToSave.matricule) {
+      studentToSave.matricule = generateMatricule();
+    }
 
     if (initialData) {
       updateStudent(studentToSave);
@@ -109,6 +118,7 @@ export const StudentForm: React.FC<StudentFormProps> = ({ onSuccess, initialData
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           <Input name="nom" label="Nom *" value={formData.nom || ''} onChange={handleChange} required />
           <Input name="prenom" label="Prénom *" value={formData.prenom || ''} onChange={handleChange} required />
+          {formData.matricule && <Input name="matricule" label="Matricule" value={formData.matricule} disabled />}
           <Input type="date" name="dateNaissance" label="Date de naissance *" value={formData.dateNaissance || ''} onChange={handleChange} required />
           <Select 
             name="genre" 
