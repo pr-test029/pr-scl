@@ -27,13 +27,13 @@ export const Dashboard: React.FC = () => {
   const totalRevenue = payments.reduce((acc, p) => acc + (p.amount || 0), 0);
   const staffCount = settings.staff?.length || 0;
 
-  // Data for the financial chart (last 6 months)
+  // Data for the financial chart (last 12 months)
   const monthlyRevenue = useMemo(() => {
     const months = ['Jan', 'Fév', 'Mar', 'Avr', 'Mai', 'Juin', 'Juil', 'Août', 'Sep', 'Oct', 'Nov', 'Déc'];
     const currentMonth = new Date().getMonth();
     const result = [];
     
-    for (let i = 5; i >= 0; i--) {
+    for (let i = 11; i >= 0; i--) {
       const mIdx = (currentMonth - i + 12) % 12;
       const mName = months[mIdx];
       const amount = payments
@@ -130,7 +130,7 @@ export const Dashboard: React.FC = () => {
             </div>
             <div className="flex items-center gap-2">
               <i className="fas fa-history text-xs"></i>
-              <span>Derniers 6 mois</span>
+              <span>Derniers 12 mois</span>
             </div>
           </div>
         </Card>
