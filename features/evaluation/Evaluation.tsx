@@ -7,6 +7,8 @@ export const Evaluation: React.FC = () => {
     const { students, grades, payments, settings, subjects } = useSchool();
     const [activeTrimestre, setActiveTrimestre] = useState<string>('1');
     const [selectedMonth, setSelectedMonth] = useState<number>(1); // 1 to 9
+    const [selectedCycle, setSelectedCycle] = useState<string>('');
+    const [selectedClass, setSelectedClass] = useState<string>('');
 
     const months = [
         { id: 1, label: 'Octobre' },
@@ -60,25 +62,23 @@ export const Evaluation: React.FC = () => {
         return { top5, bottom10 };
     }, [students, grades, activeTrimestre, subjects]);
 
-    // 2. Financial Recovery
-    const recoveryList = useMemo(() => {
-        const list = students.filter(student => {
+    // 2. Financial Recovery Data Preparation
+    const recoveryData = useMemo(() => {
+        const debtors = students.filter(student => {
             const fullClassName = student.serie ? `${student.classe} ${student.serie}` : student.classe;
             const monthlyFee = settings.accounting?.classFees[fullClassName] || 0;
             const expectedUpToNow = monthlyFee * selectedMonth;
             return (student.totalPaid || 0) < expectedUpToNow;
         });
 
-        // Group by cycle then class
-        const grouped: Record<string, Record<string, Student[]>> = {};
-        list.forEach(s => {
-            if (!grouped[s.cycle]) grouped[s.cycle] = {};
-            if (!grouped[s.cycle][s.classe]) grouped[s.cycle][s.classe] = [];
-            grouped[s.cycle][s.classe].push(s);
-        });
+        const cyclesFound = Array.from(new Set(debtors.map(s => s.cycle)));
+        const classesInCycle = selectedCycle ? Array.from(new Set(debtors.filter(s => s.cycle === selectedCycle).map(s => s.classe))) : [];
+        const studentsToDisplay = (selectedCycle && selectedClass) 
+            ? debtors.filter(s => s.cycle === selectedCycle && s.classe === selectedClass)
+            : [];
 
-        return grouped;
-    }, [students, selectedMonth, settings.accounting]);
+        return { debtors, cyclesFound, classesInCycle, studentsToDisplay };
+    }, [students, selectedMonth, selectedCycle, selectedClass, settings.accounting]);
 
     return (
         <div className="space-y-10 animate-fade-in pb-20">
@@ -177,8 +177,13 @@ export const Evaluation: React.FC = () => {
                         {months.map(m => (
                             <button 
                                 key={m.id} 
-                                onClick={() => setSelectedMonth(m.id)}
-                                className={`px-4 py-2 rounded-xl text-[10px] font-black tracking-widest uppercase transition-all ${selectedMonth === m.id ? 'bg-red-600 text-white shadow-lg' : 'bg-gray-100 dark:bg-white/10 text-gray-500 hover:bg-gray-200'}`}
+                                onClick={() => {
+                                    setSelectedMonth(m.id);
+                                    // Reset filters when month changes to avoid confusion
+                                    setSelectedCycle('');
+                                    setSelectedClass('');
+                                }}
+                                className={`px-4 py-2 rounded-xl text-[10px] font-black tracking-widest uppercase transition-all ${selectedMonth === m.id ? 'bg-red-600 text-white shadow-lg scale-105' : 'bg-gray-100 dark:bg-white/10 text-gray-500 hover:bg-gray-200'}`}
                             >
                                 {m.label}
                             </button>
@@ -186,42 +191,86 @@ export const Evaluation: React.FC = () => {
                     </div>
                 </div>
 
-                <div className="space-y-6">
-                    {Object.keys(recoveryList).length === 0 && (
-                        <div className="text-center p-20 bg-green-50/30 dark:bg-green-900/5 rounded-2xl border border-dashed border-green-200 dark:border-green-800/30">
-                            <i className="fas fa-check-circle text-4xl text-green-500 mb-4"></i>
-                            <p className="text-green-600 dark:text-green-400 font-black uppercase tracking-widest">Tous les élèves ont soldé jusqu'à ce mois !</p>
-                        </div>
-                    )}
-                    {Object.entries(recoveryList).map(([cycle, classGroups]) => (
-                        <div key={cycle} className="space-y-4">
-                            <h3 className="text-lg font-black text-blue-600 uppercase tracking-widest border-b dark:border-white/10 pb-2">{cycle}</h3>
-                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                                {Object.entries(classGroups).map(([className, studentsInClass]) => (
-                                    <Card key={className} title={`${className} (${studentsInClass.length} impayés)`} className="border-l-4 border-red-400 h-full">
-                                        <div className="space-y-2 max-h-[300px] overflow-y-auto custom-scrollbar pr-2">
-                                            {studentsInClass.map(s => {
-                                                const fullClassName = s.serie ? `${s.classe} ${s.serie}` : s.classe;
-                                                const monthlyFee = settings.accounting?.classFees[fullClassName] || 0;
-                                                const debt = (monthlyFee * selectedMonth) - (s.totalPaid || 0);
-                                                return (
-                                                    <div key={s.id} className="p-3 bg-gray-50 dark:bg-white/5 rounded-xl flex justify-between items-center border dark:border-white/10 group hover:border-red-200 transition-colors">
-                                                        <div>
-                                                            <p className="font-bold text-xs uppercase dark:text-white">{s.nom} {s.prenom}</p>
-                                                            <p className="text-[9px] text-gray-400 font-medium">Reste : <span className="font-bold text-red-500">{debt.toLocaleString()} FCFA</span></p>
-                                                        </div>
-                                                        <div className="w-8 h-8 rounded-full bg-red-100 dark:bg-red-900/30 flex items-center justify-center text-red-600 opacity-0 group-hover:opacity-100 transition-opacity">
-                                                            <i className="fas fa-exclamation text-[10px]"></i>
-                                                        </div>
-                                                    </div>
-                                                );
-                                            })}
-                                        </div>
-                                    </Card>
+                <div className="space-y-8">
+                    {/* Filter Section */}
+                    <div className="flex flex-col md:flex-row gap-6 items-end p-6 bg-gray-50 dark:bg-white/5 rounded-2xl border dark:border-white/10">
+                        <div className="flex-1 space-y-3 w-full">
+                            <p className="text-[10px] font-black uppercase text-gray-400 tracking-widest ml-1">1. Choisir le Cycle</p>
+                            <div className="flex flex-wrap gap-2">
+                                {recoveryData.cyclesFound.length === 0 && <p className="text-xs text-gray-400 italic">Aucun impayé trouvé pour ce mois.</p>}
+                                {recoveryData.cyclesFound.map(cycle => (
+                                    <button
+                                        key={cycle}
+                                        onClick={() => {
+                                            setSelectedCycle(cycle);
+                                            setSelectedClass('');
+                                        }}
+                                        className={`px-4 py-2 rounded-xl text-xs font-black uppercase transition-all ${selectedCycle === cycle ? 'bg-blue-600 text-white shadow-md' : 'bg-white dark:bg-white/10 text-gray-600 dark:text-gray-400 border dark:border-white/10 hover:border-blue-300'}`}
+                                    >
+                                        {cycle}
+                                    </button>
                                 ))}
                             </div>
                         </div>
-                    ))}
+
+                        {selectedCycle && (
+                            <div className="w-full md:w-64 space-y-3 animate-slide-in">
+                                <p className="text-[10px] font-black uppercase text-gray-400 tracking-widest ml-1">2. Choisir la Classe</p>
+                                <Select
+                                    value={selectedClass}
+                                    onChange={e => setSelectedClass(e.target.value)}
+                                    options={[
+                                        { value: '', label: 'Sélectionner une classe' },
+                                        ...recoveryData.classesInCycle.map(c => ({ value: c, label: c }))
+                                    ]}
+                                />
+                            </div>
+                        )}
+                    </div>
+
+                    {/* Results Section */}
+                    <div className="animate-fade-in">
+                        {!selectedCycle ? (
+                            <div className="text-center py-16 text-gray-400 italic bg-gray-50/50 dark:bg-white/5 rounded-3xl border border-dashed dark:border-white/10">
+                                <i className="fas fa-filter text-3xl mb-4 opacity-20"></i>
+                                <p>Veuillez sélectionner un cycle pour voir les impayés</p>
+                            </div>
+                        ) : !selectedClass ? (
+                            <div className="text-center py-16 text-gray-400 italic bg-gray-50/50 dark:bg-white/5 rounded-3xl border border-dashed dark:border-white/10">
+                                <i className="fas fa-chalkboard text-3xl mb-4 opacity-20"></i>
+                                <p>Veuillez sélectionner une classe de {selectedCycle}</p>
+                            </div>
+                        ) : recoveryData.studentsToDisplay.length === 0 ? (
+                            <div className="text-center py-16 text-green-500 italic bg-green-50/20 dark:bg-green-900/5 rounded-3xl border border-dashed border-green-200 dark:border-green-800/20">
+                                <i className="fas fa-check-circle text-3xl mb-4"></i>
+                                <p className="font-black uppercase tracking-widest text-xs">Félicitations ! Aucun impayé pour cette classe.</p>
+                            </div>
+                        ) : (
+                            <Card title={`${selectedClass} - ${recoveryData.studentsToDisplay.length} élève(s) en retard`} className="border-l-4 border-red-500 shadow-xl">
+                                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 p-2">
+                                    {recoveryData.studentsToDisplay.map(s => {
+                                        const fullClassName = s.serie ? `${s.classe} ${s.serie}` : s.classe;
+                                        const monthlyFee = settings.accounting?.classFees[fullClassName] || 0;
+                                        const debt = (monthlyFee * selectedMonth) - (s.totalPaid || 0);
+                                        return (
+                                            <div key={s.id} className="p-4 bg-gray-50 dark:bg-white/5 rounded-2xl flex justify-between items-center border dark:border-white/10 group hover:border-red-300 hover:bg-red-50/30 dark:hover:bg-red-900/10 transition-all">
+                                                <div>
+                                                    <p className="font-black text-sm uppercase dark:text-white tracking-tight">{s.nom} {s.prenom}</p>
+                                                    <div className="flex items-center gap-2 mt-1">
+                                                        <span className="text-[10px] text-gray-400 font-bold tracking-widest uppercase">Dette :</span>
+                                                        <span className="text-xs font-black text-red-600 bg-red-100 dark:bg-red-900/30 px-2 py-0.5 rounded-lg">{debt.toLocaleString()} FCFA</span>
+                                                    </div>
+                                                </div>
+                                                <div className="w-10 h-10 rounded-xl bg-red-100 dark:bg-red-900/30 flex items-center justify-center text-red-600 shadow-sm group-hover:scale-110 transition-transform">
+                                                    <i className="fas fa-exclamation-circle"></i>
+                                                </div>
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+                            </Card>
+                        )}
+                    </div>
                 </div>
             </div>
         </div>

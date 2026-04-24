@@ -3,12 +3,13 @@ import React, { useState, useEffect } from 'react';
 import { Card, Button, Input, Modal } from '../../components/ui/Common';
 import { UserSession, UserRole } from '../../types';
 import * as api from '../../services/firebase';
+import { getSchoolManagerPassword } from '../../services/firebase';
 
 interface LoginScreenProps {
     onLoginSuccess: (session: UserSession) => void;
 }
 
-type AuthStep = 'school_login' | 'role_selection' | 'identity_verification';
+type AuthStep = 'school_login' | 'role_selection' | 'identity_verification' | 'manager_password';
 
 export const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess }) => {
     const [step, setStep] = useState<AuthStep>('school_login');
@@ -26,8 +27,12 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess }) => {
     const [identity, setIdentity] = useState<any>(null);
     const [showConfirmation, setShowConfirmation] = useState(false);
 
+    // Manager password state
+    const [managerPasswordInput, setManagerPasswordInput] = useState('');
+
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState('');
+    const [isSubscriptionExpired, setIsSubscriptionExpired] = useState(false);
 
     // Récupérer la session école existante au chargement
     useEffect(() => {
@@ -36,8 +41,22 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess }) => {
             const currentSchoolName = localStorage.getItem('pr_scl_school_name');
             
             if (currentSchoolId && currentSchoolName) {
-                setSchoolInfo({ id: currentSchoolId, name: currentSchoolName });
-                setStep('role_selection');
+                setLoading(true);
+                try {
+                    const currentUser = api.auth.currentUser;
+                    const { isExpired } = await api.checkSchoolSubscription(currentSchoolId, currentUser?.email);
+                    if (isExpired) {
+                        setIsSubscriptionExpired(true);
+                        // Ne pas définir schoolInfo pour rester bloqué sur l'écran d'abonnement
+                    } else {
+                        setSchoolInfo({ id: currentSchoolId, name: currentSchoolName });
+                        setStep('role_selection');
+                    }
+                } catch (e) {
+                    console.error("Auto-check subscription failed", e);
+                } finally {
+                    setLoading(false);
+                }
             }
         };
         checkExistingSchool();
@@ -59,10 +78,19 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess }) => {
             
             const session = await api.fetchUserSession();
             if (session) {
-                setSchoolInfo({ id: session.school_id, name: session.school_name });
-                localStorage.setItem('pr_scl_school_id', session.school_id);
-                localStorage.setItem('pr_scl_school_name', session.school_name);
-                setStep('role_selection');
+                // Vérification immédiate de l'abonnement avec l'email de l'utilisateur actuel
+                const currentUser = api.auth.currentUser;
+                const { isExpired } = await api.checkSchoolSubscription(session.school_id, currentUser?.email);
+                
+                if (isExpired) {
+                    setIsSubscriptionExpired(true);
+                    // On ne passe pas à l'étape suivante
+                } else {
+                    setSchoolInfo({ id: session.school_id, name: session.school_name });
+                    localStorage.setItem('pr_scl_school_id', session.school_id);
+                    localStorage.setItem('pr_scl_school_name', session.school_name);
+                    setStep('role_selection');
+                }
             }
         } catch (err: any) {
             setError(err.message || "Identifiants école incorrects.");
@@ -72,18 +100,57 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess }) => {
     };
 
     // Phase 2: Role Chosen
-    const handleRoleSelect = (selectedRole: UserRole) => {
+    const handleRoleSelect = async (selectedRole: UserRole) => {
         setRole(selectedRole);
+        setError('');
         if (selectedRole === 'dirigeant') {
             const user = api.auth.currentUser;
             if (!user || user.isAnonymous) {
-                // Not authenticated as owner, need to login again
                 setStep('school_login');
+                return;
+            }
+            // Vérifier si un mot de passe dirigeant est configuré
+            if (schoolInfo?.id) {
+                setLoading(true);
+                try {
+                    const pwd = await getSchoolManagerPassword(schoolInfo.id);
+                    if (pwd && pwd.trim() !== '') {
+                        // Un mot de passe est requis
+                        setManagerPasswordInput('');
+                        setStep('manager_password');
+                    } else {
+                        // Pas de mot de passe configuré : accès direct
+                        finishLogin(selectedRole);
+                    }
+                } catch {
+                    finishLogin(selectedRole);
+                } finally {
+                    setLoading(false);
+                }
             } else {
                 finishLogin(selectedRole);
             }
         } else {
             setStep('identity_verification');
+        }
+    };
+
+    // Phase 2b: Manager password verification
+    const handleManagerPasswordSubmit = async (e: React.FormEvent) => {
+        e.preventDefault();
+        setError('');
+        setLoading(true);
+        try {
+            const pwd = await getSchoolManagerPassword(schoolInfo!.id);
+            if (managerPasswordInput.trim() === (pwd || '').trim()) {
+                await finishLogin('dirigeant');
+            } else {
+                setError('Mot de passe incorrect. Veuillez réessayer.');
+            }
+        } catch {
+            setError('Erreur lors de la vérification du mot de passe.');
+        } finally {
+            setLoading(false);
         }
     };
 
@@ -148,8 +215,15 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess }) => {
             await api.signInWithGoogle();
             const session = await api.fetchUserSession();
             if (session) {
-                setSchoolInfo({ id: session.school_id, name: session.school_name });
-                setStep('role_selection');
+                // Vérifier l'abonnement après connexion Google
+                const currentUser = api.auth.currentUser;
+                const { isExpired } = await api.checkSchoolSubscription(session.school_id, currentUser?.email);
+                if (isExpired) {
+                    setIsSubscriptionExpired(true);
+                } else {
+                    setSchoolInfo({ id: session.school_id, name: session.school_name });
+                    setStep('role_selection');
+                }
             }
         } catch (err: any) {
             setError(err.message || "Erreur Google.");
@@ -159,6 +233,84 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess }) => {
     };
 
     // --- RENDERING ---
+    
+    if (isSubscriptionExpired) {
+        return (
+            <div className="flex items-center justify-center p-4 min-h-screen bg-slate-900 relative">
+                {/* Decorative Background */}
+                <div className="absolute inset-0 opacity-10 pointer-events-none">
+                    <div className="absolute inset-0" style={{
+                        backgroundImage: `url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%239C92AC' fill-opacity='0.4'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E")`,
+                    }}></div>
+                </div>
+
+                <div className="max-w-md w-full relative">
+                    <div className="bg-white dark:bg-gray-800 rounded-[2.5rem] shadow-[0_35px_60px_-15px_rgba(0,0,0,0.5)] overflow-hidden border border-white/10 animate-in fade-in zoom-in duration-500">
+                        <div className="bg-gradient-to-br from-red-500 to-orange-600 p-10 text-center text-white relative">
+                            <div className="w-24 h-24 bg-white/20 backdrop-blur-xl rounded-full flex items-center justify-center mx-auto mb-6 text-4xl border-2 border-white/30 shadow-inner">
+                                <i className="fas fa-lock"></i>
+                            </div>
+                            <h2 className="text-4xl font-black mb-2 tracking-tight">Accès Restreint</h2>
+                            <p className="text-white/80 font-medium">Votre abonnement nécessite une mise à jour</p>
+                        </div>
+                        
+                        <div className="p-10 space-y-8">
+                            <div className="text-center space-y-4">
+                                <p className="text-xl text-gray-600 dark:text-gray-300">
+                                    Votre abonnement est <span className="text-red-500 font-black uppercase tracking-wider">expiré</span> ou <span className="text-red-500 font-black uppercase tracking-wider">inexistant</span>.
+                                </p>
+                                
+                                <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700/30 p-5 rounded-2xl flex items-start gap-4 text-left">
+                                    <div className="w-10 h-10 bg-amber-100 dark:bg-amber-800/40 rounded-full flex items-center justify-center text-amber-600 shrink-0">
+                                        <i className="fas fa-info-circle text-lg"></i>
+                                    </div>
+                                    <p className="text-sm text-amber-800 dark:text-amber-200 font-semibold leading-relaxed">
+                                        Contactez l'administrateur pour renouveler votre accès et continuer à utiliser l'application.
+                                    </p>
+                                </div>
+                            </div>
+
+                            <div className="space-y-4">
+                                <a 
+                                    href="https://wa.me/242050133271" 
+                                    target="_blank" 
+                                    rel="noopener noreferrer"
+                                    className="flex items-center justify-center gap-4 w-full py-5 bg-[#25D366] hover:bg-[#20bd5a] text-white rounded-[1.5rem] font-black text-lg shadow-[0_10px_20px_-5px_rgba(37,211,102,0.5)] transition-all transform hover:-translate-y-1 hover:scale-[1.02] active:scale-95"
+                                >
+                                    <i className="fab fa-whatsapp text-3xl"></i>
+                                    <div className="text-left">
+                                        <span className="block text-[10px] uppercase opacity-80 leading-none">Contacter via</span>
+                                        <span className="text-xl">WhatsApp</span>
+                                    </div>
+                                    <i className="fas fa-external-link-alt ml-auto opacity-50 text-sm"></i>
+                                </a>
+
+                                <button 
+                                    onClick={() => {
+                                        localStorage.removeItem('pr_scl_school_id');
+                                        localStorage.removeItem('pr_scl_school_name');
+                                        api.signOut();
+                                        window.location.reload();
+                                    }}
+                                    className="w-full py-5 bg-gray-100 dark:bg-white/5 text-gray-600 dark:text-white rounded-[1.5rem] font-bold flex items-center justify-center gap-3 hover:bg-gray-200 dark:hover:bg-white/10 transition-all border border-gray-200 dark:border-white/5"
+                                >
+                                    <i className="fas fa-exchange-alt"></i>
+                                    <span>Changer de compte</span>
+                                </button>
+                            </div>
+                        </div>
+                        
+                        <div className="p-6 bg-gray-50 dark:bg-black/20 text-center border-t border-gray-100 dark:border-white/5">
+                            <a href="tel:+242050133271" className="text-sm text-gray-500 dark:text-gray-400 font-bold hover:text-blue-600 transition-colors">
+                                <i className="fas fa-phone-alt mr-2"></i> +242 05 01 33 271
+                            </a>
+                        </div>
+                    </div>
+                    <p className="text-center text-gray-500 text-xs mt-8 font-medium">PR-SCL - Gestion Scolaire Intelligente</p>
+                </div>
+            </div>
+        );
+    }
 
     if (step === 'school_login') {
         return (
@@ -260,8 +412,57 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess }) => {
             </div>
         );
     }
+    if (step === 'manager_password') {
+        return (
+            <div className="flex items-center justify-center p-4 min-h-screen">
+                <div className="max-w-md w-full">
+                    <button
+                        onClick={() => { setStep('role_selection'); setError(''); }}
+                        className="mb-6 text-gray-500 hover:text-blue-600 flex items-center gap-2 font-medium"
+                    >
+                        <i className="fas fa-arrow-left"></i> Retour
+                    </button>
+
+                    <Card className="shadow-2xl">
+                        <div className="text-center mb-8">
+                            <div className="w-20 h-20 bg-amber-100 dark:bg-amber-900/30 text-amber-600 rounded-full flex items-center justify-center text-3xl mx-auto mb-4 shadow-lg">
+                                <i className="fas fa-key"></i>
+                            </div>
+                            <h2 className="text-2xl font-black dark:text-white">Accès Dirigeant</h2>
+                            <p className="text-gray-500 mt-1 text-sm">
+                                <span className="font-bold text-amber-600">{schoolInfo?.name}</span> — Saisissez votre mot de passe
+                            </p>
+                        </div>
+
+                        <form onSubmit={handleManagerPasswordSubmit} className="space-y-5">
+                            <Input
+                                label="Mot de passe Dirigeant"
+                                placeholder="Ex: SCL2024"
+                                value={managerPasswordInput}
+                                onChange={e => setManagerPasswordInput(e.target.value.toUpperCase().replace(/\s/g, ''))}
+                                required
+                                className="text-center font-mono text-2xl tracking-widest uppercase"
+                            />
+
+                            {error && (
+                                <div className="bg-red-50 dark:bg-red-900/30 text-red-600 dark:text-red-200 p-4 rounded-xl text-sm border border-red-200 flex items-center gap-3">
+                                    <i className="fas fa-exclamation-circle"></i>
+                                    {error}
+                                </div>
+                            )}
+
+                            <Button type="submit" className="w-full h-12" disabled={loading}>
+                                {loading ? <i className="fas fa-spinner fa-spin"></i> : <><i className="fas fa-unlock-alt mr-2"></i> Accéder</>}
+                            </Button>
+                        </form>
+                    </Card>
+                </div>
+            </div>
+        );
+    }
 
     // Step: Identity Verification (Matricule)
+
     return (
         <div className="flex items-center justify-center p-4 min-h-screen">
             <div className="max-w-md w-full">
@@ -287,7 +488,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess }) => {
                                 label="Votre Matricule Unique"
                                 placeholder="SCL-XXXXXX"
                                 value={matricule}
-                                onChange={e => setMatricule(e.target.value.toUpperCase())}
+                                onChange={e => setMatricule(e.target.value.trim().toUpperCase())}
                                 required
                                 className="text-center font-mono text-xl tracking-widest uppercase"
                             />

@@ -43,8 +43,14 @@ service cloud.firestore {
 
     // --- COLLECTION SCHOOLS ---
     match /schools/{schoolId} {
-      allow read: if isAdmin() || belongsToSchool(schoolId);
+      // Autoriser la lecture pour l'admin ou tout utilisateur authentifié
+      // Nécessaire pour vérifier l'abonnement au moment du login avant la création de session
+      allow read: if isAdmin() || isAuthenticated();
+      
       allow create: if isAuthenticated();
+      
+      // Seul l'admin ou le propriétaire peut modifier l'école.
+      // Le propriétaire ne peut PAS modifier son propre statut d'abonnement.
       allow update: if isAdmin() || (isSchoolOwner(schoolId) && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['subscription_plan', 'subscription_expires_at', 'subscription_status']));
     }
 

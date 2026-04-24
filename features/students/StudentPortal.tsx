@@ -16,7 +16,9 @@ export const StudentPortal: React.FC = () => {
     const financialData = useMemo(() => {
         if (!student) return { totalDue: 0, paid: 0, balance: 0, percent: 0 };
         
-        const annualFee = settings.accounting.classFees[student.classe] || 0;
+        const fullClassName = student.serie ? `${student.classe} ${student.serie}` : student.classe;
+        const monthlyFee = settings.accounting.classFees[fullClassName] || 0;
+        const annualFee = monthlyFee * 9;
         const paid = student.totalPaid || 0;
         const balance = Math.max(0, annualFee - paid);
         const percent = annualFee > 0 ? Math.min(100, Math.round((paid / annualFee) * 100)) : 0;
@@ -29,15 +31,53 @@ export const StudentPortal: React.FC = () => {
         grades.filter(g => g.studentId === student?.id),
     [grades, student]);
 
-    // Grouper par trimestre
-    const gradesByTrimestre = useMemo(() => {
-        const groups: Record<string, Grade[]> = {};
+    // Grouper les notes par trimestre puis par matière
+    const groupedGrades = useMemo(() => {
+        const termGroups: Record<string, Record<string, { devoir?: Grade, composition?: Grade, coefficient: number }>> = {};
+        
         studentGrades.forEach(g => {
-            if (!groups[g.trimestre]) groups[g.trimestre] = [];
-            groups[g.trimestre].push(g);
+            if (!termGroups[g.trimestre]) termGroups[g.trimestre] = {};
+            if (!termGroups[g.trimestre][g.matiere]) {
+                termGroups[g.trimestre][g.matiere] = { coefficient: g.coefficient };
+            }
+            if (g.type === 'devoir') termGroups[g.trimestre][g.matiere].devoir = g;
+            if (g.type === 'composition') termGroups[g.trimestre][g.matiere].composition = g;
         });
-        return groups;
+        
+        return termGroups;
     }, [studentGrades]);
+
+    // Calculer les moyennes par trimestre
+    const termAverages = useMemo(() => {
+        const averages: Record<string, number> = {};
+        Object.entries(groupedGrades).forEach(([term, subjects]) => {
+            let totalWeightedPoints = 0;
+            let totalCoeffs = 0;
+            
+            Object.values(subjects).forEach(s => {
+                const devoir = s.devoir?.valeur;
+                const compo = s.composition?.valeur;
+                
+                let subAvg = 0;
+                if (devoir !== undefined && compo !== undefined) {
+                    subAvg = (devoir + compo) / 2;
+                } else if (devoir !== undefined) {
+                    subAvg = devoir;
+                } else if (compo !== undefined) {
+                    subAvg = compo;
+                }
+                
+                totalWeightedPoints += subAvg * s.coefficient;
+                totalCoeffs += s.coefficient;
+            });
+            
+            averages[term] = totalCoeffs > 0 ? Number((totalWeightedPoints / totalCoeffs).toFixed(2)) : 0;
+        });
+        return averages;
+    }, [groupedGrades]);
+
+    const activeTheme = localTheme || settings.theme || 'blue';
+    const themeHex = THEME_HEX_COLORS[activeTheme as keyof typeof THEME_HEX_COLORS] || THEME_HEX_COLORS.blue;
 
     if (!student) {
         return (
@@ -54,48 +94,60 @@ export const StudentPortal: React.FC = () => {
     return (
         <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
             {/* Header Profil */}
-            <Card className="overflow-hidden border-0 shadow-2xl bg-gradient-to-br from-blue-600 to-indigo-700 text-white p-0">
-                <div className="p-8 flex flex-col md:flex-row items-center gap-8">
-                    <div className="relative">
-                        <div className="w-32 h-32 rounded-2xl bg-white/20 backdrop-blur-md flex items-center justify-center text-5xl border-4 border-white/30 shadow-2xl overflow-hidden">
+            <Card 
+                className="overflow-hidden border-0 shadow-2xl p-0 relative"
+                style={{ 
+                    background: (localMode || settings.mode) === 'dark' 
+                        ? `linear-gradient(135deg, ${themeHex.primary} 0%, ${themeHex.hover} 100%)`
+                        : `${themeHex.primary}` 
+                }}
+            >
+                <div className="p-6 md:p-8 flex flex-col md:flex-row items-center gap-6 md:gap-8 relative z-10">
+                    <div className="relative group">
+                        <div className="w-28 h-28 md:w-32 md:h-32 rounded-3xl bg-white/30 backdrop-blur-md flex items-center justify-center text-5xl border-4 border-white/40 shadow-2xl overflow-hidden transition-transform group-hover:scale-105 duration-300">
                             {student.photo ? (
                                 <img src={student.photo} alt={student.nom} className="w-full h-full object-cover" />
                             ) : (
-                                <i className="fas fa-user-graduate"></i>
+                                <i className="fas fa-user-graduate text-white"></i>
                             )}
                         </div>
-                        <div className="absolute -bottom-2 -right-2 bg-green-400 w-8 h-8 rounded-full border-4 border-indigo-700 flex items-center justify-center text-[10px]" title="En ligne">
+                        <div className="absolute -bottom-2 -right-2 bg-green-400 w-8 h-8 rounded-full border-4 flex items-center justify-center text-[10px]" style={{ borderColor: themeHex.primary }} title="En ligne">
                             <i className="fas fa-circle text-white animate-pulse"></i>
                         </div>
                     </div>
                     <div className="text-center md:text-left flex-1">
-                        <h2 className="text-4xl font-black mb-2 uppercase tracking-tight">{student.prenom} {student.nom}</h2>
-                        <div className="flex flex-wrap justify-center md:justify-start gap-3">
-                            <span className="px-4 py-1.5 bg-white/20 rounded-full text-sm font-bold backdrop-blur-md border border-white/20">
+                        <h2 className="text-3xl md:text-4xl font-black mb-3 uppercase tracking-tight text-white drop-shadow-lg">
+                            {student.prenom} {student.nom}
+                        </h2>
+                        <div className="flex flex-wrap justify-center md:justify-start gap-2 md:gap-3">
+                            <span className="px-3 py-1.5 bg-white/20 rounded-xl text-xs md:text-sm font-bold backdrop-blur-md border border-white/20 text-white">
                                 <i className="fas fa-id-card mr-2 opacity-70"></i> {student.matricule}
                             </span>
-                            <span className="px-4 py-1.5 bg-white/20 rounded-full text-sm font-bold backdrop-blur-md border border-white/20">
-                                <i className="fas fa-school mr-2 opacity-70"></i> {student.classe}
+                            <span className="px-3 py-1.5 bg-white/20 rounded-xl text-xs md:text-sm font-bold backdrop-blur-md border border-white/20 text-white">
+                                <i className="fas fa-school mr-2 opacity-70"></i> {student.classe} {student.serie || ''}
                             </span>
-                            <span className="px-4 py-1.5 bg-yellow-400 text-indigo-900 rounded-full text-sm font-black border border-yellow-200">
-                                <i className="fas fa-star mr-2"></i> ÉLÈVE ACTIF
+                            <span className="px-3 py-1.5 bg-white/90 text-gray-900 rounded-xl text-xs md:text-sm font-black border border-white/20 shadow-lg">
+                                <i className="fas fa-star mr-2 text-yellow-500"></i> ÉLÈVE ACTIF
                             </span>
                         </div>
                     </div>
                     {/* Logout Button */}
-                    <div className="md:ml-auto">
+                    <div className="w-full md:w-auto">
                         <button 
                             onClick={logout}
-                            className="flex items-center gap-2 px-6 py-3 bg-white/10 hover:bg-red-500 transition-all rounded-2xl border border-white/20 font-bold group"
+                            className="flex items-center justify-center gap-2 w-full md:w-auto px-6 py-3 bg-white/20 hover:bg-white text-white hover:text-red-600 transition-all rounded-2xl border border-white/30 font-bold group shadow-lg"
                         >
-                            <i className="fas fa-sign-out-alt group-hover:rotate-12 transition-transform"></i>
+                            <i className="fas fa-power-off group-hover:rotate-12 transition-transform"></i>
                             <span>Déconnexion</span>
                         </button>
                     </div>
                 </div>
-                <div className="bg-black/10 backdrop-blur-sm p-4 px-8 flex justify-between items-center text-sm font-medium">
-                    <span>Dernière connexion : Aujourd'hui</span>
-                    <span className="opacity-70 italic">ID: {student.id}</span>
+                <div className="bg-black/20 backdrop-blur-sm p-3 px-8 flex flex-col md:flex-row justify-between items-center text-[10px] md:text-xs font-bold text-white uppercase tracking-widest gap-2">
+                    <div className="flex items-center gap-2">
+                        <span className="w-1.5 h-1.5 rounded-full bg-green-400"></span>
+                        Connecté sur PR-SCL Portal
+                    </div>
+                    <span className="opacity-90">Session ID: {student.id.substring(0, 12)}...</span>
                 </div>
             </Card>
 
@@ -176,32 +228,86 @@ export const StudentPortal: React.FC = () => {
                             Résultats Scolaires
                         </h3>
 
-                        {Object.keys(gradesByTrimestre).length === 0 ? (
+                        {Object.keys(groupedGrades).length === 0 ? (
                             <div className="py-20 text-center opacity-50">
                                 <i className="fas fa-file-invoice text-4xl mb-4"></i>
                                 <p>Aucune note enregistrée pour le moment.</p>
                             </div>
                         ) : (
                             <div className="space-y-8">
-                                {Object.entries(gradesByTrimestre).sort().map(([trimestre, items]) => (
+                                {Object.entries(groupedGrades).sort().map(([trimestre, subjects]) => (
                                     <div key={trimestre} className="space-y-4">
-                                        <div className="flex items-center gap-4">
-                                            <span className="px-4 py-1 bg-indigo-600 text-white rounded-full text-xs font-black uppercase">Trimestre {trimestre}</span>
-                                            <div className="h-px flex-1 bg-gray-100 dark:bg-white/10"></div>
+                                        <div className="flex items-center justify-between gap-4">
+                                            <div className="flex items-center gap-4">
+                                                <span className="px-4 py-1 bg-indigo-600 text-white rounded-full text-xs font-black uppercase">Trimestre {trimestre}</span>
+                                                <div className="h-px w-24 bg-gray-100 dark:bg-white/10"></div>
+                                            </div>
+                                            <div className="flex items-center gap-2">
+                                                <span className="text-xs font-bold text-gray-400 uppercase tracking-widest">Moyenne :</span>
+                                                <span className={`text-lg font-black px-3 py-1 rounded-lg ${termAverages[trimestre] >= 10 ? 'bg-green-100 text-green-600' : 'bg-red-100 text-red-600'}`}>
+                                                    {termAverages[trimestre]}
+                                                </span>
+                                            </div>
                                         </div>
                                         
-                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                            {items.map((grade, idx) => (
-                                                <div key={idx} className="p-4 bg-white dark:bg-slate-800 rounded-xl border border-gray-100 dark:border-white/5 flex justify-between items-center shadow-sm hover:shadow-md transition-shadow">
-                                                    <div>
-                                                        <h4 className="font-bold text-gray-800 dark:text-gray-100">{grade.matiere}</h4>
-                                                        <p className="text-xs text-gray-400 capitalize">{grade.type} • Coeff: {grade.coefficient}</p>
-                                                    </div>
-                                                    <div className={`w-12 h-12 rounded-lg flex items-center justify-center text-xl font-black shadow-inner ${grade.valeur >= 10 ? 'bg-green-100 text-green-600' : 'bg-red-100 text-red-600'}`}>
-                                                        {grade.valeur}
-                                                    </div>
+                                        <div className="overflow-x-auto -mx-6 px-6 scrollbar-hide">
+                                            <table className="w-full text-left min-w-[550px] md:min-w-full">
+                                                <thead>
+                                                    <tr className="text-[10px] font-black text-gray-400 dark:text-gray-500 uppercase tracking-widest border-b border-gray-100 dark:border-white/5">
+                                                        <th className="pb-3 px-2">Discipline</th>
+                                                        <th className="pb-3 px-2 text-center">Devoir</th>
+                                                        <th className="pb-3 px-2 text-center">Compo.</th>
+                                                        <th className="pb-3 px-2 text-center">Coeff</th>
+                                                        <th className="pb-3 px-2 text-right">Moyenne</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody className="divide-y divide-gray-50 dark:divide-white/5">
+                                                    {Object.entries(subjects).map(([subject, data], idx) => {
+                                                        const d = data.devoir?.valeur;
+                                                        const c = data.composition?.valeur;
+                                                        let subAvg = 0;
+                                                        if (d !== undefined && c !== undefined) subAvg = (d + c) / 2;
+                                                        else if (d !== undefined) subAvg = d;
+                                                        else if (c !== undefined) subAvg = c;
+
+                                                        return (
+                                                            <tr key={idx} className="group hover:bg-gray-50 dark:hover:bg-white/5 transition-colors">
+                                                                <td className="py-4 px-2 font-bold text-gray-800 dark:text-gray-100 text-sm md:text-base whitespace-nowrap">{subject}</td>
+                                                                <td className="py-4 px-2 text-center">
+                                                                    <div className={`inline-flex items-center justify-center w-10 h-8 md:w-12 md:h-9 rounded-lg text-sm font-black ${d !== undefined ? (d >= 10 ? 'bg-green-50 text-green-600 dark:bg-green-900/20' : 'bg-red-50 text-red-600 dark:bg-red-900/20') : 'bg-gray-50 text-gray-300 dark:bg-white/5'}`}>
+                                                                        {d !== undefined ? d : '--'}
+                                                                    </div>
+                                                                </td>
+                                                                <td className="py-4 px-2 text-center">
+                                                                    <div className={`inline-flex items-center justify-center w-10 h-8 md:w-12 md:h-9 rounded-lg text-sm font-black ${c !== undefined ? (c >= 10 ? 'bg-green-50 text-green-600 dark:bg-green-900/20' : 'bg-red-50 text-red-600 dark:bg-red-900/20') : 'bg-gray-50 text-gray-300 dark:bg-white/5'}`}>
+                                                                        {c !== undefined ? c : '--'}
+                                                                    </div>
+                                                                </td>
+                                                                <td className="py-4 px-2 text-center text-xs md:text-sm font-bold text-gray-400">{data.coefficient}</td>
+                                                                <td className="py-4 px-2 text-right">
+                                                                    <span className={`text-sm md:text-base font-black ${subAvg >= 10 ? 'text-green-600' : 'text-red-600'}`}>
+                                                                        {subAvg.toFixed(2)}
+                                                                    </span>
+                                                                </td>
+                                                            </tr>
+                                                        );
+                                                    })}
+                                                </tbody>
+                                            </table>
+                                            
+                                            {/* Mobile Summary (Averages) */}
+                                            <div className="md:hidden mt-4 pt-4 border-t border-gray-100 dark:border-white/5 flex justify-between items-center bg-gray-50/50 dark:bg-white/5 p-4 rounded-2xl">
+                                                <div className="flex flex-col">
+                                                    <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Trimestre {trimestre}</span>
+                                                    <span className="text-sm font-black text-gray-800 dark:text-white">Rapport Global</span>
                                                 </div>
-                                            ))}
+                                                <div className="flex items-center gap-3">
+                                                    <span className="text-xs font-bold text-gray-500">Moyenne:</span>
+                                                    <span className={`text-xl font-black px-4 py-2 rounded-xl shadow-lg ${termAverages[trimestre] >= 10 ? 'bg-green-500 text-white' : 'bg-red-500 text-white'}`}>
+                                                        {termAverages[trimestre]}
+                                                    </span>
+                                                </div>
+                                            </div>
                                         </div>
                                     </div>
                                 ))}

@@ -106,9 +106,9 @@ export const Select: React.FC<SelectProps> = ({ label, options, error, className
 };
 
 // Card Component
-export const Card: React.FC<{ children: React.ReactNode; title?: React.ReactNode; className?: string; noPadding?: boolean }> = ({ children, title, className = '', noPadding = false }) => {
+export const Card: React.FC<{ children: React.ReactNode; title?: React.ReactNode; className?: string; noPadding?: boolean; style?: React.CSSProperties }> = ({ children, title, className = '', noPadding = false, style }) => {
   return (
-    <div className={`bg-white dark:bg-slate-900/60 dark:backdrop-blur-2xl dark:border dark:border-white/10 rounded-[2rem] shadow-xl shadow-gray-200/50 dark:shadow-none overflow-hidden transition-all duration-300 ${className}`}>
+    <div className={`bg-white dark:bg-slate-900/60 dark:backdrop-blur-2xl dark:border dark:border-white/10 rounded-[2rem] shadow-xl shadow-gray-200/50 dark:shadow-none overflow-hidden transition-all duration-300 ${className}`} style={style}>
       {title && (
         <div className="px-8 py-6 border-b border-gray-50 dark:border-white/5 flex items-center justify-between bg-gray-50/30 dark:bg-white/2">
           <h3 className="text-xl font-black text-gray-900 dark:text-white tracking-tight">{title}</h3>

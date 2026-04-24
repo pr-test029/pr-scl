@@ -146,6 +146,22 @@ export const Settings: React.FC = () => {
                           <Input label="Inspection" value={localSettings.bulletin.inspectionName || ''} onChange={e => setLocalSettings({...localSettings, bulletin: {...localSettings.bulletin, inspectionName: e.target.value}})} />
                       </div>
 
+                      <div className="bg-amber-50/50 dark:bg-white/5 p-6 rounded-2xl border border-amber-100 dark:border-white/10 space-y-4">
+                          <h4 className="font-bold text-amber-700 dark:text-amber-300 flex items-center gap-2">
+                              <i className="fas fa-key"></i> Accès Dirigeant
+                          </h4>
+                          <p className="text-sm text-amber-600 dark:text-amber-400">
+                              Si défini, ce mot de passe sera demandé pour accéder au rôle Dirigeant. Laissez vide pour un accès direct.
+                              Le mot de passe doit contenir des chiffres et des lettres en MAJUSCULE.
+                          </p>
+                          <Input 
+                            label="Mot de passe Dirigeant (PIN)" 
+                            placeholder="Ex: SCL2024" 
+                            value={localSettings.managerPassword || ''} 
+                            onChange={e => setLocalSettings({...localSettings, managerPassword: e.target.value.toUpperCase().replace(/\s/g, '')})} 
+                          />
+                      </div>
+
                       <div className="flex justify-end">
                           <Button onClick={handleSaveSettings}>Enregistrer les modifications</Button>
                       </div>

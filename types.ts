@@ -124,6 +124,7 @@ export interface AppSettings {
   accounting: AccountingSettings;
   staff: StaffMember[]; // Liste du personnel de l'école
   staffRoles?: string[]; // Liste des rôles personnalisés (ex: Surveillant, Comptable, etc.)
+  managerPassword?: string; // Mot de passe pour le rôle Dirigeant
 }
 
 export type View = 'dashboard' | 'students' | 'inscription' | 'settings' | 'admin' | 'accounting' | 'student_portal' | 'personnel' | 'profile' | 'evaluation';

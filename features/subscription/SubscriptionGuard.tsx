@@ -57,16 +57,17 @@ export const SubscriptionGuard: React.FC<SubscriptionGuardProps> = ({ school, ch
             let isExpired = false;
             let daysLeft: number | null = null;
 
-            if (!school.subscription_expires_at) {
-                isExpired = true;
+            if (school.subscription_status === 'active') {
+                if (!school.subscription_expires_at) {
+                    isExpired = false;
+                    daysLeft = 30;
+                } else {
+                    const expiryDate = new Date(school.subscription_expires_at);
+                    const timeDiff = expiryDate.getTime() - now.getTime();
+                    daysLeft = Math.ceil(timeDiff / (1000 * 60 * 60 * 24));
+                    isExpired = daysLeft <= 0;
+                }
             } else {
-                const expiryDate = new Date(school.subscription_expires_at);
-                const timeDiff = expiryDate.getTime() - now.getTime();
-                daysLeft = Math.ceil(timeDiff / (1000 * 60 * 60 * 24));
-                isExpired = daysLeft <= 0;
-            }
-
-            if (school.subscription_status === 'expired' || school.subscription_status === 'free') {
                 isExpired = true;
             }
 

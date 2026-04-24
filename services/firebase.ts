@@ -145,8 +145,55 @@ export const signInWithGoogle = async () => {
     return user;
 };
 
+// Vérifier l'abonnement d'une école
+export const checkSchoolSubscription = async (schoolId: string, currentUserEmail?: string | null): Promise<{ isExpired: boolean, daysRemaining: number | null, ownerEmail?: string }> => {
+    try {
+        // Exemption globale pour l'admin maître
+        if (currentUserEmail === ADMIN_EMAIL) {
+            return { isExpired: false, daysRemaining: 999 };
+        }
+
+        const schoolDoc = await getDoc(doc(db, "schools", schoolId));
+        if (!schoolDoc.exists()) return { isExpired: true, daysRemaining: null };
+        
+        const school = schoolDoc.data();
+        
+        // Exemption si l'école appartient à l'admin (cas où l'école est la sienne)
+        if (school.owner_email === ADMIN_EMAIL) {
+            return { isExpired: false, daysRemaining: 999, ownerEmail: school.owner_email };
+        }
+        
+        const now = new Date();
+        let isExpired = false;
+        let daysRemaining: number | null = null;
+
+        // Si le statut est explicitement 'active', on vérifie la date
+        if (school.subscription_status === 'active') {
+            if (!school.subscription_expires_at) {
+                // Par sécurité, si c'est 'active' mais pas de date, on laisse passer (ou on met une date par défaut)
+                isExpired = false;
+                daysRemaining = 30;
+            } else {
+                const expiryDate = school.subscription_expires_at.toDate();
+                const timeDiff = expiryDate.getTime() - now.getTime();
+                daysRemaining = Math.ceil(timeDiff / (1000 * 60 * 60 * 24));
+                isExpired = daysRemaining <= 0;
+            }
+        } else {
+            // Pour tous les autres statuts (free, expired, null), on bloque
+            isExpired = true;
+        }
+
+        return { isExpired, daysRemaining, ownerEmail: school.owner_email };
+    } catch (error) {
+        console.error("checkSchoolSubscription error:", error);
+        return { isExpired: true, daysRemaining: null };
+    }
+};
+
 // Recherche d'identité (Élève ou Personnel) par matricule
-export const findIdentityByMatricule = async (matricule: string, schoolId?: string): Promise<{ type: 'eleve' | 'staff', data: any, schoolId: string } | null> => {
+export const findIdentityByMatricule = async (matriculeInput: string, schoolId?: string): Promise<{ type: 'eleve' | 'staff', data: any, schoolId: string } | null> => {
+    const matricule = matriculeInput.trim();
     console.log("findIdentityByMatricule: Début de recherche pour", matricule, schoolId ? `dans l'école ${schoolId}` : "globale");
     try {
         // S'assurer qu'on est authentifié (même anonymement) pour passer les règles de sécurité
@@ -207,7 +254,8 @@ export const findIdentityByMatricule = async (matricule: string, schoolId?: stri
     }
 };
 
-export const loginWithMatricule = async (matricule: string, schoolId?: string): Promise<UserSession | null> => {
+export const loginWithMatricule = async (matriculeInput: string, schoolId?: string): Promise<UserSession | null> => {
+    const matricule = matriculeInput.trim();
     // 1. Trouver l'identité
     const identity = await findIdentityByMatricule(matricule, schoolId);
     if (!identity) throw new Error("Matricule non trouvé.");
@@ -259,6 +307,22 @@ export const signOut = async () => {
     // On ne réinitialise PAS currentSchoolId/Name pour permettre le retour au choix des rôles
     localStorage.removeItem('pr_scl_matricule_session');
     localStorage.removeItem('pr_scl_user_uid');
+};
+
+// Récupérer le mot de passe dirigeant d'une école (depuis app_config)
+export const getSchoolManagerPassword = async (schoolId: string): Promise<string | null> => {
+    try {
+        const docRef = doc(db, "app_config", `${schoolId}_settings`);
+        const docSnap = await getDoc(docRef);
+        if (docSnap.exists()) {
+            const settings = docSnap.data().data as AppSettings;
+            return settings.managerPassword || null;
+        }
+        return null;
+    } catch (error) {
+        console.error("getSchoolManagerPassword error:", error);
+        return null;
+    }
 };
 
 export const fetchUserSession = async (): Promise<UserSession | null> => {
@@ -384,6 +448,16 @@ export const fetchStudents = async (): Promise<Student[]> => {
     }
 };
 
+export const subscribeToStudents = (schoolId: string, callback: (students: Student[]) => void): (() => void) => {
+    const q = query(collection(db, "students"), where("school_id", "==", schoolId));
+    return onSnapshot(q, (snapshot) => {
+        const students = snapshot.docs.map(doc => doc.data() as Student);
+        callback(students);
+    }, (error) => {
+        console.error("subscribeToStudents Error:", error);
+    });
+};
+
 export const addStudentDB = async (student: Student) => {
     const schoolId = await ensureSchoolId();
     if (!schoolId) {
@@ -470,6 +544,16 @@ export const fetchGrades = async (): Promise<Grade[]> => {
     }
 };
 
+export const subscribeToGrades = (schoolId: string, callback: (grades: Grade[]) => void): (() => void) => {
+    const q = query(collection(db, "grades"), where("school_id", "==", schoolId));
+    return onSnapshot(q, (snapshot) => {
+        const grades = snapshot.docs.map(doc => doc.data() as Grade);
+        callback(grades);
+    }, (error) => {
+        console.error("subscribeToGrades Error:", error);
+    });
+};
+
 export const addGradeDB = async (grade: Grade) => {
     const schoolId = await ensureSchoolId();
     if (!schoolId) {
@@ -543,6 +627,19 @@ export const saveCyclesDB = (cycles: Record<string, Cycle>) => saveConfig('cycle
 export const fetchSubjects = () => fetchConfig<Record<string, Subject[]>>('subjects', INITIAL_SUBJECTS);
 export const saveSubjectsDB = (subjects: Record<string, Subject[]>) => saveConfig('subjects', subjects);
 
+export const subscribeToConfig = <T>(schoolId: string, key: string, defaultValue: T, callback: (data: T) => void): (() => void) => {
+    const docRef = doc(db, "app_config", `${schoolId}_${key}`);
+    return onSnapshot(docRef, (snap) => {
+        if (snap.exists()) {
+            callback(snap.data().data as T);
+        } else {
+            callback(defaultValue);
+        }
+    }, (error) => {
+        console.error(`subscribeToConfig Error (${key}):`, error);
+    });
+};
+
 export const clearDB = async () => {
     if (!currentSchoolId) return;
 
@@ -577,6 +674,16 @@ export const fetchPayments = async (): Promise<Payment[]> => {
         console.error("fetchPayments Error:", error);
         return [];
     }
+};
+
+export const subscribeToPayments = (schoolId: string, callback: (payments: Payment[]) => void): (() => void) => {
+    const q = query(collection(db, "payments"), where("school_id", "==", schoolId));
+    return onSnapshot(q, (snapshot) => {
+        const payments = snapshot.docs.map(doc => doc.data() as Payment);
+        callback(payments);
+    }, (error) => {
+        console.error("subscribeToPayments Error:", error);
+    });
 };
 
 export const addPaymentDB = async (payment: Payment) => {

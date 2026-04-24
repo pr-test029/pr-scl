@@ -60,7 +60,6 @@ const App: React.FC = () => {
       const userSession = await api.fetchUserSession();
       if (userSession) {
         setSession(userSession);
-        await loadSchoolData();
       }
       setLoading(false);
     };
@@ -81,13 +80,16 @@ const App: React.FC = () => {
     }
   }, [students.length, session]);
 
-  const loadSchoolData = async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      // Load School Info
+  useEffect(() => {
+    let unsubscribes: (() => void)[] = [];
+
+    const loadRealtimeData = async () => {
       const schoolId = session?.school_id;
-      if (schoolId) {
+      if (!schoolId) return;
+
+      setLoading(true);
+      try {
+        // School Info
         const schoolDoc = await getDoc(doc(db, "schools", schoolId));
         if (schoolDoc.exists()) {
           const schoolData = schoolDoc.data();
@@ -102,38 +104,36 @@ const App: React.FC = () => {
             subscription_status: schoolData.subscription_status || 'free'
           } as School);
         }
+
+        // Subscriptions
+        unsubscribes.push(api.subscribeToStudents(schoolId, setStudents));
+        unsubscribes.push(api.subscribeToGrades(schoolId, setGrades));
+        unsubscribes.push(api.subscribeToPayments(schoolId, setPayments));
+        unsubscribes.push(api.subscribeToConfig(schoolId, 'settings', INITIAL_SETTINGS, setSettings));
+        unsubscribes.push(api.subscribeToConfig(schoolId, 'cycles', INITIAL_CYCLES, setCycles));
+        unsubscribes.push(api.subscribeToConfig(schoolId, 'subjects', INITIAL_SUBJECTS, setSubjects));
+
+      } catch (e) {
+        console.error("Realtime load error", e);
+        setError("Erreur de synchronisation en temps réel.");
+      } finally {
+        setLoading(false);
       }
+    };
 
-      // Load Data
-      const [
-        fetchedStudents,
-        fetchedGrades,
-        fetchedSettings,
-        fetchedCycles,
-        fetchedSubjects,
-        fetchedPayments
-      ] = await Promise.all([
-        api.fetchStudents(),
-        api.fetchGrades(),
-        api.fetchSettings(),
-        api.fetchCycles(),
-        api.fetchSubjects(),
-        api.fetchPayments()
-      ]);
-
-      setStudents(fetchedStudents);
-      setGrades(fetchedGrades);
-      setSettings(fetchedSettings);
-      setCycles(fetchedCycles);
-      setSubjects(fetchedSubjects);
-      setPayments(fetchedPayments);
-    } catch (e: any) {
-      console.error("Data load error", e);
-      setError("Erreur de connexion. Impossible de charger les données.");
-    } finally {
-      setLoading(false);
+    if (session) {
+      loadRealtimeData();
+    } else {
+      setSchool(null);
+      setStudents([]);
+      setGrades([]);
+      setPayments([]);
     }
-  };
+
+    return () => {
+      unsubscribes.forEach(unsub => unsub());
+    };
+  }, [session]);
 
   const refreshSchool = async () => {
     const user = auth.currentUser;
@@ -161,7 +161,6 @@ const App: React.FC = () => {
 
   const handleLoginSuccess = async (newSession: UserSession) => {
     setSession(newSession);
-    await loadSchoolData();
     // Redirection basée sur le rôle
     if (newSession.role === 'admin') {
       setCurrentView('admin');
@@ -176,10 +175,21 @@ const App: React.FC = () => {
     }
   };
 
+  // Sécurité : Redirection forcée et protection des vues
+  useEffect(() => {
+    if (session) {
+      if (session.role === 'eleve' && currentView !== 'student_portal' && currentView !== 'profile') {
+        setCurrentView('student_portal');
+      }
+    }
+  }, [session, currentView]);
+
   const handleLogout = async () => {
+    // Déconnexion complète : on oublie aussi l'école pour éviter les vérifs auto
+    localStorage.removeItem('pr_scl_school_id');
+    localStorage.removeItem('pr_scl_school_name');
     await api.signOut();
     setSession(null);
-    // On garde le 'school' pour permettre le retour au choix des rôles
     setCurrentView('dashboard');
   };
 
@@ -213,7 +223,6 @@ const App: React.FC = () => {
       await api.deleteStudentDB(id);
     } catch (e: any) {
       alert("Erreur lors de la suppression : " + e.message);
-      loadSchoolData();
     }
   };
 
@@ -253,7 +262,6 @@ const App: React.FC = () => {
       await api.addPaymentDB(p);
     } catch (e: any) {
       alert("Erreur lors de l'enregistrement du paiement : " + e.message);
-      loadSchoolData(); // Recharger en cas d'erreur
     }
   };
 
@@ -281,8 +289,6 @@ const App: React.FC = () => {
       await api.saveSettingsDB(INITIAL_SETTINGS);
       await api.saveCyclesDB(INITIAL_CYCLES);
       await api.saveSubjectsDB(INITIAL_SUBJECTS);
-
-      await loadSchoolData();
     }
   };
 
@@ -361,7 +367,7 @@ const App: React.FC = () => {
           <p className="text-gray-600 dark:text-gray-300 mb-6">{error}</p>
           <div className="flex justify-center gap-3">
             <Button variant="secondary" onClick={handleLogout}>Se déconnecter</Button>
-            <Button variant="primary" onClick={loadSchoolData} icon={<i className="fas fa-sync-alt"></i>}>Réessayer</Button>
+            <Button variant="primary" onClick={() => window.location.reload()} icon={<i className="fas fa-sync-alt"></i>}>Réessayer</Button>
           </div>
         </div>
       </div>
@@ -548,7 +554,7 @@ const App: React.FC = () => {
                 </header>
 
                 <div className="animate-fade-in" style={{ animationDelay: '0.1s' }}>
-                  {currentView === 'dashboard' && <Dashboard />}
+                  {currentView === 'dashboard' && (session?.role === 'dirigeant' || session?.role === 'gestionnaire' || session?.role === 'admin') && <Dashboard />}
                   {currentView === 'inscription' && <StudentForm onSuccess={() => setCurrentView('students')} />}
                   {currentView === 'students' && <StudentList />}
                   {currentView === 'accounting' && <Accounting />}

@@ -8,6 +8,7 @@ import {
     isAdmin as checkIsAdmin,
     subscribeToUserProfiles,
     updateUserRole,
+    getSchoolManagerPassword,
     UserProfile,
     auth
 } from '../../services/firebase';
@@ -31,6 +32,8 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
     const [processing, setProcessing] = useState(false);
     const [selectedSchool, setSelectedSchool] = useState<School | null>(null);
     const [showDetailsModal, setShowDetailsModal] = useState(false);
+    const [managerPasswords, setManagerPasswords] = useState<Record<string, string>>({});
+    const [revealedPasswords, setRevealedPasswords] = useState<Record<string, boolean>>({});
 
     useEffect(() => {
         const user = auth.currentUser;
@@ -42,6 +45,11 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
         const unsubSchools = subscribeToSchools((updatedSchools) => {
             setSchools(updatedSchools);
             setLoading(false);
+            // Charger les mots de passe dirigeants pour chaque école
+            updatedSchools.forEach(async (school) => {
+                const pwd = await getSchoolManagerPassword(school.id);
+                setManagerPasswords(prev => ({ ...prev, [school.id]: pwd || '' }));
+            });
         });
 
         const unsubProfiles = subscribeToUserProfiles((updatedProfiles) => {
@@ -349,6 +357,9 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
                                     <th className="text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider py-4 px-4">
                                         Expiration
                                     </th>
+                                    <th className="text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider py-4 px-4">
+                                        <i className="fas fa-key mr-1 text-amber-500"></i> MDP Dirigeant
+                                    </th>
                                     <th className="text-right text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider py-4 px-4">
                                         Actions
                                     </th>
@@ -416,6 +427,24 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
                                                         </span>
                                                     )}
                                                 </div>
+                                            </td>
+                                            <td className="py-4 px-4">
+                                                {managerPasswords[school.id] ? (
+                                                    <div className="flex items-center gap-2">
+                                                        <span className={`font-mono text-sm font-bold tracking-widest ${revealedPasswords[school.id] ? 'text-amber-600 dark:text-amber-400' : 'text-gray-300 dark:text-gray-600 select-none'}`}>
+                                                            {revealedPasswords[school.id] ? managerPasswords[school.id] : '••••••'}
+                                                        </span>
+                                                        <button
+                                                            onClick={() => setRevealedPasswords(prev => ({ ...prev, [school.id]: !prev[school.id] }))}
+                                                            className="w-7 h-7 rounded-lg bg-amber-50 dark:bg-amber-900/20 text-amber-600 flex items-center justify-center hover:bg-amber-100 transition-colors"
+                                                            title={revealedPasswords[school.id] ? 'Masquer' : 'Afficher'}
+                                                        >
+                                                            <i className={`fas fa-${revealedPasswords[school.id] ? 'eye-slash' : 'eye'} text-xs`}></i>
+                                                        </button>
+                                                    </div>
+                                                ) : (
+                                                    <span className="text-xs text-gray-400 italic">Non défini</span>
+                                                )}
                                             </td>
                                             <td className="py-4 px-4">
                                                 <div className="flex items-center justify-end gap-2">
