@@ -461,7 +461,7 @@ const App: React.FC = () => {
                   <NavItem icon="fa-chart-pie" label="Tableau de bord" active={currentView === 'dashboard'} collapsed={isSidebarCollapsed} onClick={() => setCurrentView('dashboard')} />
                 )}
                 
-                {(session?.role === 'dirigeant' || session?.role === 'gestionnaire') && (
+                {(session?.role === 'dirigeant' || session?.role === 'gestionnaire' || session?.role === 'admin') && (
                   <NavItem icon="fa-user-plus" label="Inscription" active={currentView === 'inscription'} collapsed={isSidebarCollapsed} onClick={() => setCurrentView('inscription')} />
                 )}
                 
@@ -469,7 +469,7 @@ const App: React.FC = () => {
                   <NavItem icon="fa-users" label="Liste des élèves" active={currentView === 'students'} collapsed={isSidebarCollapsed} onClick={() => setCurrentView('students')} />
                 )}
                 
-                {(session?.role === 'dirigeant' || session?.role === 'gestionnaire') && (
+                {(session?.role === 'dirigeant' || session?.role === 'gestionnaire' || session?.role === 'admin') && (
                   <NavItem icon="fa-wallet" label="Comptabilité" active={currentView === 'accounting'} collapsed={isSidebarCollapsed} onClick={() => setCurrentView('accounting')} />
                 )}
 
