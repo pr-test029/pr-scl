@@ -7,6 +7,7 @@ import { onAuthStateChanged } from 'firebase/auth';
 interface SubscriptionGuardProps {
     school: School | null;
     children: React.ReactNode;
+    isAdmin?: boolean;
 }
 
 const ADMIN_EMAIL = 'powerfulreach029@gmail.com';
@@ -16,7 +17,7 @@ const isUserAdmin = (email: string | null | undefined): boolean => {
     return email.toLowerCase() === ADMIN_EMAIL.toLowerCase();
 };
 
-export const SubscriptionGuard: React.FC<SubscriptionGuardProps> = ({ school, children }) => {
+export const SubscriptionGuard: React.FC<SubscriptionGuardProps> = ({ school, children, isAdmin }) => {
     const [showPaywall, setShowPaywall] = useState(false);
     const [isChecking, setIsChecking] = useState(true);
     const [daysRemaining, setDaysRemaining] = useState<number | null>(null);
@@ -36,7 +37,7 @@ export const SubscriptionGuard: React.FC<SubscriptionGuardProps> = ({ school, ch
 
     useEffect(() => {
         const checkSubscription = () => {
-            if (isUserAdmin(currentUserEmail)) {
+            if (isAdmin || isUserAdmin(currentUserEmail)) {
                 setShowPaywall(false);
                 setIsChecking(false);
                 return;
@@ -86,7 +87,7 @@ export const SubscriptionGuard: React.FC<SubscriptionGuardProps> = ({ school, ch
 
     useEffect(() => {
         if (showPaywall) return;
-        if (isUserAdmin(currentUserEmail)) return;
+        if (isAdmin || isUserAdmin(currentUserEmail)) return;
 
         const interval = setInterval(() => {
             const now = new Date();
@@ -116,7 +117,7 @@ export const SubscriptionGuard: React.FC<SubscriptionGuardProps> = ({ school, ch
         return <PaywallModal email={currentUserEmail} />;
     }
 
-    const isAdminUser = isUserAdmin(currentUserEmail);
+    const isAdminUser = isAdmin || isUserAdmin(currentUserEmail);
 
     return (
         <>

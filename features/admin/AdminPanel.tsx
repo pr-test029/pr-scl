@@ -15,13 +15,14 @@ import {
 
 interface AdminPanelProps {
     onBack: () => void;
+    userRole?: string;
 }
 
 interface SchoolWithUser extends School {
     userCount?: number;
 }
 
-export const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
+export const AdminPanel: React.FC<AdminPanelProps> = ({ onBack, userRole }) => {
     const [schools, setSchools] = useState<SchoolWithUser[]>([]);
     const [profiles, setProfiles] = useState<UserProfile[]>([]);
     const [activeTab, setActiveTab] = useState<'schools' | 'users'>('schools');
@@ -37,7 +38,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
 
     useEffect(() => {
         const user = auth.currentUser;
-        if (!user || !checkIsAdmin(user.email)) {
+        if (!user || (!checkIsAdmin(user.email) && userRole !== 'admin')) {
             setLoading(false);
             return;
         }

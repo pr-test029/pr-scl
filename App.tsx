@@ -374,21 +374,8 @@ const App: React.FC = () => {
     );
   }
 
-  // Admin Panel View
-  if (currentView === 'admin' && isAdmin) {
-    return (
-      <SchoolContext.Provider value={contextValue}>
-        <div
-          className={`min-h-screen transition-all duration-300 ${currentMode === 'dark' ? 'dark starry-bg text-gray-100' : 'bg-gray-100 text-gray-800'}`}
-          style={themeStyles}
-        >
-          <div className="relative z-10 p-8">
-            <AdminPanel onBack={() => setCurrentView('dashboard')} />
-          </div>
-        </div>
-      </SchoolContext.Provider>
-    );
-  }
+  // On ne retourne plus en mode "early exit" pour l'AdminPanel pour garder le menu latéral
+
 
   return (
     <SchoolContext.Provider value={contextValue}>
@@ -396,7 +383,7 @@ const App: React.FC = () => {
         className={`min-h-screen transition-all duration-300 ${currentMode === 'dark' ? 'dark starry-bg text-gray-100' : 'bg-gray-100 text-gray-800'}`}
         style={themeStyles}
       >
-        <SubscriptionGuard school={school}>
+        <SubscriptionGuard school={school} isAdmin={isAdmin}>
           <div className="flex flex-col md:flex-row font-sans min-h-screen relative z-10">
 
             {/* Mobile Header */}
@@ -490,11 +477,11 @@ const App: React.FC = () => {
                   <NavItem icon="fa-chart-line" label="Suivi & Éval." active={currentView === 'evaluation'} collapsed={isSidebarCollapsed} onClick={() => setCurrentView('evaluation')} />
                 )}
                 
-                {(session?.role === 'dirigeant') && (
+                {(session?.role === 'dirigeant' || session?.role === 'admin') && (
                   <NavItem icon="fa-users-cog" label="Personnel" active={currentView === 'personnel'} collapsed={isSidebarCollapsed} onClick={() => setCurrentView('personnel')} />
                 )}
                 
-                {(session?.role === 'dirigeant') && (
+                {(session?.role === 'dirigeant' || session?.role === 'admin') && (
                   <NavItem icon="fa-cogs" label="Paramètres" active={currentView === 'settings'} collapsed={isSidebarCollapsed} onClick={() => setCurrentView('settings')} />
                 )}
 
@@ -562,7 +549,7 @@ const App: React.FC = () => {
                   {currentView === 'student_portal' && <StudentPortal />}
                   {currentView === 'personnel' && <PersonnelManagement />}
                   {currentView === 'profile' && <StaffProfile />}
-                  {currentView === 'admin' && isAdmin && <AdminPanel />}
+                  {currentView === 'admin' && isAdmin && <AdminPanel onBack={() => setCurrentView('dashboard')} userRole={session?.role} />}
                   {currentView === 'evaluation' && <Evaluation />}
                 </div>
               </div>
