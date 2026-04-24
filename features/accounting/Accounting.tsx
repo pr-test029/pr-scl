@@ -78,7 +78,7 @@ export const Accounting: React.FC = () => {
             id: Date.now().toString(),
             studentId: selectedStudent.id,
             amount: paymentAmount,
-            date: new Date().toLocaleString('fr-FR'),
+            date: new Date().toISOString(),
             method: paymentMethod,
             notes: paymentNotes,
             recorded_by: session?.user_id,

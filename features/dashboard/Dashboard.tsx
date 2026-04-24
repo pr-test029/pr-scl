@@ -27,19 +27,43 @@ export const Dashboard: React.FC = () => {
   const totalRevenue = payments.reduce((acc, p) => acc + (p.amount || 0), 0);
   const staffCount = settings.staff?.length || 0;
 
-  // Data for the financial chart (last 12 months)
+  // Helper to parse dates from various formats (ISO or local fr-FR)
+  const parsePaymentDate = (dateStr: string) => {
+    if (!dateStr) return new Date();
+    const date = new Date(dateStr);
+    if (!isNaN(date.getTime())) return date;
+    
+    // Fallback for fr-FR format: DD/MM/YYYY
+    const parts = dateStr.split(' ');
+    const dateParts = parts[0].split('/');
+    if (dateParts.length === 3) {
+      const day = parseInt(dateParts[0], 10);
+      const month = parseInt(dateParts[1], 10) - 1;
+      const year = parseInt(dateParts[2], 10);
+      return new Date(year, month, day);
+    }
+    return new Date();
+  };
+
+  // Data for the financial chart (last 12 rolling months)
   const monthlyRevenue = useMemo(() => {
     const months = ['Jan', 'Fév', 'Mar', 'Avr', 'Mai', 'Juin', 'Juil', 'Août', 'Sep', 'Oct', 'Nov', 'Déc'];
-    const currentMonth = new Date().getMonth();
     const result = [];
     
     for (let i = 11; i >= 0; i--) {
-      const mIdx = (currentMonth - i + 12) % 12;
-      const mName = months[mIdx];
+      const targetDate = new Date();
+      targetDate.setMonth(targetDate.getMonth() - i);
+      const mIdx = targetDate.getMonth();
+      const year = targetDate.getFullYear();
+      
       const amount = payments
-        .filter(p => new Date(p.date).getMonth() === mIdx)
+        .filter(p => {
+          const pDate = parsePaymentDate(p.date);
+          return pDate.getMonth() === mIdx && pDate.getFullYear() === year;
+        })
         .reduce((acc, p) => acc + (p.amount || 0), 0);
-      result.push({ name: mName, amount });
+        
+      result.push({ name: months[mIdx], amount });
     }
     return result;
   }, [payments]);
