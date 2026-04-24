@@ -2,6 +2,8 @@ import React, { useState, useMemo } from 'react';
 import { Card, Input, Button, Select, Modal } from '../../components/ui/Common';
 import { useSchool } from '../../App';
 import { Student, Payment, Cycle } from '../../types';
+// @ts-ignore
+import html2pdf from 'html2pdf.js';
 
 export const Accounting: React.FC = () => {
     const { students, payments, cycles, settings, addPayment, session } = useSchool();
@@ -42,7 +44,8 @@ export const Accounting: React.FC = () => {
         let totalCollected = 0;
 
         students.forEach(s => {
-            const monthlyFee = settings.accounting?.classFees[s.classe] || 0;
+            const fullClassName = s.serie ? `${s.classe} ${s.serie}` : s.classe;
+            const monthlyFee = settings.accounting?.classFees[fullClassName] || 0;
             const annualFee = monthlyFee * 9;
             totalExpected += annualFee;
             totalCollected += (s.totalPaid || 0);
@@ -61,7 +64,8 @@ export const Accounting: React.FC = () => {
     const handleRecordPayment = () => {
         if (!selectedStudent || paymentAmount <= 0) return;
         
-        const monthlyFee = settings.accounting?.classFees[selectedStudent.classe] || 0;
+        const fullClassName = selectedStudent.serie ? `${selectedStudent.classe} ${selectedStudent.serie}` : selectedStudent.classe;
+        const monthlyFee = settings.accounting?.classFees[fullClassName] || 0;
         const annualFee = monthlyFee * 9;
         const remaining = annualFee - (selectedStudent.totalPaid || 0);
 
@@ -91,7 +95,8 @@ export const Accounting: React.FC = () => {
     };
 
     const getStudentAnnualFee = (student: Student) => {
-        const monthlyFee = settings.accounting?.classFees[student.classe] || 0;
+        const fullClassName = student.serie ? `${student.classe} ${student.serie}` : student.classe;
+        const monthlyFee = settings.accounting?.classFees[fullClassName] || 0;
         return monthlyFee * 9;
     };
 
@@ -221,15 +226,14 @@ export const Accounting: React.FC = () => {
                                                 </div>
                                             </div>
                                         </td>
-                                        <td className={`px-4 py-4 whitespace-nowrap text-sm font-bold ${remaining === 0 ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>
-                                            {remaining === 0 ? 'SOLDÉ' : `${remaining.toLocaleString()} FCFA`}
+                                        <td className={`px-4 py-4 whitespace-nowrap text-sm font-bold ${annual === 0 ? 'text-orange-500' : remaining === 0 ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>
+                                            {annual === 0 ? 'Non Configuré' : remaining === 0 ? 'SOLDÉ' : `${remaining.toLocaleString()} FCFA`}
                                         </td>
                                         <td className="px-4 py-4 whitespace-nowrap text-right">
                                             <Button 
                                                 size="sm" 
-                                                variant={remaining === 0 ? "secondary" : "primary"}
+                                                variant={remaining === 0 && annual > 0 ? "secondary" : "primary"}
                                                 onClick={() => { setSelectedStudent(s); setIsPaymentModalOpen(true); }}
-                                                disabled={annual === 0}
                                             >
                                                 <i className="fas fa-receipt mr-2"></i> Gérer
                                             </Button>
@@ -268,6 +272,10 @@ export const Accounting: React.FC = () => {
                                     <div className="flex justify-between text-sm">
                                         <span className="text-gray-500 dark:text-gray-400">Matricule :</span>
                                         <span className="font-bold font-mono text-blue-600 dark:text-blue-400">{selectedStudent.matricule}</span>
+                                    </div>
+                                    <div className="flex justify-between text-sm">
+                                        <span className="text-gray-500 dark:text-gray-400">Mensualité Normale :</span>
+                                        <span className="font-bold text-gray-800 dark:text-gray-200">{(getStudentAnnualFee(selectedStudent) / 9).toLocaleString()} FCFA</span>
                                     </div>
                                     <div className="flex justify-between text-sm">
                                         <span className="text-gray-500 dark:text-gray-400">Total Annuel :</span>
@@ -336,15 +344,21 @@ export const Accounting: React.FC = () => {
                                 <h4 className="font-bold text-blue-700 dark:text-blue-300 mb-4 flex items-center gap-2">
                                     <i className="fas fa-plus-circle"></i> Enregistrer un Versement
                                 </h4>
-                                <div className="space-y-4">
-                                    <Input 
-                                        label="Montant du versement (FCFA)" 
-                                        type="number" 
-                                        value={paymentAmount || ''} 
-                                        onChange={e => setPaymentAmount(parseInt(e.target.value) || 0)}
-                                        placeholder="Entrez le montant..."
-                                        className="text-lg font-bold"
-                                    />
+                                {getStudentAnnualFee(selectedStudent) === 0 ? (
+                                    <div className="bg-orange-100 text-orange-800 p-4 rounded-xl text-sm border border-orange-200">
+                                        <i className="fas fa-exclamation-triangle mr-2"></i>
+                                        Les frais de scolarité pour la classe <strong>{selectedStudent.serie ? `${selectedStudent.classe} ${selectedStudent.serie}` : selectedStudent.classe}</strong> ne sont pas configurés. Veuillez vous rendre dans les <strong>Paramètres</strong> pour définir le montant mensuel de cette classe avant d'enregistrer un paiement.
+                                    </div>
+                                ) : (
+                                    <div className="space-y-4">
+                                        <Input 
+                                            label="Montant du versement (FCFA)" 
+                                            type="number" 
+                                            value={paymentAmount || ''} 
+                                            onChange={e => setPaymentAmount(parseInt(e.target.value) || 0)}
+                                            placeholder="Entrez le montant..."
+                                            className="text-lg font-bold"
+                                        />
                                     <Select 
                                         label="Mode de paiement"
                                         value={paymentMethod}
@@ -375,6 +389,7 @@ export const Accounting: React.FC = () => {
                                         </Button>
                                     </div>
                                 </div>
+                                )}
                             </div>
                             
                             <p className="text-[10px] text-gray-500 dark:text-gray-400 text-center italic">
@@ -424,7 +439,61 @@ const ReceiptModal: React.FC<{
     const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=250x250&ecc=M&margin=1&data=${encodeURIComponent(qrData)}`;
 
     const handlePrint = () => {
-        window.print();
+        const content = document.getElementById('receipt-content')?.outerHTML;
+        if (!content) return;
+        
+        const printWindow = window.open('', '', 'width=800,height=600');
+        if (!printWindow) {
+            alert("Veuillez autoriser les pop-ups pour imprimer le reçu.");
+            return;
+        }
+        
+        // Obtenir tous les styles actuels pour les appliquer à la fenêtre d'impression
+        const styles = Array.from(document.querySelectorAll('style, link[rel="stylesheet"]'))
+            .map(el => el.outerHTML)
+            .join('');
+
+        printWindow.document.write(`
+            <html>
+            <head>
+                <title>Impression Reçu - ${schoolName}</title>
+                ${styles}
+                <style>
+                    body { background: white; padding: 20px; margin: 0; }
+                    /* Forcer l'impression des couleurs d'arrière-plan */
+                    * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+                </style>
+            </head>
+            <body>
+                ${content}
+                <script>
+                    window.onload = () => {
+                        setTimeout(() => {
+                            window.print();
+                            window.close();
+                        }, 500);
+                    };
+                </script>
+            </body>
+            </html>
+        `);
+        printWindow.document.close();
+    };
+
+    const handleDownloadPDF = () => {
+        const element = document.getElementById('receipt-content');
+        if (!element) return;
+        
+        // Hide elements not needed in PDF (like shadows, borders that are too thick)
+        const opt = {
+            margin:       10,
+            filename:     `Recu_${student.matricule}_${payment.date.replace(/\//g, '-')}.pdf`,
+            image:        { type: 'jpeg', quality: 0.98 },
+            html2canvas:  { scale: 2, useCORS: true },
+            jsPDF:        { unit: 'mm', format: 'a4', orientation: 'portrait' }
+        };
+
+        html2pdf().set(opt).from(element).save();
     };
 
     return (
@@ -504,27 +573,10 @@ const ReceiptModal: React.FC<{
 
             <div className="mt-6 flex justify-end gap-3 print:hidden">
                 <Button variant="secondary" onClick={onClose}>Fermer</Button>
-                <Button variant="secondary" onClick={handlePrint} icon={<i className="fas fa-file-pdf"></i>}>Exporter PDF</Button>
+                <Button variant="secondary" onClick={handleDownloadPDF} icon={<i className="fas fa-file-pdf"></i>}>Télécharger PDF</Button>
                 <Button variant="primary" onClick={handlePrint} icon={<i className="fas fa-print"></i>}>Imprimer le Reçu</Button>
             </div>
 
-            {/* Print Styles */}
-            <style dangerouslySetInnerHTML={{ __html: `
-                @media print {
-                    body * { visibility: hidden; }
-                    #receipt-content, #receipt-content * { visibility: visible; }
-                    #receipt-content {
-                        position: absolute;
-                        left: 0;
-                        top: 0;
-                        width: 100%;
-                        padding: 20px;
-                        border: none !important;
-                        box-shadow: none !important;
-                    }
-                    .print\\:hidden { display: none !important; }
-                }
-            `}} />
         </Modal>
     );
 };

@@ -75,8 +75,13 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess }) => {
     const handleRoleSelect = (selectedRole: UserRole) => {
         setRole(selectedRole);
         if (selectedRole === 'dirigeant') {
-            // Direct success if already logged in as school owner
-            finishLogin(selectedRole);
+            const user = api.auth.currentUser;
+            if (!user || user.isAnonymous) {
+                // Not authenticated as owner, need to login again
+                setStep('school_login');
+            } else {
+                finishLogin(selectedRole);
+            }
         } else {
             setStep('identity_verification');
         }
@@ -113,12 +118,26 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess }) => {
     };
 
     const finishLogin = async (finalRole: UserRole) => {
-        const session = await api.fetchUserSession();
-        if (session) {
-            onLoginSuccess({
-                ...session,
-                role: finalRole
-            });
+        setLoading(true);
+        setError('');
+        try {
+            const session = await api.fetchUserSession();
+            if (session) {
+                if (finalRole === 'dirigeant' && session.role !== 'dirigeant' && session.role !== 'admin') {
+                    setError("Vous n'avez pas les droits de dirigeant. Veuillez vous reconnecter.");
+                    return;
+                }
+                onLoginSuccess({
+                    ...session,
+                    role: finalRole
+                });
+            } else {
+                setError("Aucune session trouvée. Veuillez retourner à l'écran de connexion (Changer d'école).");
+            }
+        } catch (err: any) {
+            setError(err.message || "Erreur lors de la récupération de la session.");
+        } finally {
+            setLoading(false);
         }
     };
 

@@ -3,7 +3,6 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
     // Fonction utilitaire pour vérifier si l'utilisateur est authentifié
-    // Fonction utilitaire pour vérifier si l'utilisateur est authentifié
     function isAuthenticated() {
       return request.auth != null;
     }
@@ -11,21 +10,10 @@ service cloud.firestore {
     // Fonction pour vérifier si l'utilisateur appartient à l'école spécifiée
     // Gère à la fois les profils (dirigeants) et les sessions anonymes (élèves/staff)
     function belongsToSchool(schoolId) {
-      if (!isAuthenticated()) return false;
-      
-      // Vérifier dans les profils (Dirigeants)
-      let profilePath = /databases/$(database)/documents/profiles/$(request.auth.uid);
-      if (exists(profilePath)) {
-        return get(profilePath).data.school_id == schoolId;
-      }
-      
-      // Vérifier dans les sessions (Élèves/Staff connectés par matricule)
-      let sessionPath = /databases/$(database)/documents/sessions/$(request.auth.uid);
-      if (exists(sessionPath)) {
-        return get(sessionPath).data.school_id == schoolId;
-      }
-      
-      return false;
+      return isAuthenticated() && (
+        (exists(/databases/$(database)/documents/profiles/$(request.auth.uid)) && get(/databases/$(database)/documents/profiles/$(request.auth.uid)).data.school_id == schoolId) ||
+        (exists(/databases/$(database)/documents/sessions/$(request.auth.uid)) && get(/databases/$(database)/documents/sessions/$(request.auth.uid)).data.school_id == schoolId)
+      );
     }
 
     // Fonction pour vérifier si l'utilisateur est l'administrateur système
@@ -36,9 +24,9 @@ service cloud.firestore {
 
     // Fonction pour vérifier si l'utilisateur est le propriétaire de l'école
     function isSchoolOwner(schoolId) {
-      if (!isAuthenticated()) return false;
-      let schoolPath = /databases/$(database)/documents/schools/$(schoolId);
-      return exists(schoolPath) && get(schoolPath).data.owner_id == request.auth.uid;
+      return isAuthenticated() && 
+             exists(/databases/$(database)/documents/schools/$(schoolId)) && 
+             get(/databases/$(database)/documents/schools/$(schoolId)).data.owner_id == request.auth.uid;
     }
 
     // --- COLLECTION PROFILES ---
@@ -62,10 +50,9 @@ service cloud.firestore {
 
     // --- COLLECTION STUDENTS ---
     match /students/{studentId} {
-      // Un utilisateur ne peut lister que les élèves de son école
-      allow list: if isAdmin() || belongsToSchool(resource.data.school_id); 
+      // Autoriser la lecture (get/list) pour tout utilisateur authentifié (nécessaire pour le lookup matricule)
+      allow read: if isAdmin() || isAuthenticated();
       
-      allow get: if isAdmin() || belongsToSchool(resource.data.school_id);
       allow create, update, delete: if isAdmin() || belongsToSchool(request.resource.data.school_id);
     }
 
@@ -77,10 +64,9 @@ service cloud.firestore {
 
     // --- COLLECTION APP_CONFIG ---
     match /app_config/{configId} {
-      // Un utilisateur ne peut lister que les configs de son école
-      allow list: if isAdmin() || belongsToSchool(resource.data.school_id);
+      // Autoriser la lecture pour tout utilisateur authentifié (nécessaire pour le personnel dont les données sont dans settings)
+      allow read: if isAdmin() || isAuthenticated();
 
-      allow get: if isAdmin() || belongsToSchool(resource.data.school_id);
       allow create, update, delete: if isAdmin() || belongsToSchool(request.resource.data.school_id);
     }
 

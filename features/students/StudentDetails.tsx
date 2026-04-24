@@ -51,7 +51,8 @@ export const StudentDetails: React.FC<StudentDetailsProps> = ({ student, onBack 
                     const subInfo = (subjects[student.serie ? `${student.classe} ${student.serie}` : student.classe] || []).find(sub => sub.nom === g.matiere);
                     subData[g.matiere] = { total: 0, count: 0, coeff: subInfo?.coefficient || g.coefficient || 1, compoNote: null };
                 }
-                if (g.type === 'composition' || g.type === 'session') subData[g.matiere].compoNote = g.valeur;
+                const gType = (g.type || '').trim().toLowerCase();
+                if (gType.includes('compo') || gType.includes('session') || gType.includes('examen')) subData[g.matiere].compoNote = g.valeur;
                 else { subData[g.matiere].total += g.valeur; subData[g.matiere].count += 1; }
             });
             const points = Object.values(subData).reduce((acc, d) => {
@@ -75,7 +76,8 @@ export const StudentDetails: React.FC<StudentDetailsProps> = ({ student, onBack 
                     const subInfo = (subjects[s.serie ? `${s.classe} ${s.serie}` : s.classe] || []).find(sub => sub.nom === g.matiere);
                     subData[g.matiere] = { total: 0, count: 0, coeff: subInfo?.coefficient || g.coefficient || 1, compoNote: null };
                 }
-                if (g.type === 'composition' || g.type === 'session') subData[g.matiere].compoNote = g.valeur;
+                const gType = (g.type || '').trim().toLowerCase();
+                if (gType.includes('compo') || gType.includes('session') || gType.includes('examen')) subData[g.matiere].compoNote = g.valeur;
                 else { subData[g.matiere].total += g.valeur; subData[g.matiere].count += 1; }
             });
             const detailed = Object.entries(subData).map(([name, d]) => {
@@ -177,6 +179,46 @@ export const StudentDetails: React.FC<StudentDetailsProps> = ({ student, onBack 
             jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
         };
         html2pdf().set(opt).from(element).save();
+    };
+
+    const printBulletin = () => {
+        const content = document.getElementById('bulletin-content')?.outerHTML;
+        if (!content) return;
+        
+        const printWindow = window.open('', '', 'width=800,height=800');
+        if (!printWindow) {
+            alert("Veuillez autoriser les pop-ups pour imprimer le bulletin.");
+            return;
+        }
+        
+        const styles = Array.from(document.querySelectorAll('style, link[rel="stylesheet"]'))
+            .map(el => el.outerHTML)
+            .join('');
+
+        printWindow.document.write(`
+            <html>
+            <head>
+                <title>Impression Bulletin - ${student.nom} ${student.prenom}</title>
+                ${styles}
+                <style>
+                    body { background: white; padding: 20px; margin: 0; }
+                    * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+                </style>
+            </head>
+            <body>
+                ${content}
+                <script>
+                    window.onload = () => {
+                        setTimeout(() => {
+                            window.print();
+                            window.close();
+                        }, 500);
+                    };
+                </script>
+            </body>
+            </html>
+        `);
+        printWindow.document.close();
     };
 
     return (
@@ -292,8 +334,9 @@ export const StudentDetails: React.FC<StudentDetailsProps> = ({ student, onBack 
             {/* Modal Bulletin */}
             <Modal isOpen={isBulletinModalOpen} onClose={() => setIsBulletinModalOpen(false)} title="Aperçu du Bulletin" maxWidth="max-w-4xl">
                 <div className="flex flex-col gap-6">
-                    <div className="flex justify-end">
-                        <Button onClick={downloadPDF} icon={<i className="fas fa-download"></i>}>Télécharger en PDF</Button>
+                    <div className="flex justify-end gap-3 print:hidden">
+                        <Button variant="secondary" onClick={downloadPDF} icon={<i className="fas fa-file-pdf"></i>}>Télécharger en PDF</Button>
+                        <Button variant="primary" onClick={printBulletin} icon={<i className="fas fa-print"></i>}>Imprimer le Bulletin</Button>
                     </div>
                     
                     <div className="w-full overflow-x-auto pb-4 custom-scrollbar">
@@ -378,7 +421,7 @@ export const StudentDetails: React.FC<StudentDetailsProps> = ({ student, onBack 
                                     return (
                                         <tr key={idx} className="h-6 border-b border-gray-300">
                                             <td className="border-x border-black px-2 font-bold uppercase">{s.name}</td>
-                                            <td className="border-x border-black text-center text-gray-400 font-medium">{s.classMoy.toFixed(2)}</td>
+                                            <td className="border-x border-black text-center font-medium">{s.moyDevoirs.toFixed(2)}</td>
                                             <td className="border-x border-black text-center font-medium">{s.compoNote !== null ? s.compoNote : '-'}</td>
                                             <td className="border-x border-black text-center font-bold">{s.average.toFixed(2)}</td>
                                             <td className="border-x border-black text-center">{s.coefficient}</td>
@@ -390,15 +433,15 @@ export const StudentDetails: React.FC<StudentDetailsProps> = ({ student, onBack 
                             </tbody>
                             <tfoot>
                                 <tr className="bg-white font-black text-right border-t border-black">
-                                    <td colSpan={4} className="border-x border-black px-2 py-1 uppercase text-[9px]">TOTAUX</td>
-                                    <td className="border-x border-black text-center py-1">{bulletinData.totalCoeffs}</td>
-                                    <td className="border-x border-black text-center py-1">{bulletinData.totalPoints.toFixed(2)}</td>
-                                    <td className="border-x border-black"></td>
-                                </tr>
+                                     <td colSpan={4} className="border-x border-black px-2 py-1 uppercase text-[9px]">TOTAUX</td>
+                                     <td className="border-x border-black text-center py-1">{bulletinData.totalCoeffs}</td>
+                                     <td className="border-x border-black text-center py-1">{bulletinData.totalPoints.toFixed(2)}</td>
+                                     <td className="border-x border-black"></td>
+                                 </tr>
                                 {activeTrimestre === '3' && (
                                     <tr className="bg-gray-50 text-[9px] font-bold border border-black">
                                         <td colSpan={2} className="px-2 text-center py-1 border-r border-black">MOYENNE T1: {bulletinData.t1Avg?.toFixed(2) || '-'}</td>
-                                        <td colSpan={2} className="px-2 text-center py-1 border-r border-black">MOYENNE T2: {bulletinData.t2Avg?.toFixed(2) || '-'}</td>
+                                        <td colSpan={3} className="px-2 text-center py-1 border-r border-black">MOYENNE T2: {bulletinData.t2Avg?.toFixed(2) || '-'}</td>
                                         <td colSpan={3} className="px-2 text-center py-1 bg-yellow-50">MOYENNE ANNUELLE: {bulletinData.annualAvg?.toFixed(2) || '-'}</td>
                                     </tr>
                                 )}

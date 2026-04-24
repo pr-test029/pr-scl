@@ -49,6 +49,7 @@ export const auth = getAuth(app);
 export const db = getFirestore(app);
 
 // Activer la persistance offline pour éviter les pertes de données au rafraîchissement
+/*
 enableIndexedDbPersistence(db).catch((err) => {
     if (err.code === 'failed-precondition') {
         console.warn("Multiple tabs open, persistence can only be enabled in one tab at a time.");
@@ -56,6 +57,7 @@ enableIndexedDbPersistence(db).catch((err) => {
         console.warn("The current browser doesn't support all of the features needed to enable persistence.");
     }
 });
+*/
 
 const googleProvider = new GoogleAuthProvider();
 
@@ -147,6 +149,15 @@ export const signInWithGoogle = async () => {
 export const findIdentityByMatricule = async (matricule: string, schoolId?: string): Promise<{ type: 'eleve' | 'staff', data: any, schoolId: string } | null> => {
     console.log("findIdentityByMatricule: Début de recherche pour", matricule, schoolId ? `dans l'école ${schoolId}` : "globale");
     try {
+        // S'assurer qu'on est authentifié (même anonymement) pour passer les règles de sécurité
+        if (!auth.currentUser) {
+            console.log("findIdentityByMatricule: Pas d'utilisateur, tentative de connexion anonyme...");
+            await signInAnonymously(auth);
+            console.log("findIdentityByMatricule: Connecté anonymement sous UID", auth.currentUser?.uid);
+        } else {
+            console.log("findIdentityByMatricule: Utilisateur déjà connecté sous UID", auth.currentUser?.uid);
+        }
+
         // 1. Chercher dans les élèves
         let studentsQ = query(collection(db, "students"), where("matricule", "==", matricule));
         if (schoolId) {
@@ -201,10 +212,13 @@ export const loginWithMatricule = async (matricule: string, schoolId?: string): 
     const identity = await findIdentityByMatricule(matricule, schoolId);
     if (!identity) throw new Error("Matricule non trouvé.");
 
-    // 2. Authentification Anonyme Firebase
+    // 2. Authentification Anonyme Firebase si nécessaire
     // Cela permet d'avoir un request.auth.uid valide pour les règles de sécurité
-    const userCredential = await signInAnonymously(auth);
-    const user = userCredential.user;
+    let user = auth.currentUser;
+    if (!user) {
+        const userCredential = await signInAnonymously(auth);
+        user = userCredential.user;
+    }
 
     // 3. Créer le document de session dans Firestore pour les règles de sécurité
     // Cela DOIT être fait avant de lire d'autres documents car les règles se basent sur cette session
