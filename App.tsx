@@ -22,6 +22,7 @@ import { Accounting } from './features/accounting/Accounting';
 import { StudentPortal } from './features/students/StudentPortal';
 import { StaffProfile } from './features/staff/StaffProfile';
 import { PersonnelManagement } from './features/staff/PersonnelManagement';
+import { Evaluation } from './features/evaluation/Evaluation';
 import { Button } from './components/ui/Common';
 
 // Context creation
@@ -478,6 +479,10 @@ const App: React.FC = () => {
                 {(session?.role === 'dirigeant' || session?.role === 'gestionnaire') && (
                   <NavItem icon="fa-wallet" label="Comptabilité" active={currentView === 'accounting'} collapsed={isSidebarCollapsed} onClick={() => setCurrentView('accounting')} />
                 )}
+
+                {(session?.role === 'dirigeant' || session?.role === 'gestionnaire' || session?.role === 'admin') && (
+                  <NavItem icon="fa-chart-line" label="Suivi & Éval." active={currentView === 'evaluation'} collapsed={isSidebarCollapsed} onClick={() => setCurrentView('evaluation')} />
+                )}
                 
                 {(session?.role === 'dirigeant') && (
                   <NavItem icon="fa-users-cog" label="Personnel" active={currentView === 'personnel'} collapsed={isSidebarCollapsed} onClick={() => setCurrentView('personnel')} />
@@ -524,6 +529,7 @@ const App: React.FC = () => {
                       {currentView === 'personnel' && 'Personnel'}
                       {currentView === 'profile' && 'Mon Profil'}
                       {currentView === 'admin' && 'Administration'}
+                      {currentView === 'evaluation' && 'Suivi & Évaluation'}
                     </h1>
                     <p className="text-gray-500 dark:text-gray-400 font-medium mt-1">
                        {currentView === 'dashboard' && `Bienvenue, ${session?.display_name?.split(' ')[0]}`}
@@ -551,6 +557,7 @@ const App: React.FC = () => {
                   {currentView === 'personnel' && <PersonnelManagement />}
                   {currentView === 'profile' && <StaffProfile />}
                   {currentView === 'admin' && isAdmin && <AdminPanel />}
+                  {currentView === 'evaluation' && <Evaluation />}
                 </div>
               </div>
             </main>

@@ -126,7 +126,7 @@ export interface AppSettings {
   staffRoles?: string[]; // Liste des rôles personnalisés (ex: Surveillant, Comptable, etc.)
 }
 
-export type View = 'dashboard' | 'students' | 'inscription' | 'settings' | 'admin' | 'accounting' | 'student_portal' | 'personnel' | 'profile';
+export type View = 'dashboard' | 'students' | 'inscription' | 'settings' | 'admin' | 'accounting' | 'student_portal' | 'personnel' | 'profile' | 'evaluation';
 
 // Nouveau type pour la session utilisateur
 export interface UserSession {

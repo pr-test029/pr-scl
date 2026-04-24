@@ -124,6 +124,22 @@ export const StudentDetails: React.FC<StudentDetailsProps> = ({ student, onBack 
     const allStudentGrades = useMemo(() => grades.filter(g => g.studentId === student.id), [grades, student.id]);
     const currentTrimesterGrades = useMemo(() => allStudentGrades.filter(g => g.trimestre === activeTrimestre), [allStudentGrades, activeTrimestre]);
 
+    const groupedGrades = useMemo(() => {
+        const groups: Record<string, { matiere: string, devoirs: Grade[], composition: Grade | null }> = {};
+        currentTrimesterGrades.forEach(g => {
+            if (!groups[g.matiere]) {
+                groups[g.matiere] = { matiere: g.matiere, devoirs: [], composition: null };
+            }
+            const type = (g.type || '').toLowerCase();
+            if (type.includes('compo') || type.includes('session') || type.includes('examen')) {
+                groups[g.matiere].composition = g;
+            } else {
+                groups[g.matiere].devoirs.push(g);
+            }
+        });
+        return Object.values(groups).sort((a, b) => a.matiere.localeCompare(b.matiere));
+    }, [currentTrimesterGrades]);
+
     const handleGradeSubmit = (e: React.FormEvent) => {
         e.preventDefault();
         if (gradeForm.valeur === undefined || !gradeForm.matiere) return;
@@ -271,27 +287,73 @@ export const StudentDetails: React.FC<StudentDetailsProps> = ({ student, onBack 
                     </div>
                 }>
                     <div className="overflow-x-auto">
-                        <table className="w-full text-left">
+                        <table className="w-full text-left border-collapse">
                             <thead>
                                 <tr className="border-b dark:border-white/10 text-[10px] font-black text-gray-400 uppercase tracking-widest">
-                                    <th className="px-2 py-3">Matière</th>
-                                    <th className="px-2 py-3">Type</th>
-                                    <th className="px-2 py-3">Note</th>
-                                    <th className="px-2 py-3">Coeff</th>
-                                    <th className="px-2 py-3 text-right">Action</th>
+                                    <th className="px-4 py-4 w-1/4">Matière</th>
+                                    <th className="px-4 py-4 w-2/5 text-center bg-blue-50/50 dark:bg-blue-900/10 border-x dark:border-white/5">Notes de Classe (Devoirs)</th>
+                                    <th className="px-4 py-4 w-1/4 text-center bg-red-50/50 dark:bg-red-900/10">Note de Composition</th>
                                 </tr>
                             </thead>
                             <tbody className="divide-y dark:divide-white/5">
-                                {currentTrimesterGrades.map(g => (
-                                    <tr key={g.id} className="text-sm hover:bg-gray-50 dark:hover:bg-white/5">
-                                        <td className="px-2 py-4 font-bold dark:text-white uppercase">{g.matiere}</td>
-                                        <td className="px-2 py-4 capitalize text-gray-500">{g.type}</td>
-                                        <td className="px-2 py-4"><span className={`font-black ${g.valeur >= 10 ? 'text-green-600' : 'text-red-600'}`}>{g.valeur}</span></td>
-                                        <td className="px-2 py-4 text-gray-500">{g.coefficient}</td>
-                                        <td className="px-2 py-4 text-right">
-                                            {['dirigeant', 'admin', 'gestionnaire'].includes(session?.role || '') && (
-                                                <button onClick={() => removeGrade(g.id)} className="text-gray-400 hover:text-red-600"><i className="fas fa-trash-alt"></i></button>
-                                            )}
+                                {groupedGrades.length === 0 ? (
+                                    <tr>
+                                        <td colSpan={3} className="px-4 py-10 text-center text-gray-400 italic">Aucune note enregistrée pour cette période.</td>
+                                    </tr>
+                                ) : groupedGrades.map(group => (
+                                    <tr key={group.matiere} className="text-sm hover:bg-gray-50 dark:hover:bg-white/5 transition-colors">
+                                        <td className="px-4 py-5 font-black dark:text-white uppercase text-xs tracking-tight border-r dark:border-white/5">
+                                            {group.matiere}
+                                        </td>
+                                        <td className="px-4 py-5 bg-blue-50/20 dark:bg-blue-900/5 border-r dark:border-white/5">
+                                            <div className="flex flex-wrap gap-2 justify-center">
+                                                {group.devoirs.length > 0 ? group.devoirs.map(g => (
+                                                    <div key={g.id} className="group relative flex items-center gap-2 px-3 py-1.5 bg-white dark:bg-white/5 border dark:border-white/10 rounded-xl shadow-sm hover:border-blue-300 dark:hover:border-blue-700 transition-all">
+                                                        <span className={`font-black ${g.valeur >= 10 ? 'text-green-600' : 'text-red-600'}`}>
+                                                            {g.valeur.toFixed(1)}
+                                                        </span>
+                                                        <span className="text-[10px] text-gray-400 font-bold border-l pl-2 dark:border-white/10">
+                                                            x{g.coefficient}
+                                                        </span>
+                                                        {['dirigeant', 'admin', 'gestionnaire'].includes(session?.role || '') && (
+                                                            <button 
+                                                                onClick={() => removeGrade(g.id)} 
+                                                                className="ml-1 text-gray-300 hover:text-red-500 transition-colors opacity-0 group-hover:opacity-100"
+                                                                title="Supprimer cette note"
+                                                            >
+                                                                <i className="fas fa-times-circle text-xs"></i>
+                                                            </button>
+                                                        )}
+                                                    </div>
+                                                )) : (
+                                                    <span className="text-[10px] text-gray-400 italic uppercase font-bold tracking-tighter">Aucun devoir</span>
+                                                )}
+                                            </div>
+                                        </td>
+                                        <td className="px-4 py-5 bg-red-50/20 dark:bg-red-900/5">
+                                            <div className="flex justify-center">
+                                                {group.composition ? (
+                                                    <div className="group relative flex items-center gap-3 px-4 py-2 bg-red-600 text-white rounded-xl shadow-lg shadow-red-600/20 transform hover:scale-105 transition-all">
+                                                        <div className="flex flex-col items-center">
+                                                            <span className="text-[8px] font-black uppercase opacity-70 tracking-widest leading-none mb-1">Compo</span>
+                                                            <span className="font-black text-lg leading-none">
+                                                                {group.composition.valeur.toFixed(1)}
+                                                            </span>
+                                                        </div>
+                                                        {['dirigeant', 'admin', 'gestionnaire'].includes(session?.role || '') && (
+                                                            <button 
+                                                                onClick={() => removeGrade(group.composition!.id)} 
+                                                                className="text-white/40 hover:text-white transition-colors"
+                                                                title="Supprimer la composition"
+                                                            >
+                                                                <i className="fas fa-trash-alt text-xs"></i>
+                                                            </button>
+                                                        )}
+                                                    </div>
+                                                ) : (
+                                                    <span className="text-[10px] text-gray-400 italic uppercase font-bold tracking-tighter">Non composé</span>
+                                                )}
+                                            </div>
                                         </td>
                                     </tr>
                                 ))}
