@@ -33,6 +33,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess }) => {
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState('');
     const [isSubscriptionExpired, setIsSubscriptionExpired] = useState(false);
+    const [schoolLogo, setSchoolLogo] = useState<string>('');
 
     // Récupérer la session école existante au chargement
     useEffect(() => {
@@ -61,6 +62,15 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess }) => {
         };
         checkExistingSchool();
     }, []);
+
+    useEffect(() => {
+        if (schoolInfo?.id) {
+            api.fetchSettingsBySchoolId(schoolInfo.id).then(settings => {
+                if (settings.logo) setSchoolLogo(settings.logo);
+                else setSchoolLogo('');
+            });
+        }
+    }, [schoolInfo?.id]);
 
     // Phase 1: School Connection
     const handleSchoolAuth = async (e: React.FormEvent) => {
@@ -317,11 +327,21 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess }) => {
             <div className="flex items-center justify-center p-4 min-h-screen">
                 <div className="max-w-md w-full">
                     <div className="text-center mb-8">
-                        <div className="w-20 h-20 bg-blue-600 rounded-2xl flex items-center justify-center mx-auto mb-4 text-white text-4xl shadow-xl">
-                            <i className="fas fa-school"></i>
+                        <div className="w-24 h-24 bg-white dark:bg-gray-800 rounded-3xl flex items-center justify-center mx-auto mb-6 shadow-2xl border-4 border-white dark:border-gray-700 overflow-hidden group hover:scale-105 transition-transform duration-500">
+                            {schoolLogo ? (
+                                <img src={schoolLogo} className="w-full h-full object-contain" />
+                            ) : (
+                                <div className="w-full h-full bg-blue-600 flex items-center justify-center text-white text-4xl">
+                                    <i className="fas fa-school"></i>
+                                </div>
+                            )}
                         </div>
-                        <h1 className="text-3xl font-black text-gray-900 dark:text-white">Portail PR-SCL</h1>
-                        <p className="text-gray-500">Connectez-vous au compte de l'établissement</p>
+                        <h1 className="text-3xl font-black text-gray-900 dark:text-white tracking-tight uppercase">
+                            {schoolInfo?.name || "Portail PR-SCL"}
+                        </h1>
+                        <p className="text-gray-500 font-medium mt-1">
+                            {schoolInfo ? "Veuillez vous identifier pour continuer" : "Connectez-vous au compte de l'établissement"}
+                        </p>
                     </div>
 
                     <Card className="shadow-2xl border-0 ring-1 ring-gray-200 dark:ring-white/10">

@@ -127,7 +127,7 @@ export interface AppSettings {
   managerPassword?: string; // Mot de passe pour le rôle Dirigeant
 }
 
-export type View = 'dashboard' | 'students' | 'inscription' | 'settings' | 'admin' | 'accounting' | 'student_portal' | 'personnel' | 'profile' | 'evaluation';
+export type View = 'dashboard' | 'students' | 'inscription' | 'settings' | 'admin' | 'accounting' | 'student_portal' | 'personnel' | 'profile' | 'evaluation' | 'academic_results';
 
 // Nouveau type pour la session utilisateur
 export interface UserSession {

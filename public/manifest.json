@@ -1,0 +1,16 @@
+{
+  "name": "PR-SCL - Gestion Scolaire",
+  "short_name": "PR-SCL",
+  "description": "Système de Gestion Scolaire Professionnel",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#f8fafc",
+  "theme_color": "#3b82f6",
+  "icons": [
+    {
+      "src": "favicon.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}

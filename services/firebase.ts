@@ -620,6 +620,20 @@ const saveConfig = async (key: string, data: any) => {
     }
 };
 
+export const fetchSettingsBySchoolId = async (schoolId: string): Promise<AppSettings> => {
+    try {
+        const docRef = doc(db, "app_config", `${schoolId}_settings`);
+        const docSnap = await getDoc(docRef);
+        if (docSnap.exists()) {
+            return docSnap.data().data as AppSettings;
+        }
+        return INITIAL_SETTINGS;
+    } catch (error) {
+        console.error("fetchSettingsBySchoolId Error:", error);
+        return INITIAL_SETTINGS;
+    }
+};
+
 export const fetchSettings = () => fetchConfig<AppSettings>('settings', INITIAL_SETTINGS);
 export const saveSettingsDB = (settings: AppSettings) => saveConfig('settings', settings);
 export const fetchCycles = () => fetchConfig<Record<string, Cycle>>('cycles', INITIAL_CYCLES);

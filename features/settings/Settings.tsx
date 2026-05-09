@@ -127,12 +127,83 @@ export const Settings: React.FC = () => {
                           />
                       </div>
                       
-                      <div className="p-4 bg-gray-50 dark:bg-white/5 rounded-xl border dark:border-white/10">
-                           <h4 className="font-bold mb-3 dark:text-white">Mode d'affichage</h4>
-                           <div className="flex gap-6">
-                               <label className="flex items-center gap-2 cursor-pointer dark:text-gray-300"><input type="radio" checked={localSettings.mode === 'light'} onChange={() => setLocalSettings({...localSettings, mode: 'light'})} /> Clair</label>
-                               <label className="flex items-center gap-2 cursor-pointer dark:text-gray-300"><input type="radio" checked={localSettings.mode === 'dark'} onChange={() => setLocalSettings({...localSettings, mode: 'dark'})} /> Sombre</label>
-                           </div>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-8 items-start">
+                        <div className="space-y-6">
+                            <h4 className="font-bold dark:text-white flex items-center gap-2">
+                                <i className="fas fa-image text-[var(--primary-color)]"></i> Logo de l'établissement
+                            </h4>
+                            <div className="flex flex-col sm:flex-row items-center gap-6 p-6 bg-gray-50 dark:bg-white/5 rounded-2xl border-2 border-dashed dark:border-white/10 transition-all hover:border-[var(--primary-color)]">
+                                <div className="relative group">
+                                    <div className="w-24 h-24 rounded-2xl bg-white dark:bg-slate-800 flex items-center justify-center border-4 border-white dark:border-slate-700 shadow-xl overflow-hidden group-hover:scale-105 transition-transform">
+                                        {localSettings.logo ? (
+                                            <img src={localSettings.logo} className="w-full h-full object-contain" />
+                                        ) : (
+                                            <i className="fas fa-graduation-cap text-3xl text-gray-300"></i>
+                                        )}
+                                    </div>
+                                    {localSettings.logo && (
+                                        <button 
+                                            onClick={() => setLocalSettings({...localSettings, logo: ''})}
+                                            className="absolute -top-2 -right-2 w-7 h-7 bg-red-500 text-white rounded-full flex items-center justify-center shadow-lg hover:bg-red-600 active:scale-90 transition-all"
+                                            title="Supprimer le logo"
+                                        >
+                                            <i className="fas fa-times text-xs"></i>
+                                        </button>
+                                    )}
+                                </div>
+                                <div className="flex-1 space-y-3">
+                                    <p className="text-xs text-gray-500 dark:text-gray-400">
+                                        Formats: PNG, JPG, WEBP. Taille max: 500 Ko.
+                                        Ce logo apparaîtra sur les bulletins, reçus et dans l'entête de l'application.
+                                    </p>
+                                    <label className="inline-block cursor-pointer">
+                                        <span className="px-4 py-2 bg-[var(--primary-color)] text-white rounded-xl font-bold text-sm shadow-lg shadow-[var(--primary-color)]/20 hover:scale-105 active:scale-95 transition-all">
+                                            {localSettings.logo ? 'Modifier le logo' : 'Choisir un logo'}
+                                        </span>
+                                        <input 
+                                            type="file" 
+                                            className="hidden" 
+                                            accept="image/*" 
+                                            onChange={(e) => {
+                                                const file = e.target.files?.[0];
+                                                if (!file) return;
+                                                if (file.size > 512 * 1024) {
+                                                    alert("L'image est trop lourde (max 512Ko)");
+                                                    return;
+                                                }
+                                                const reader = new FileReader();
+                                                reader.onloadend = () => {
+                                                    setLocalSettings({ ...localSettings, logo: reader.result as string });
+                                                };
+                                                reader.readAsDataURL(file);
+                                            }} 
+                                        />
+                                    </label>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div className="p-6 bg-gray-50 dark:bg-white/5 rounded-2xl border dark:border-white/10">
+                             <h4 className="font-bold mb-4 dark:text-white flex items-center gap-2">
+                                <i className="fas fa-adjust text-[var(--primary-color)]"></i> Mode d'affichage
+                             </h4>
+                             <div className="flex gap-8">
+                                 <label className="flex items-center gap-3 cursor-pointer group">
+                                     <div className={`w-10 h-10 rounded-xl flex items-center justify-center transition-all ${localSettings.mode === 'light' ? 'bg-[var(--primary-color)] text-white shadow-lg' : 'bg-white dark:bg-white/10 text-gray-400'}`}>
+                                         <i className="fas fa-sun"></i>
+                                     </div>
+                                     <input type="radio" className="hidden" checked={localSettings.mode === 'light'} onChange={() => setLocalSettings({...localSettings, mode: 'light'})} /> 
+                                     <span className={`font-bold transition-colors ${localSettings.mode === 'light' ? 'text-[var(--primary-color)] dark:text-white' : 'text-gray-400'}`}>Clair</span>
+                                 </label>
+                                 <label className="flex items-center gap-3 cursor-pointer group">
+                                     <div className={`w-10 h-10 rounded-xl flex items-center justify-center transition-all ${localSettings.mode === 'dark' ? 'bg-[var(--primary-color)] text-white shadow-lg' : 'bg-white dark:bg-white/10 text-gray-400'}`}>
+                                         <i className="fas fa-moon"></i>
+                                     </div>
+                                     <input type="radio" className="hidden" checked={localSettings.mode === 'dark'} onChange={() => setLocalSettings({...localSettings, mode: 'dark'})} /> 
+                                     <span className={`font-bold transition-colors ${localSettings.mode === 'dark' ? 'text-[var(--primary-color)] dark:text-white' : 'text-gray-400'}`}>Sombre</span>
+                                 </label>
+                             </div>
+                        </div>
                       </div>
 
                       <div className="bg-blue-50/50 dark:bg-white/5 p-6 rounded-2xl border dark:border-white/10 space-y-4">

@@ -87,6 +87,7 @@ export const INITIAL_SETTINGS: AppSettings = {
   appName: "PR-SCL",
   theme: 'blue',
   mode: 'light', // Par défaut
+  logo: "",
   bulletin: {
     showTeacher: true,
     showClassAvg: true,
