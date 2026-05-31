@@ -49,7 +49,6 @@ export const auth = getAuth(app);
 export const db = getFirestore(app);
 
 // Activer la persistance offline pour éviter les pertes de données au rafraîchissement
-/*
 enableIndexedDbPersistence(db).catch((err) => {
     if (err.code === 'failed-precondition') {
         console.warn("Multiple tabs open, persistence can only be enabled in one tab at a time.");
@@ -57,7 +56,6 @@ enableIndexedDbPersistence(db).catch((err) => {
         console.warn("The current browser doesn't support all of the features needed to enable persistence.");
     }
 });
-*/
 
 const googleProvider = new GoogleAuthProvider();
 

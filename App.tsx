@@ -54,6 +54,19 @@ const App: React.FC = () => {
 
   const [currentView, setCurrentView] = useState<View>('dashboard');
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
+  const [isOffline, setIsOffline] = useState(!navigator.onLine);
+
+  // Network Status
+  useEffect(() => {
+    const handleOnline = () => setIsOffline(false);
+    const handleOffline = () => setIsOffline(true);
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+    };
+  }, []);
 
   // Check auth on load
   useEffect(() => {
@@ -545,6 +558,13 @@ const App: React.FC = () => {
                     </div>
                   </div>
                 </header>
+
+                {isOffline && (
+                  <div className="bg-amber-100 text-amber-800 p-3 text-center text-sm font-medium mb-6 rounded-2xl shadow-sm border border-amber-200 animate-fade-in flex items-center justify-center gap-3">
+                    <i className="fas fa-wifi text-amber-500 relative"><div className="absolute top-0 right-0 w-full h-0.5 bg-amber-500 rotate-45 transform origin-center"></div></i> 
+                    Mode hors-ligne actif. Vos modifications seront synchronisées automatiquement une fois la connexion rétablie.
+                  </div>
+                )}
 
                 <div className="animate-fade-in" style={{ animationDelay: '0.1s' }}>
                   {currentView === 'dashboard' && (session?.role === 'dirigeant' || session?.role === 'gestionnaire' || session?.role === 'admin') && <Dashboard />}
