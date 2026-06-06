@@ -16,24 +16,35 @@ export default defineConfig(({ mode }) => {
       react(),
       VitePWA({
         registerType: 'autoUpdate',
-        includeAssets: ['favicon.ico', 'apple-touch-icon.png', 'masked-icon.svg'],
+        includeAssets: ['favicon.png'],
         manifest: {
-          name: 'PR-SCL Application',
+          name: 'PR-SCL - Gestion Scolaire',
           short_name: 'PR-SCL',
-          description: 'Application de gestion PR-SCL',
-          theme_color: '#ffffff',
+          description: 'Système de Gestion Scolaire Professionnel',
+          theme_color: '#3b82f6',
+          background_color: '#f8fafc',
+          display: 'standalone',
           icons: [
             {
-              src: 'pwa-192x192.png',
+              src: 'favicon.png',
               sizes: '192x192',
               type: 'image/png'
             },
             {
-              src: 'pwa-512x512.png',
+              src: 'favicon.png',
               sizes: '512x512',
               type: 'image/png'
+            },
+            {
+              src: 'favicon.png',
+              sizes: '512x512',
+              type: 'image/png',
+              purpose: 'any maskable'
             }
           ]
+        },
+        workbox: {
+          globPatterns: ['**/*.{js,css,html,ico,png,svg,woff,woff2,ttf,eot}']
         }
       })
     ],
