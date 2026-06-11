@@ -145,7 +145,7 @@ export const StudentPortal: React.FC = () => {
                 <div className="bg-black/20 backdrop-blur-sm p-3 px-8 flex flex-col md:flex-row justify-between items-center text-[10px] md:text-xs font-bold text-white uppercase tracking-widest gap-2">
                     <div className="flex items-center gap-2">
                         <span className="w-1.5 h-1.5 rounded-full bg-green-400"></span>
-                        Connecté sur PR-SCL Portal
+                        Connecté sur PR-SGS Portal
                     </div>
                     <span className="opacity-90">Session ID: {student.id.substring(0, 12)}...</span>
                 </div>

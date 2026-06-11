@@ -798,23 +798,35 @@ export const subscribeToSchools = (callback: (schools: School[]) => void): (() =
     });
 };
 
-// Définir l'abonnement d'une école
+// Définir ou renouveler l'abonnement d'une école
 export const setSubscription = async (
     schoolId: string,
     plan: 'monthly' | 'quarterly' | 'annual'
 ): Promise<void> => {
+    const schoolDoc = await getDoc(doc(db, "schools", schoolId));
+    const schoolData = schoolDoc.data();
+    
     const now = new Date();
+    let baseDate = now;
+    
+    if (schoolData && schoolData.subscription_status === 'active' && schoolData.subscription_expires_at) {
+        const currentExpiry = schoolData.subscription_expires_at.toDate();
+        if (currentExpiry > now) {
+            baseDate = currentExpiry;
+        }
+    }
+
     let expiresAt: Date;
 
     switch (plan) {
         case 'monthly':
-            expiresAt = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000); // +30 jours
+            expiresAt = new Date(baseDate.getTime() + 30 * 24 * 60 * 60 * 1000); // +30 jours
             break;
         case 'quarterly':
-            expiresAt = new Date(now.getTime() + 90 * 24 * 60 * 60 * 1000); // +90 jours
+            expiresAt = new Date(baseDate.getTime() + 90 * 24 * 60 * 60 * 1000); // +90 jours
             break;
         case 'annual':
-            expiresAt = new Date(now.getTime() + 365 * 24 * 60 * 60 * 1000); // +365 jours
+            expiresAt = new Date(baseDate.getTime() + 365 * 24 * 60 * 60 * 1000); // +365 jours
             break;
     }
 

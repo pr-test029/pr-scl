@@ -4,6 +4,7 @@ import { Card, Button, Input, Modal } from '../../components/ui/Common';
 import { UserSession, UserRole } from '../../types';
 import * as api from '../../services/firebase';
 import { getSchoolManagerPassword } from '../../services/firebase';
+import { SubscriptionPayment } from '../subscription/SubscriptionPayment';
 
 interface LoginScreenProps {
     onLoginSuccess: (session: UserSession) => void;
@@ -33,6 +34,8 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess }) => {
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState('');
     const [isSubscriptionExpired, setIsSubscriptionExpired] = useState(false);
+    const [expiredSchoolId, setExpiredSchoolId] = useState<string>('');
+    const [showPaymentForm, setShowPaymentForm] = useState(false);
     const [schoolLogo, setSchoolLogo] = useState<string>('');
 
     // Récupérer la session école existante au chargement
@@ -48,6 +51,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess }) => {
                     const { isExpired } = await api.checkSchoolSubscription(currentSchoolId, currentUser?.email);
                     if (isExpired) {
                         setIsSubscriptionExpired(true);
+                        setExpiredSchoolId(currentSchoolId);
                         // Ne pas définir schoolInfo pour rester bloqué sur l'écran d'abonnement
                     } else {
                         setSchoolInfo({ id: currentSchoolId, name: currentSchoolName });
@@ -265,49 +269,66 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess }) => {
                         </div>
                         
                         <div className="p-10 space-y-8">
-                            <div className="text-center space-y-4">
-                                <p className="text-xl text-gray-600 dark:text-gray-300">
-                                    Votre abonnement est <span className="text-red-500 font-black uppercase tracking-wider">expiré</span> ou <span className="text-red-500 font-black uppercase tracking-wider">inexistant</span>.
-                                </p>
-                                
-                                <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700/30 p-5 rounded-2xl flex items-start gap-4 text-left">
-                                    <div className="w-10 h-10 bg-amber-100 dark:bg-amber-800/40 rounded-full flex items-center justify-center text-amber-600 shrink-0">
-                                        <i className="fas fa-info-circle text-lg"></i>
-                                    </div>
-                                    <p className="text-sm text-amber-800 dark:text-amber-200 font-semibold leading-relaxed">
-                                        Contactez l'administrateur pour renouveler votre accès et continuer à utiliser l'application.
-                                    </p>
+                            {showPaymentForm ? (
+                                <div>
+                                    <button
+                                        onClick={() => setShowPaymentForm(false)}
+                                        className="flex items-center gap-2 text-sm text-gray-400 hover:text-white mb-6 transition-colors font-medium"
+                                    >
+                                        <i className="fas fa-arrow-left"></i> Retour
+                                    </button>
+                                    <SubscriptionPayment
+                                        schoolId={expiredSchoolId}
+                                        onPaymentSuccess={() => window.location.reload()}
+                                    />
                                 </div>
-                            </div>
+                            ) : (
+                                <>
+                                    <div className="text-center space-y-4">
+                                        <p className="text-xl text-gray-600 dark:text-gray-300">
+                                            Votre abonnement est <span className="text-red-500 font-black uppercase tracking-wider">expiré</span> ou <span className="text-red-500 font-black uppercase tracking-wider">inexistant</span>.
+                                        </p>
 
-                            <div className="space-y-4">
-                                <a 
-                                    href="https://wa.me/242050133271" 
-                                    target="_blank" 
-                                    rel="noopener noreferrer"
-                                    className="flex items-center justify-center gap-4 w-full py-5 bg-[#25D366] hover:bg-[#20bd5a] text-white rounded-[1.5rem] font-black text-lg shadow-[0_10px_20px_-5px_rgba(37,211,102,0.5)] transition-all transform hover:-translate-y-1 hover:scale-[1.02] active:scale-95"
-                                >
-                                    <i className="fab fa-whatsapp text-3xl"></i>
-                                    <div className="text-left">
-                                        <span className="block text-[10px] uppercase opacity-80 leading-none">Contacter via</span>
-                                        <span className="text-xl">WhatsApp</span>
+                                        <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700/30 p-5 rounded-2xl flex items-start gap-4 text-left">
+                                            <div className="w-10 h-10 bg-amber-100 dark:bg-amber-800/40 rounded-full flex items-center justify-center text-amber-600 shrink-0">
+                                                <i className="fas fa-info-circle text-lg"></i>
+                                            </div>
+                                            <p className="text-sm text-amber-800 dark:text-amber-200 font-semibold leading-relaxed">
+                                                Vous pouvez renouveler votre accès directement ci-dessous pour continuer à utiliser l'application.
+                                            </p>
+                                        </div>
                                     </div>
-                                    <i className="fas fa-external-link-alt ml-auto opacity-50 text-sm"></i>
-                                </a>
 
-                                <button 
-                                    onClick={() => {
-                                        localStorage.removeItem('pr_scl_school_id');
-                                        localStorage.removeItem('pr_scl_school_name');
-                                        api.signOut();
-                                        window.location.reload();
-                                    }}
-                                    className="w-full py-5 bg-gray-100 dark:bg-white/5 text-gray-600 dark:text-white rounded-[1.5rem] font-bold flex items-center justify-center gap-3 hover:bg-gray-200 dark:hover:bg-white/10 transition-all border border-gray-200 dark:border-white/5"
-                                >
-                                    <i className="fas fa-exchange-alt"></i>
-                                    <span>Changer de compte</span>
-                                </button>
-                            </div>
+                                    <div className="space-y-4">
+                                        <button
+                                            onClick={() => setShowPaymentForm(true)}
+                                            className="flex items-center justify-center gap-4 w-full py-5 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white rounded-[1.5rem] font-black text-lg shadow-[0_10px_20px_-5px_rgba(99,102,241,0.5)] transition-all transform hover:-translate-y-1 hover:scale-[1.02] active:scale-95"
+                                        >
+                                            <div className="w-12 h-12 bg-white/20 rounded-full flex items-center justify-center text-2xl">
+                                                <i className="fas fa-credit-card"></i>
+                                            </div>
+                                            <div className="text-left">
+                                                <span className="block text-[10px] uppercase opacity-80 leading-none">Renouvellement</span>
+                                                <span className="text-xl">Payer l'abonnement</span>
+                                            </div>
+                                            <i className="fas fa-chevron-right ml-auto opacity-60"></i>
+                                        </button>
+
+                                        <button 
+                                            onClick={() => {
+                                                localStorage.removeItem('pr_scl_school_id');
+                                                localStorage.removeItem('pr_scl_school_name');
+                                                api.signOut();
+                                                window.location.reload();
+                                            }}
+                                            className="w-full py-5 bg-gray-100 dark:bg-white/5 text-gray-600 dark:text-white rounded-[1.5rem] font-bold flex items-center justify-center gap-3 hover:bg-gray-200 dark:hover:bg-white/10 transition-all border border-gray-200 dark:border-white/5"
+                                        >
+                                            <i className="fas fa-exchange-alt"></i>
+                                            <span>Changer de compte</span>
+                                        </button>
+                                    </div>
+                                </>
+                            )}
                         </div>
                         
                         <div className="p-6 bg-gray-50 dark:bg-black/20 text-center border-t border-gray-100 dark:border-white/5">
@@ -316,7 +337,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess }) => {
                             </a>
                         </div>
                     </div>
-                    <p className="text-center text-gray-500 text-xs mt-8 font-medium">PR-SCL - Gestion Scolaire Intelligente</p>
+                    <p className="text-center text-gray-500 text-xs mt-8 font-medium">PR-SGS - Gestion Scolaire Intelligente</p>
                 </div>
             </div>
         );
@@ -337,7 +358,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess }) => {
                             )}
                         </div>
                         <h1 className="text-3xl font-black text-gray-900 dark:text-white tracking-tight uppercase">
-                            {schoolInfo?.name || "Portail PR-SCL"}
+                            {schoolInfo?.name || "Portail PR-SGS"}
                         </h1>
                         <p className="text-gray-500 font-medium mt-1">
                             {schoolInfo ? "Veuillez vous identifier pour continuer" : "Connectez-vous au compte de l'établissement"}
@@ -456,6 +477,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess }) => {
 
                         <form onSubmit={handleManagerPasswordSubmit} className="space-y-5">
                             <Input
+                                type="password"
                                 label="Mot de passe Dirigeant"
                                 placeholder="Ex: SCL2024"
                                 value={managerPasswordInput}

@@ -1,6 +1,6 @@
 {
-  "name": "PR-SCL - Gestion Scolaire",
-  "short_name": "PR-SCL",
+  "name": "PR-SGS - Gestion Scolaire",
+  "short_name": "PR-SGS",
   "description": "Système de Gestion Scolaire Professionnel",
   "start_url": "/",
   "display": "standalone",

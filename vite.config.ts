@@ -18,8 +18,8 @@ export default defineConfig(({ mode }) => {
         registerType: 'autoUpdate',
         includeAssets: ['favicon.png'],
         manifest: {
-          name: 'PR-SCL - Gestion Scolaire',
-          short_name: 'PR-SCL',
+          name: 'PR-SGS - Gestion Scolaire',
+          short_name: 'PR-SGS',
           description: 'Système de Gestion Scolaire Professionnel',
           theme_color: '#3b82f6',
           background_color: '#f8fafc',

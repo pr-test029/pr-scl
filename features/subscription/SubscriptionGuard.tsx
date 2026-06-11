@@ -114,7 +114,7 @@ export const SubscriptionGuard: React.FC<SubscriptionGuardProps> = ({ school, ch
     }
 
     if (showPaywall) {
-        return <PaywallModal email={currentUserEmail} />;
+        return <PaywallModal email={currentUserEmail} schoolId={school?.id || ''} />;
     }
 
     const isAdminUser = isAdmin || isUserAdmin(currentUserEmail);
@@ -136,9 +136,14 @@ export const SubscriptionGuard: React.FC<SubscriptionGuardProps> = ({ school, ch
 
 interface PaywallModalProps {
     email: string | null;
+    schoolId: string;
 }
 
-const PaywallModal: React.FC<PaywallModalProps> = ({ email }) => {
+import { SubscriptionPayment } from './SubscriptionPayment';
+
+const PaywallModal: React.FC<PaywallModalProps> = ({ email, schoolId }) => {
+    const [showPayment, setShowPayment] = useState(false);
+
     const handleSwitchAccount = async () => {
         try {
             await signOut();
@@ -148,16 +153,20 @@ const PaywallModal: React.FC<PaywallModalProps> = ({ email }) => {
         }
     };
 
+    const handlePaymentSuccess = () => {
+        window.location.reload();
+    };
+
     return (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-gradient-to-br from-gray-100 to-gray-200 dark:from-slate-950 dark:to-slate-900 p-4">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-gradient-to-br from-gray-100 to-gray-200 dark:from-slate-950 dark:to-slate-900 p-4 overflow-y-auto">
             {/* Motif décoratif */}
-            <div className="absolute inset-0 opacity-5">
+            <div className="fixed inset-0 opacity-5 pointer-events-none">
                 <div className="absolute inset-0" style={{
                     backgroundImage: `url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%239C92AC' fill-opacity='0.4'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E")`,
                 }}></div>
             </div>
 
-            <div className="max-w-md w-full relative">
+            <div className="max-w-md w-full relative z-10 py-8">
                 {/* Carte principale */}
                 <div className="bg-white dark:bg-slate-800/90 backdrop-blur-xl rounded-2xl shadow-2xl border border-gray-200 dark:border-slate-700 overflow-hidden">
                     {/* Header avec dégradé */}
@@ -175,54 +184,65 @@ const PaywallModal: React.FC<PaywallModalProps> = ({ email }) => {
 
                     {/* Contenu */}
                     <div className="p-6 text-center">
-                        <div className="mb-6">
-                            <p className="text-gray-600 dark:text-gray-300 mb-2 text-lg">
-                                Votre abonnement est <span className="font-semibold text-rose-500">expiré</span> ou <span className="font-semibold text-rose-500">inexistant</span>.
-                            </p>
-                            {email && (
-                                <p className="text-sm text-gray-400 dark:text-gray-500 mb-4">
-                                    Connecté en tant que : <span className="italic font-medium">{email}</span>
-                                </p>
-                            )}
-
-                            <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-500/30 rounded-xl p-4 mb-6">
-                                <div className="flex items-start gap-3">
-                                    <i className="fas fa-info-circle text-amber-500 mt-0.5"></i>
-                                    <p className="text-sm text-amber-800 dark:text-amber-300 text-left">
-                                        Contactez l'administrateur pour renouveler votre accès et continuer à utiliser l'application.
+                        {showPayment ? (
+                            <div className="text-left animate-fade-in">
+                                <button 
+                                    onClick={() => setShowPayment(false)}
+                                    className="text-gray-500 hover:text-gray-800 mb-4 flex items-center gap-2 text-sm font-medium"
+                                >
+                                    <i className="fas fa-arrow-left"></i> Retour
+                                </button>
+                                <SubscriptionPayment schoolId={schoolId} onPaymentSuccess={handlePaymentSuccess} />
+                            </div>
+                        ) : (
+                            <div className="animate-fade-in">
+                                <div className="mb-6">
+                                    <p className="text-gray-600 dark:text-gray-300 mb-2 text-lg">
+                                        Votre abonnement est <span className="font-semibold text-rose-500">expiré</span> ou <span className="font-semibold text-rose-500">inexistant</span>.
                                     </p>
+                                    {email && (
+                                        <p className="text-sm text-gray-400 dark:text-gray-500 mb-4">
+                                            Connecté en tant que : <span className="italic font-medium">{email}</span>
+                                        </p>
+                                    )}
+
+                                    <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-500/30 rounded-xl p-4 mb-6">
+                                        <div className="flex items-start gap-3">
+                                            <i className="fas fa-info-circle text-amber-500 mt-0.5"></i>
+                                            <p className="text-sm text-amber-800 dark:text-amber-300 text-left">
+                                                Vous pouvez renouveler votre accès directement ci-dessous pour continuer à utiliser l'application.
+                                            </p>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                {/* Actions */}
+                                <div className="flex flex-col gap-3">
+                                    <button
+                                        onClick={() => setShowPayment(true)}
+                                        className="group inline-flex items-center justify-center gap-3 w-full bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-semibold py-4 px-6 rounded-xl transition-all duration-300 shadow-lg shadow-blue-500/30 hover:shadow-blue-500/50 transform hover:-translate-y-0.5"
+                                    >
+                                        <div className="w-10 h-10 bg-white/20 rounded-full flex items-center justify-center group-hover:scale-110 transition-transform">
+                                            <i className="fas fa-credit-card text-xl"></i>
+                                        </div>
+                                        <div className="text-left">
+                                            <span className="block text-sm opacity-90">Renouvellement</span>
+                                            <span className="font-bold">Payer l'abonnement</span>
+                                        </div>
+                                        <i className="fas fa-chevron-right ml-auto opacity-70 group-hover:translate-x-1 transition-transform"></i>
+                                    </button>
+
+                                    {/* Bouton Retour / Changer de compte */}
+                                    <button
+                                        onClick={handleSwitchAccount}
+                                        className="inline-flex items-center justify-center gap-2 w-full bg-gray-100 hover:bg-gray-200 dark:bg-slate-700 dark:hover:bg-slate-600 text-gray-700 dark:text-gray-200 font-medium py-3 px-6 rounded-xl transition-all duration-200 border border-gray-200 dark:border-slate-600"
+                                    >
+                                        <i className="fas fa-sign-out-alt"></i>
+                                        <span>Changer de compte</span>
+                                    </button>
                                 </div>
                             </div>
-                        </div>
-
-                        {/* Actions */}
-                        <div className="flex flex-col gap-3">
-                            {/* Bouton WhatsApp stylisé */}
-                            <a
-                                href="https://wa.me/242050133271"
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="group inline-flex items-center justify-center gap-3 w-full bg-gradient-to-r from-green-500 via-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 text-white font-semibold py-4 px-6 rounded-xl transition-all duration-300 shadow-lg shadow-green-500/30 hover:shadow-green-500/50 transform hover:-translate-y-0.5"
-                            >
-                                <div className="w-10 h-10 bg-white/20 rounded-full flex items-center justify-center group-hover:scale-110 transition-transform">
-                                    <i className="fab fa-whatsapp text-2xl"></i>
-                                </div>
-                                <div className="text-left">
-                                    <span className="block text-sm opacity-90">Contacter via</span>
-                                    <span className="font-bold">WhatsApp</span>
-                                </div>
-                                <i className="fas fa-external-link-alt ml-auto opacity-70 group-hover:translate-x-1 transition-transform"></i>
-                            </a>
-
-                            {/* Bouton Retour / Changer de compte */}
-                            <button
-                                onClick={handleSwitchAccount}
-                                className="inline-flex items-center justify-center gap-2 w-full bg-gray-100 hover:bg-gray-200 dark:bg-slate-700 dark:hover:bg-slate-600 text-gray-700 dark:text-gray-200 font-medium py-3 px-6 rounded-xl transition-all duration-200 border border-gray-200 dark:border-slate-600"
-                            >
-                                <i className="fas fa-sign-out-alt"></i>
-                                <span>Changer de compte</span>
-                            </button>
-                        </div>
+                        )}
 
                         {/* Info contact */}
                         <div className="mt-6 pt-6 border-t border-gray-100 dark:border-slate-700">
@@ -236,7 +256,7 @@ const PaywallModal: React.FC<PaywallModalProps> = ({ email }) => {
 
                 {/* Footer */}
                 <p className="text-center text-gray-400 text-sm mt-6">
-                    PR-SCL - Gestion Scolaire Intelligente
+                    PR-SGS - Gestion Scolaire Intelligente
                 </p>
             </div>
         </div>

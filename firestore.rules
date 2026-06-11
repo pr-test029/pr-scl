@@ -50,8 +50,9 @@ service cloud.firestore {
       allow create: if isAuthenticated();
       
       // Seul l'admin ou le propriétaire peut modifier l'école.
-      // Le propriétaire ne peut PAS modifier son propre statut d'abonnement.
-      allow update: if isAdmin() || (isSchoolOwner(schoolId) && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['subscription_plan', 'subscription_expires_at', 'subscription_status']));
+      // Le propriétaire PEUT modifier son abonnement (nécessaire pour le paiement via MoneyFusion).
+      // NOTE : À sécuriser via Cloud Functions ultérieurement.
+      allow update: if isAdmin() || isSchoolOwner(schoolId);
     }
 
     // --- COLLECTION STUDENTS ---

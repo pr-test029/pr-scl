@@ -53,23 +53,38 @@ interface InputProps extends React.InputHTMLAttributes<HTMLInputElement> {
   icon?: React.ReactNode;
 }
 
-export const Input: React.FC<InputProps> = ({ label, error, icon, className = '', ...props }) => {
+export const Input: React.FC<InputProps> = ({ label, error, icon, className = '', type, ...props }) => {
+  const [showPassword, setShowPassword] = React.useState(false);
+  const isPassword = type === 'password';
+  const inputType = isPassword ? (showPassword ? 'text' : 'password') : type;
+
   return (
     <div className="w-full">
       {label && <label className="block text-xs font-black uppercase tracking-widest text-gray-400 dark:text-gray-500 mb-2 ml-1">{label}</label>}
       <div className="relative group">
         {icon && (
-          <div className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 group-focus-within:text-[var(--primary-color)] transition-colors">
+          <div className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 group-focus-within:text-[var(--primary-color)] transition-colors z-10">
             {icon}
           </div>
         )}
         <input
-          className={`w-full ${icon ? 'pl-11' : 'pl-4'} pr-4 h-12 md:h-13 bg-white dark:bg-slate-900/50 border-2 rounded-2xl shadow-sm transition-all duration-300
+          type={inputType}
+          className={`w-full ${icon ? 'pl-11' : 'pl-4'} ${isPassword ? 'pr-12' : 'pr-4'} h-12 md:h-13 bg-white dark:bg-slate-900/50 border-2 rounded-2xl shadow-sm transition-all duration-300
           text-gray-900 dark:text-white placeholder-gray-400
           ${error ? 'border-red-500/50 focus:border-red-500 bg-red-50/10' : 'border-gray-100 dark:border-white/5 focus:border-[var(--primary-color)] focus:bg-white dark:focus:bg-slate-900'} 
           ${className}`}
           {...props}
         />
+        {isPassword && (
+          <button
+            type="button"
+            onClick={() => setShowPassword(!showPassword)}
+            className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-[var(--primary-color)] transition-colors z-10"
+            tabIndex={-1}
+          >
+            <i className={`fas fa-${showPassword ? 'eye-slash' : 'eye'}`}></i>
+          </button>
+        )}
       </div>
       {error && <p className="mt-1.5 text-xs font-bold text-red-500 ml-1">{error}</p>}
     </div>

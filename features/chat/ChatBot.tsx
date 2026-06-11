@@ -15,7 +15,7 @@ export const ChatBot: React.FC = () => {
   const [isOpen, setIsOpen] = useState(false);
   const [input, setInput] = useState('');
   const [messages, setMessages] = useState<Message[]>([
-    { id: 'welcome', role: 'model', text: 'Bonjour ! Je suis l\'assistant PR-SCL. Comment puis-je vous aider ?' }
+    { id: 'welcome', role: 'model', text: 'Bonjour ! Je suis l\'assistant PR-SGS. Comment puis-je vous aider ?' }
   ]);
   const [isLoading, setIsLoading] = useState(false);
   const [isListening, setIsListening] = useState(false);
@@ -175,7 +175,7 @@ export const ChatBot: React.FC = () => {
                   <i className="fas fa-robot"></i>
               </div>
               <div>
-                  <h3 className="font-bold text-sm">Assistant PR-SCL</h3>
+                  <h3 className="font-bold text-sm">Assistant PR-SGS</h3>
                   <div className="flex items-center gap-1.5 mt-0.5">
                       <span className="w-2 h-2 rounded-full bg-green-400 shadow-[0_0_5px_#4ade80]"></span>
                       <span className="text-xs opacity-90">En ligne - Gemini AI</span>

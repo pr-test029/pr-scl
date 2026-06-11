@@ -84,7 +84,7 @@ export const INITIAL_SUBJECTS: Record<string, Subject[]> = {
 };
 
 export const INITIAL_SETTINGS: AppSettings = {
-  appName: "PR-SCL",
+  appName: "PR-SGS",
   theme: 'blue',
   mode: 'light', // Par défaut
   logo: "",

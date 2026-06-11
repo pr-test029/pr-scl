@@ -17,7 +17,7 @@ export const sendMessageToGemini = async (
 
     const model = genAI.getGenerativeModel({ 
       model: modelId,
-      systemInstruction: `Tu es un assistant intelligent pour l'application PR-SCL.
+      systemInstruction: `Tu es un assistant intelligent pour l'application PR-SGS.
         
         TON ET CONDUITE :
         - Sois NATUREL, CONCIS et DIRECT.
