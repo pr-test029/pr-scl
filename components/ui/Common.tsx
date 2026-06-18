@@ -1,5 +1,6 @@
 
 import React from 'react';
+import { createPortal } from 'react-dom';
 
 // Button Component
 interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
@@ -138,7 +139,7 @@ export const Card: React.FC<{ children: React.ReactNode; title?: React.ReactNode
 export const Modal: React.FC<{ isOpen: boolean; onClose: () => void; title: string; children: React.ReactNode; maxWidth?: string }> = ({ isOpen, onClose, title, children, maxWidth = "max-w-md" }) => {
   if (!isOpen) return null;
 
-  return (
+  const modalContent = (
     <div className="fixed inset-0 z-[100] overflow-y-auto bg-slate-900/60 backdrop-blur-md flex items-center justify-center p-4 md:p-6 animate-fade-in">
       <div className={`bg-white dark:bg-slate-900 dark:border dark:border-white/10 rounded-[2.5rem] shadow-2xl w-full ${maxWidth} max-h-[90vh] flex flex-col transition-all duration-500 scale-100`}>
         <div className="flex justify-between items-center px-8 py-6 border-b border-gray-100 dark:border-white/10">
@@ -153,4 +154,6 @@ export const Modal: React.FC<{ isOpen: boolean; onClose: () => void; title: stri
       </div>
     </div>
   );
+
+  return createPortal(modalContent, document.body);
 };
