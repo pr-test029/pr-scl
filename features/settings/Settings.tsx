@@ -19,11 +19,16 @@ export const Settings: React.FC = () => {
   const [newRoleName, setNewRoleName] = useState('');
 
   const [newAppreciation, setNewAppreciation] = useState<AppreciationRule>({ min: 0, max: 0, text: '' });
+  const [newAcademicYear, setNewAcademicYear] = useState('');
 
   const handleSaveSettings = () => {
-    updateSettings(localSettings);
-    alert('Paramètres enregistrés !');
-  };
+  updateSettings(localSettings);
+  alert('Paramètres enregistrés !');
+};
+
+
+
+
 
   const handleAddRole = () => {
     if (!newRoleName) return;
@@ -231,49 +236,74 @@ export const Settings: React.FC = () => {
                             value={localSettings.managerPassword || ''} 
                             onChange={e => setLocalSettings({...localSettings, managerPassword: e.target.value.toUpperCase().replace(/\s/g, '')})} 
                           />
-                      </div>
-
-                      <div className="bg-purple-50/50 dark:bg-white/5 p-6 rounded-2xl border dark:border-white/10 space-y-4 mt-6">
-                          <h4 className="font-bold text-purple-700 dark:text-purple-300 flex items-center gap-2">
-                              <i className="fas fa-calendar-alt"></i> Années Scolaires
-                          </h4>
-                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                              <div>
-                                  <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-1">Année Scolaire par défaut</label>
-                                  <select 
-                                      className="w-full bg-white dark:bg-slate-800 border border-gray-200 dark:border-white/10 rounded-xl px-4 py-2.5 outline-none focus:ring-2 focus:ring-purple-500/50 dark:text-white"
-                                      value={localSettings.currentAcademicYear || '2025-2026'}
-                                      onChange={(e) => setLocalSettings({...localSettings, currentAcademicYear: e.target.value})}
-                                  >
-                                      {localSettings.availableAcademicYears?.map(y => (
-                                          <option key={y} value={y}>{y}</option>
-                                      ))}
-                                  </select>
-                              </div>
-                              <div>
-                                  <Input 
-                                      label="Années disponibles (séparées par une virgule)" 
-                                      value={localSettings.availableAcademicYears?.join(', ') || ''} 
-                                      onChange={(e) => setLocalSettings({
-                                          ...localSettings, 
-                                          availableAcademicYears: e.target.value.split(',').map(s => s.trim()).filter(s => s)
-                                      })} 
-                                  />
-                              </div>
-                          </div>
-                          <div className="pt-4 mt-4 border-t border-purple-100 dark:border-white/10">
-                              <p className="text-sm text-purple-600 dark:text-purple-400 mb-3">
-                                  Attention : Si vous venez d'activer la gestion des années scolaires, vous devez migrer vos anciennes données vers l'année 2025-2026.
-                              </p>
-                              <Button variant="outline" onClick={async () => {
-                                  if (confirm("Voulez-vous migrer toutes les données existantes sans année vers l'année scolaire 2025-2026 ? Cette opération est irréversible.")) {
-                                      const { migrateToAcademicYear } = await import('../../services/firebase');
-                                      await migrateToAcademicYear();
-                                  }
-                              }}>
-                                  <i className="fas fa-database mr-2"></i> Migrer les anciennes données
-                              </Button>
-                          </div>
+                        <div className="bg-purple-50/50 dark:bg-white/5 p-6 rounded-2xl border dark:border-white/10 space-y-4 mt-6">
+                            <h4 className="font-bold text-purple-700 dark:text-purple-300 flex items-center gap-2">
+                                <i className="fas fa-calendar-alt"></i> Années Scolaires
+                            </h4>
+                            {/* Année scolaire par défaut */}
+                            <div>
+                                <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-1">Année Scolaire par défaut</label>
+                                <select
+                                    className="w-full bg-white dark:bg-slate-800 border border-gray-200 dark:border-white/10 rounded-xl px-4 py-2.5 outline-none focus:ring-2 focus:ring-purple-500/50 dark:text-white"
+                                    value={localSettings.currentAcademicYear || '2025-2026'}
+                                    onChange={(e) => setLocalSettings({ ...localSettings, currentAcademicYear: e.target.value })}
+                                >
+                                    {localSettings.availableAcademicYears?.map(y => (
+                                        <option key={y} value={y}>{y}</option>
+                                    ))}
+                                </select>
+                            </div>
+                            {/* Ajouter une nouvelle année scolaire */}
+                            <div className="flex items-center gap-2 mt-4">
+                                <Input
+                                    label="Nouvelle année scolaire (ex: 2025-2026)"
+                                    value={newAcademicYear}
+                                    onChange={e => setNewAcademicYear(e.target.value)}
+                                    placeholder="AAAA-AAAA"
+                                />
+                                <Button
+                                    onClick={() => {
+                                        const trimmed = newAcademicYear.trim();
+                                        const regex = /^\d{4}-\d{4}$/;
+                                        if (!regex.test(trimmed)) {
+                                            alert("Format d'année invalide. Utilisez AAAA-AAAA.");
+                                            return;
+                                        }
+                                        const [start, end] = trimmed.split('-').map(Number);
+                                        if (end !== start + 1) {
+                                            alert("L'année finale doit être l'année suivante.");
+                                            return;
+                                        }
+                                        const updated = [...(localSettings.availableAcademicYears || []), trimmed];
+                                        setLocalSettings({ ...localSettings, availableAcademicYears: Array.from(new Set(updated)) });
+                                        setNewAcademicYear('');
+                                    }}
+                                    variant="secondary"
+                                >
+                                    Ajouter
+                                </Button>
+                            </div>
+                            {/* Liste des années disponibles */}
+                            <div className="mt-4">
+                                <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-1">Années disponibles</label>
+                                <ul className="list-disc list-inside text-gray-600 dark:text-gray-300">
+                                    {(localSettings.availableAcademicYears || []).map(y => (
+                                        <li key={y}>{y}</li>
+                                    ))}
+                                </ul>
+                            </div>
+                            <p className="text-sm text-purple-600 dark:text-purple-400 mb-3">
+                                Attention : Si vous venez d'activer la gestion des années scolaires, vous devez migrer vos anciennes données vers l'année {localSettings.currentAcademicYear || '2025-2026'}.
+                            </p>
+                            <Button variant="outline" onClick={async () => {
+                                if (confirm("Voulez-vous migrer toutes les données existantes sans année vers l'année scolaire 2025-2026 ? Cette opération est irréversible.")) {
+                                    const { migrateToAcademicYear } = await import('../../services/firebase');
+                                    await migrateToAcademicYear();
+                                }
+                            }}>
+                                <i className="fas fa-database mr-2"></i> Migrer les anciennes données
+                            </Button>
+                        </div>
                       </div>
 
                       <div className="flex justify-end mt-6">
