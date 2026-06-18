@@ -2,6 +2,7 @@
 export interface Student {
   id: string;
   matricule: string; // ID unique alphanumérique
+  academic_year: string; // Année scolaire (ex: '2025-2026')
   nom: string;
   prenom: string;
   dateNaissance: string;
@@ -22,6 +23,7 @@ export interface Student {
 export interface Payment {
   id: string;
   studentId: string;
+  academic_year: string; // Année scolaire (ex: '2025-2026')
   amount: number;
   date: string;
   method: 'cash' | 'card' | 'wave' | 'mobile_money' | 'check';
@@ -33,6 +35,7 @@ export interface Payment {
 export interface Grade {
   id: string;
   studentId: string;
+  academic_year: string; // Année scolaire (ex: '2025-2026')
   trimestre: string; // '1', '2', '3' ou 'S1', 'S2'
   type: string; // 'devoir', 'composition', 'departemental' ou 'dst', 'session'
   matiere: string;
@@ -111,12 +114,15 @@ export interface StaffMember {
   photo?: string;
   role: string; // Permettre des rôles personnalisés
   matricule: string;
+  activeYears?: string[]; // Années scolaires où ce membre est actif
   assignedClasses: string[]; // Kept for quick access/display
   assignments?: TeacherAssignment[]; // Detailed assignments
 }
 
 export interface AppSettings {
   appName: string;
+  currentAcademicYear: string; // Année scolaire par défaut (ex: '2025-2026')
+  availableAcademicYears: string[]; // Liste des années disponibles
   theme: 'blue' | 'green' | 'purple' | 'red';
   mode: 'light' | 'dark';
   logo?: string;
@@ -139,6 +145,7 @@ export interface UserSession {
   school_name: string;
   role: UserRole;
   matricule?: string; // Présent pour les élèves et le personnel
+  allowed_academic_years: string[]; // Années scolaires que l'utilisateur peut voir
 }
 
 // Type pour les écoles (gestion admin)
@@ -158,6 +165,8 @@ export interface School {
 export interface SchoolContextType {
   session: UserSession | null;
   school: School | null;
+  selectedAcademicYear: string;
+  setSelectedAcademicYear: (year: string) => void;
   students: Student[];
   grades: Grade[];
   cycles: Record<string, Cycle>;

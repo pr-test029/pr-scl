@@ -6,7 +6,7 @@ import { Student, Payment, Cycle } from '../../types';
 import html2pdf from 'html2pdf.js';
 
 export const Accounting: React.FC = () => {
-    const { students, payments, cycles, settings, addPayment, session } = useSchool();
+    const { students, payments, cycles, settings, addPayment, session, selectedAcademicYear } = useSchool();
     
     // State for filtering
     const [searchQuery, setSearchQuery] = useState('');
@@ -77,6 +77,7 @@ export const Accounting: React.FC = () => {
         const newPayment: Payment = {
             id: Date.now().toString(),
             studentId: selectedStudent.id,
+            academic_year: selectedAcademicYear,
             amount: paymentAmount,
             date: new Date().toISOString(),
             method: paymentMethod,

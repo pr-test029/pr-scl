@@ -429,14 +429,14 @@ export const generateMatricule = (): string => {
 
 // --- API STUDENTS ---
 
-export const fetchStudents = async (): Promise<Student[]> => {
+export const fetchStudents = async (academicYear: string): Promise<Student[]> => {
     const schoolId = await ensureSchoolId();
     if (!schoolId) {
         console.warn("fetchStudents: No schoolId found");
         return [];
     }
     try {
-        const q = query(collection(db, "students"), where("school_id", "==", schoolId));
+        const q = query(collection(db, "students"), where("school_id", "==", schoolId), where("academic_year", "==", academicYear));
         const querySnapshot = await getDocs(q);
         const students = querySnapshot.docs.map(doc => doc.data() as Student);
         return students;
@@ -446,8 +446,8 @@ export const fetchStudents = async (): Promise<Student[]> => {
     }
 };
 
-export const subscribeToStudents = (schoolId: string, callback: (students: Student[]) => void): (() => void) => {
-    const q = query(collection(db, "students"), where("school_id", "==", schoolId));
+export const subscribeToStudents = (schoolId: string, academicYear: string, callback: (students: Student[]) => void): (() => void) => {
+    const q = query(collection(db, "students"), where("school_id", "==", schoolId), where("academic_year", "==", academicYear));
     return onSnapshot(q, (snapshot) => {
         const students = snapshot.docs.map(doc => doc.data() as Student);
         callback(students);
@@ -462,7 +462,7 @@ export const addStudentDB = async (student: Student) => {
         console.warn("addStudentDB: No schoolId found");
         return;
     }
-    const docId = `${schoolId}_${student.id}`;
+    const docId = `${schoolId}_${student.academic_year}_${student.id}`;
     const dataToSave = {
         ...student,
         school_id: schoolId,
@@ -496,7 +496,7 @@ export const addStudentDB = async (student: Student) => {
 export const updateStudentDB = async (student: Student) => {
     const schoolId = await ensureSchoolId();
     if (!schoolId) return;
-    const docId = `${schoolId}_${student.id}`;
+    const docId = `${schoolId}_${student.academic_year}_${student.id}`;
     try {
         await updateDoc(doc(db, "students", docId), cleanData(student));
     } catch (error: any) {
@@ -516,7 +516,7 @@ export const updateStudentDB = async (student: Student) => {
     }
 };
 
-export const deleteStudentDB = async (id: string) => {
+export const deleteStudentDB = async (id: string, academicYear: string) => {
     const schoolId = await ensureSchoolId();
     if (!schoolId) return;
     const docId = `${schoolId}_${id}`;
@@ -525,14 +525,14 @@ export const deleteStudentDB = async (id: string) => {
 
 // --- API GRADES ---
 
-export const fetchGrades = async (): Promise<Grade[]> => {
+export const fetchGrades = async (academicYear: string): Promise<Grade[]> => {
     const schoolId = await ensureSchoolId();
     if (!schoolId) {
         console.warn("fetchGrades: No schoolId found");
         return [];
     }
     try {
-        const q = query(collection(db, "grades"), where("school_id", "==", schoolId));
+        const q = query(collection(db, "grades"), where("school_id", "==", schoolId), where("academic_year", "==", academicYear));
         const querySnapshot = await getDocs(q);
         const grades = querySnapshot.docs.map(doc => doc.data() as Grade);
         return grades;
@@ -542,8 +542,8 @@ export const fetchGrades = async (): Promise<Grade[]> => {
     }
 };
 
-export const subscribeToGrades = (schoolId: string, callback: (grades: Grade[]) => void): (() => void) => {
-    const q = query(collection(db, "grades"), where("school_id", "==", schoolId));
+export const subscribeToGrades = (schoolId: string, academicYear: string, callback: (grades: Grade[]) => void): (() => void) => {
+    const q = query(collection(db, "grades"), where("school_id", "==", schoolId), where("academic_year", "==", academicYear));
     return onSnapshot(q, (snapshot) => {
         const grades = snapshot.docs.map(doc => doc.data() as Grade);
         callback(grades);
@@ -559,7 +559,7 @@ export const addGradeDB = async (grade: Grade) => {
         return;
     }
     try {
-        const docId = `${schoolId}_${grade.id}`;
+        const docId = `${schoolId}_${grade.academic_year}_${grade.id}`;
         const dataToSave = {
             ...grade,
             school_id: schoolId,
@@ -575,11 +575,11 @@ export const addGradeDB = async (grade: Grade) => {
 export const updateGradeDB = async (grade: Grade) => {
     const schoolId = await ensureSchoolId();
     if (!schoolId) return;
-    const docId = `${schoolId}_${grade.id}`;
+    const docId = `${schoolId}_${grade.academic_year}_${grade.id}`;
     await updateDoc(doc(db, "grades", docId), cleanData(grade));
 };
 
-export const deleteGradeDB = async (id: string) => {
+export const deleteGradeDB = async (id: string, academicYear: string) => {
     const schoolId = await ensureSchoolId();
     if (!schoolId) return;
     const docId = `${schoolId}_${id}`;
@@ -675,11 +675,11 @@ export const clearDB = async () => {
 
 // --- API ACCOUNTING ---
 
-export const fetchPayments = async (): Promise<Payment[]> => {
+export const fetchPayments = async (academicYear: string): Promise<Payment[]> => {
     const schoolId = await ensureSchoolId();
     if (!schoolId) return [];
     try {
-        const q = query(collection(db, "payments"), where("school_id", "==", schoolId));
+        const q = query(collection(db, "payments"), where("school_id", "==", schoolId), where("academic_year", "==", academicYear));
         const querySnapshot = await getDocs(q);
         return querySnapshot.docs.map(doc => doc.data() as Payment);
     } catch (error) {
@@ -688,8 +688,8 @@ export const fetchPayments = async (): Promise<Payment[]> => {
     }
 };
 
-export const subscribeToPayments = (schoolId: string, callback: (payments: Payment[]) => void): (() => void) => {
-    const q = query(collection(db, "payments"), where("school_id", "==", schoolId));
+export const subscribeToPayments = (schoolId: string, academicYear: string, callback: (payments: Payment[]) => void): (() => void) => {
+    const q = query(collection(db, "payments"), where("school_id", "==", schoolId), where("academic_year", "==", academicYear));
     return onSnapshot(q, (snapshot) => {
         const payments = snapshot.docs.map(doc => doc.data() as Payment);
         callback(payments);
@@ -702,7 +702,7 @@ export const addPaymentDB = async (payment: Payment) => {
     const schoolId = await ensureSchoolId();
     if (!schoolId) return;
     try {
-        const docId = `${schoolId}_${payment.id}`;
+        const docId = `${schoolId}_${payment.academic_year}_${payment.id}`;
         const dataToSave = {
             ...payment,
             school_id: schoolId,
@@ -736,7 +736,7 @@ export const migrateExistingStudents = async (students: Student[]): Promise<bool
     const batch = writeBatch(db);
     
     studentsToMigrate.forEach(student => {
-        const docId = `${schoolId}_${student.id}`;
+        const docId = `${schoolId}_${student.academic_year}_${student.id}`;
         batch.update(doc(db, "students", docId), {
             matricule: generateMatricule(),
             totalPaid: student.totalPaid || 0
@@ -902,4 +902,62 @@ export const updateUserRole = async (userId: string, newRole: 'admin' | 'user'):
     await updateDoc(doc(db, "profiles", userId), {
         role: newRole
     });
+};
+// --- MIGRATION SCRIPT ---
+export const migrateToAcademicYear = async () => {
+    const schoolId = await ensureSchoolId();
+    if (!schoolId) return;
+
+    const baseYear = '2025-2026';
+    let migratedCount = 0;
+
+    try {
+        // Migrate Students
+        const studentsQ = query(collection(db, "students"), where("school_id", "==", schoolId));
+        const studentsSnap = await getDocs(studentsQ);
+        for (const docSnap of studentsSnap.docs) {
+            const data = docSnap.data();
+            if (!data.academic_year) {
+                const newData = { ...data, academic_year: baseYear };
+                const newDocId = `${schoolId}_${baseYear}_${data.id}`;
+                await setDoc(doc(db, "students", newDocId), cleanData(newData));
+                await deleteDoc(docSnap.ref);
+                migratedCount++;
+            }
+        }
+
+        // Migrate Grades
+        const gradesQ = query(collection(db, "grades"), where("school_id", "==", schoolId));
+        const gradesSnap = await getDocs(gradesQ);
+        for (const docSnap of gradesSnap.docs) {
+            const data = docSnap.data();
+            if (!data.academic_year) {
+                const newData = { ...data, academic_year: baseYear };
+                const newDocId = `${schoolId}_${baseYear}_${data.id}`;
+                await setDoc(doc(db, "grades", newDocId), cleanData(newData));
+                await deleteDoc(docSnap.ref);
+                migratedCount++;
+            }
+        }
+
+        // Migrate Payments
+        const paymentsQ = query(collection(db, "payments"), where("school_id", "==", schoolId));
+        const paymentsSnap = await getDocs(paymentsQ);
+        for (const docSnap of paymentsSnap.docs) {
+            const data = docSnap.data();
+            if (!data.academic_year) {
+                const newData = { ...data, academic_year: baseYear };
+                const newDocId = `${schoolId}_${baseYear}_${data.id}`;
+                await setDoc(doc(db, "payments", newDocId), cleanData(newData));
+                await deleteDoc(docSnap.ref);
+                migratedCount++;
+            }
+        }
+
+        console.log(`Migration completed. ${migratedCount} documents updated.`);
+        alert(`Migration terminée avec succès ! ${migratedCount} documents mis à jour vers l'année ${baseYear}.`);
+    } catch (e) {
+        console.error("Migration error:", e);
+        alert("Erreur lors de la migration: " + e);
+    }
 };

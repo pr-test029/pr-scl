@@ -85,6 +85,8 @@ export const INITIAL_SUBJECTS: Record<string, Subject[]> = {
 
 export const INITIAL_SETTINGS: AppSettings = {
   appName: "PR-SGS",
+  currentAcademicYear: '2025-2026',
+  availableAcademicYears: ['2024-2025', '2025-2026', '2026-2027'],
   theme: 'blue',
   mode: 'light', // Par défaut
   logo: "",

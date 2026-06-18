@@ -29,6 +29,13 @@ service cloud.firestore {
              get(/databases/$(database)/documents/schools/$(schoolId)).data.owner_id == request.auth.uid;
     }
 
+    // Fonction pour vérifier si l'utilisateur est inscrit à une année scolaire
+    function isEnrolled(uid, schoolId, year) {
+      return exists(/databases/$(database)/documents/enrollments/$(uid)) &&
+             get(/databases/$(database)/documents/enrollments/$(uid)).data.school_id == schoolId &&
+             get(/databases/$(database)/documents/enrollments/$(uid)).data.years.hasAny([year]);
+    }
+
     // --- COLLECTION PROFILES ---
     match /profiles/{userId} {
       allow read: if isAdmin() || (isAuthenticated() && request.auth.uid == userId);
@@ -60,13 +67,13 @@ service cloud.firestore {
       // Autoriser la lecture (get/list) pour tout utilisateur authentifié (nécessaire pour le lookup matricule)
       allow read: if isAdmin() || isAuthenticated();
       
-      allow create, update, delete: if isAdmin() || belongsToSchool(request.resource.data.school_id);
+      allow create, update, delete: if isAdmin() || isSchoolOwner(request.resource.data.school_id) || (belongsToSchool(request.resource.data.school_id) && isEnrolled(request.auth.uid, request.resource.data.school_id, request.resource.data.academic_year));
     }
 
     // --- COLLECTION GRADES ---
     match /grades/{gradeId} {
       allow read: if isAdmin() || belongsToSchool(resource.data.school_id);
-      allow create, update, delete: if isAdmin() || belongsToSchool(request.resource.data.school_id);
+      allow create, update, delete: if isAdmin() || isSchoolOwner(request.resource.data.school_id) || (belongsToSchool(request.resource.data.school_id) && isEnrolled(request.auth.uid, request.resource.data.school_id, request.resource.data.academic_year));
     }
 
     // --- COLLECTION APP_CONFIG ---
@@ -77,7 +84,14 @@ service cloud.firestore {
       allow create, update, delete: if isAdmin() || belongsToSchool(request.resource.data.school_id);
     }
 
-    // --- COLLECTION ADMIN_LOGS (pour traçabilité) ---
+        // --- COLLECTION PAYMENTS ---
+    match /payments/{paymentId} {
+      allow read: if isAdmin() || belongsToSchool(resource.data.school_id);
+      allow create, delete: if isAdmin() || belongsToSchool(request.resource.data.school_id);
+      allow update: if isAdmin() || isSchoolOwner(request.resource.data.school_id) || (belongsToSchool(request.resource.data.school_id) && isEnrolled(request.auth.uid, request.resource.data.school_id, request.resource.data.academic_year));
+    }
+
+    // --- COLLECTION ADMIN LOGS (pour traçabilité) ---
     match /admin_logs/{logId} {
       // Lecture: admin uniquement
       allow read: if isAdmin();

@@ -12,7 +12,7 @@ interface StudentFormProps {
 }
 
 export const StudentForm: React.FC<StudentFormProps> = ({ onSuccess, initialData, onCancel }) => {
-  const { cycles, addStudent, updateStudent } = useSchool();
+  const { cycles, addStudent, updateStudent, selectedAcademicYear } = useSchool();
   
   // Initialisation de l'état
   const [formData, setFormData] = useState<Partial<Student>>({
@@ -66,6 +66,7 @@ export const StudentForm: React.FC<StudentFormProps> = ({ onSuccess, initialData
 
     const studentToSave: Student = {
       id: initialData ? initialData.id : Date.now().toString(),
+      academic_year: initialData ? initialData.academic_year : selectedAcademicYear,
       nom: formData.nom,
       prenom: formData.prenom,
       dateNaissance: formData.dateNaissance || '',

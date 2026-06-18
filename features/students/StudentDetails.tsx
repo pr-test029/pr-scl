@@ -13,7 +13,7 @@ interface StudentDetailsProps {
 }
 
 export const StudentDetails: React.FC<StudentDetailsProps> = ({ student, onBack }) => {
-    const { session, students, grades, subjects, addGrade, deleteGrade, settings } = useSchool();
+    const { session, students, grades, subjects, addGrade, deleteGrade, settings, selectedAcademicYear } = useSchool();
 
     // Détection du cycle universitaire
     const isUniversity = student.cycle === 'universite';
@@ -146,6 +146,7 @@ export const StudentDetails: React.FC<StudentDetailsProps> = ({ student, onBack 
         const newGrade: Grade = {
             id: `grade_${Date.now()}`,
             studentId: student.id,
+            academic_year: selectedAcademicYear,
             trimestre: activeTrimestre,
             matiere: gradeForm.matiere,
             valeur: Number(gradeForm.valeur),

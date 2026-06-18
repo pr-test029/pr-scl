@@ -233,7 +233,50 @@ export const Settings: React.FC = () => {
                           />
                       </div>
 
-                      <div className="flex justify-end">
+                      <div className="bg-purple-50/50 dark:bg-white/5 p-6 rounded-2xl border dark:border-white/10 space-y-4 mt-6">
+                          <h4 className="font-bold text-purple-700 dark:text-purple-300 flex items-center gap-2">
+                              <i className="fas fa-calendar-alt"></i> Années Scolaires
+                          </h4>
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                              <div>
+                                  <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-1">Année Scolaire par défaut</label>
+                                  <select 
+                                      className="w-full bg-white dark:bg-slate-800 border border-gray-200 dark:border-white/10 rounded-xl px-4 py-2.5 outline-none focus:ring-2 focus:ring-purple-500/50 dark:text-white"
+                                      value={localSettings.currentAcademicYear || '2025-2026'}
+                                      onChange={(e) => setLocalSettings({...localSettings, currentAcademicYear: e.target.value})}
+                                  >
+                                      {localSettings.availableAcademicYears?.map(y => (
+                                          <option key={y} value={y}>{y}</option>
+                                      ))}
+                                  </select>
+                              </div>
+                              <div>
+                                  <Input 
+                                      label="Années disponibles (séparées par une virgule)" 
+                                      value={localSettings.availableAcademicYears?.join(', ') || ''} 
+                                      onChange={(e) => setLocalSettings({
+                                          ...localSettings, 
+                                          availableAcademicYears: e.target.value.split(',').map(s => s.trim()).filter(s => s)
+                                      })} 
+                                  />
+                              </div>
+                          </div>
+                          <div className="pt-4 mt-4 border-t border-purple-100 dark:border-white/10">
+                              <p className="text-sm text-purple-600 dark:text-purple-400 mb-3">
+                                  Attention : Si vous venez d'activer la gestion des années scolaires, vous devez migrer vos anciennes données vers l'année 2025-2026.
+                              </p>
+                              <Button variant="outline" onClick={async () => {
+                                  if (confirm("Voulez-vous migrer toutes les données existantes sans année vers l'année scolaire 2025-2026 ? Cette opération est irréversible.")) {
+                                      const { migrateToAcademicYear } = await import('../../services/firebase');
+                                      await migrateToAcademicYear();
+                                  }
+                              }}>
+                                  <i className="fas fa-database mr-2"></i> Migrer les anciennes données
+                              </Button>
+                          </div>
+                      </div>
+
+                      <div className="flex justify-end mt-6">
                           <Button onClick={handleSaveSettings}>Enregistrer les modifications</Button>
                       </div>
                   </div>

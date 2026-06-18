@@ -45,6 +45,7 @@ const App: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
 
   // Data State
+  const [selectedAcademicYear, setSelectedAcademicYear] = useState<string>('2025-2026');
   const [students, setStudents] = useState<Student[]>([]);
   const [grades, setGrades] = useState<Grade[]>([]);
   const [cycles, setCycles] = useState<Record<string, Cycle>>(INITIAL_CYCLES);
@@ -79,6 +80,12 @@ const App: React.FC = () => {
     };
     checkSession();
   }, []);
+
+  useEffect(() => {
+     if (settings.currentAcademicYear && selectedAcademicYear !== settings.currentAcademicYear && students.length === 0) {
+        setSelectedAcademicYear(settings.currentAcademicYear);
+     }
+  }, [settings.currentAcademicYear]);
 
   // Migration and Data Post-Processing
   useEffect(() => {
@@ -120,9 +127,9 @@ const App: React.FC = () => {
         }
 
         // Subscriptions
-        unsubscribes.push(api.subscribeToStudents(schoolId, setStudents));
-        unsubscribes.push(api.subscribeToGrades(schoolId, setGrades));
-        unsubscribes.push(api.subscribeToPayments(schoolId, setPayments));
+        unsubscribes.push(api.subscribeToStudents(schoolId, selectedAcademicYear, setStudents));
+        unsubscribes.push(api.subscribeToGrades(schoolId, selectedAcademicYear, setGrades));
+        unsubscribes.push(api.subscribeToPayments(schoolId, selectedAcademicYear, setPayments));
         unsubscribes.push(api.subscribeToConfig(schoolId, 'settings', INITIAL_SETTINGS, setSettings));
         unsubscribes.push(api.subscribeToConfig(schoolId, 'cycles', INITIAL_CYCLES, setCycles));
         unsubscribes.push(api.subscribeToConfig(schoolId, 'subjects', INITIAL_SUBJECTS, setSubjects));
@@ -147,7 +154,7 @@ const App: React.FC = () => {
     return () => {
       unsubscribes.forEach(unsub => unsub());
     };
-  }, [session]);
+  }, [session, selectedAcademicYear]);
 
   const refreshSchool = async () => {
     const user = auth.currentUser;
@@ -234,7 +241,7 @@ const App: React.FC = () => {
     try {
       const oldStudents = [...students];
       setStudents(prev => prev.filter(p => p.id !== id));
-      await api.deleteStudentDB(id);
+      await api.deleteStudentDB(id, selectedAcademicYear);
     } catch (e: any) {
       alert("Erreur lors de la suppression : " + e.message);
     }
@@ -262,7 +269,7 @@ const App: React.FC = () => {
   const deleteGrade = async (id: string) => {
     try {
       setGrades(prev => prev.filter(g => g.id !== id));
-      await api.deleteGradeDB(id);
+      await api.deleteGradeDB(id, selectedAcademicYear);
     } catch (e: any) {
       alert("Erreur lors de la suppression de la note : " + e.message);
     }
@@ -311,8 +318,17 @@ const App: React.FC = () => {
   const contextValue: SchoolContextType = {
     session,
     school,
-    students, grades, cycles, subjects, settings, payments,
-    addStudent, updateStudent, deleteStudent,
+    selectedAcademicYear,
+    setSelectedAcademicYear,
+    students,
+    grades,
+    cycles,
+    subjects,
+    settings,
+    payments,
+    addStudent,
+    updateStudent,
+    deleteStudent,
     addGrade, updateGrade, deleteGrade,
     addPayment,
     updateSettings: handleUpdateSettings,
@@ -548,13 +564,39 @@ const App: React.FC = () => {
                        {currentView !== 'dashboard' && 'Espace de gestion institutionnelle'}
                     </p>
                   </div>
-                  <div className="hidden lg:flex items-center gap-4 bg-white dark:bg-white/5 px-5 py-3 rounded-2xl shadow-sm border dark:border-white/10 animate-fade-in">
-                    <div className="w-10 h-10 rounded-xl bg-blue-50 dark:bg-blue-900/20 flex items-center justify-center text-blue-600">
-                      <i className="far fa-calendar-alt"></i>
+                  <div className="flex flex-col md:flex-row items-end md:items-center gap-4 animate-fade-in">
+                    <div className="bg-white dark:bg-white/5 px-4 py-2 rounded-xl shadow-sm border dark:border-white/10 flex items-center gap-3">
+                      <div className="w-8 h-8 rounded-lg bg-[var(--primary-color)]/10 text-[var(--primary-color)] flex items-center justify-center">
+                        <i className="fas fa-calendar-check"></i>
+                      </div>
+                      <select 
+                        className="bg-transparent text-sm font-bold text-gray-800 dark:text-gray-200 outline-none cursor-pointer appearance-none pr-4"
+                        value={selectedAcademicYear}
+                        onChange={(e) => setSelectedAcademicYear(e.target.value)}
+                        style={{ backgroundImage: 'url("data:image/svg+xml;charset=US-ASCII,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%22292.4%22%20height%3D%22292.4%22%3E%3Cpath%20fill%3D%22%23666%22%20d%3D%22M287%2069.4a17.6%2017.6%200%200%200-13-5.4H18.4c-5%200-9.3%201.8-12.9%205.4A17.6%2017.6%200%200%200%200%2082.2c0%205%201.8%209.3%205.4%2012.9l128%20127.9c3.6%203.6%207.8%205.4%2012.8%205.4s9.2-1.8%2012.8-5.4L287%2095c3.5-3.5%205.4-7.8%205.4-12.8%200-5-1.9-9.2-5.5-12.8z%22%2F%3E%3C%2Fsvg%3E")', backgroundRepeat: 'no-repeat', backgroundPosition: 'right center', backgroundSize: '0.65em auto' }}
+                      >
+                        {settings.availableAcademicYears?.map(year => {
+                          // Filtrer les années accessibles si l'utilisateur n'est pas dirigeant
+                          if (session?.role !== 'dirigeant' && session?.role !== 'admin') {
+                            if (!session?.allowed_academic_years?.includes(year)) {
+                              return null;
+                            }
+                          }
+                          return (
+                            <option key={year} value={year} className="dark:bg-slate-800">{year}</option>
+                          );
+                        })}
+                      </select>
                     </div>
-                    <div>
-                      <p className="text-[10px] font-black uppercase text-gray-400 tracking-widest">Aujourd'hui</p>
-                      <span className="text-sm font-bold dark:text-gray-200">{new Date().toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' })}</span>
+
+                    <div className="hidden lg:flex items-center gap-4 bg-white dark:bg-white/5 px-5 py-3 rounded-2xl shadow-sm border dark:border-white/10">
+                      <div className="w-10 h-10 rounded-xl bg-[var(--primary-color)]/10 flex items-center justify-center text-[var(--primary-color)]">
+                        <i className="far fa-calendar-alt"></i>
+                      </div>
+                      <div>
+                        <p className="text-[10px] font-black uppercase text-gray-400 tracking-widest">Aujourd'hui</p>
+                        <span className="text-sm font-bold dark:text-gray-200">{new Date().toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' })}</span>
+                      </div>
                     </div>
                   </div>
                 </header>
