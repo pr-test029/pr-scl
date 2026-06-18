@@ -101,14 +101,14 @@ const App: React.FC = () => {
     }
   }, [students.length, session]);
 
+  // Effet pour les données globales (Paramètres, Cycles, Salles, etc.) qui ne dépendent PAS de l'année scolaire
   useEffect(() => {
     let unsubscribes: (() => void)[] = [];
 
-    const loadRealtimeData = async () => {
+    const loadGlobalData = async () => {
       const schoolId = session?.school_id;
       if (!schoolId) return;
 
-      setLoading(true);
       try {
         // School Info
         const schoolDoc = await getDoc(doc(db, "schools", schoolId));
@@ -126,26 +126,54 @@ const App: React.FC = () => {
           } as School);
         }
 
-        // Subscriptions
-        unsubscribes.push(api.subscribeToStudents(schoolId, selectedAcademicYear, setStudents));
-        unsubscribes.push(api.subscribeToGrades(schoolId, selectedAcademicYear, setGrades));
-        unsubscribes.push(api.subscribeToPayments(schoolId, selectedAcademicYear, setPayments));
+        // Subscriptions Globales (ne dépendent pas de l'année)
         unsubscribes.push(api.subscribeToConfig(schoolId, 'settings', INITIAL_SETTINGS, setSettings));
         unsubscribes.push(api.subscribeToConfig(schoolId, 'cycles', INITIAL_CYCLES, setCycles));
         unsubscribes.push(api.subscribeToConfig(schoolId, 'subjects', INITIAL_SUBJECTS, setSubjects));
 
       } catch (e) {
-        console.error("Realtime load error", e);
-        setError("Erreur de synchronisation en temps réel.");
-      } finally {
-        setLoading(false);
+        console.error("Global load error", e);
+        setError("Erreur de synchronisation globale.");
       }
     };
 
     if (session) {
-      loadRealtimeData();
+      loadGlobalData();
     } else {
       setSchool(null);
+    }
+
+    return () => {
+      unsubscribes.forEach(unsub => unsub());
+    };
+  }, [session]);
+
+  // Effet pour les données liées à l'année scolaire (Élèves, Classes, Paiements)
+  useEffect(() => {
+    let unsubscribes: (() => void)[] = [];
+
+    const loadYearData = async () => {
+      const schoolId = session?.school_id;
+      if (!schoolId) return;
+
+      setLoading(true);
+      try {
+        // Subscriptions liées à l'année
+        unsubscribes.push(api.subscribeToStudents(schoolId, selectedAcademicYear, setStudents));
+        unsubscribes.push(api.subscribeToGrades(schoolId, selectedAcademicYear, setGrades));
+        unsubscribes.push(api.subscribeToPayments(schoolId, selectedAcademicYear, setPayments));
+      } catch (e) {
+        console.error("Yearly load error", e);
+        setError("Erreur de synchronisation des données de l'année.");
+      } finally {
+        // On laisse un très court délai pour éviter les flashs visuels
+        setTimeout(() => setLoading(false), 300);
+      }
+    };
+
+    if (session) {
+      loadYearData();
+    } else {
       setStudents([]);
       setGrades([]);
       setPayments([]);
