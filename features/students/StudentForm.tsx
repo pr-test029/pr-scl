@@ -64,6 +64,17 @@ export const StudentForm: React.FC<StudentFormProps> = ({ onSuccess, initialData
       return;
     }
 
+    if (formData.cycle) {
+      const currentCycle = cycles[formData.cycle];
+      if (currentCycle && currentCycle.type !== 'simple') {
+        const hasOptions = currentCycle.type === 'series' ? currentCycle.series.length > 0 : currentCycle.specialites.length > 0;
+        if (hasOptions && !formData.serie) {
+          alert(`Veuillez choisir une ${currentCycle.type === 'series' ? 'série' : 'spécialité'} pour cet élève.`);
+          return;
+        }
+      }
+    }
+
     const studentToSave: Student = {
       id: initialData ? initialData.id : Date.now().toString(),
       academic_year: initialData ? initialData.academic_year : selectedAcademicYear,
@@ -166,13 +177,14 @@ export const StudentForm: React.FC<StudentFormProps> = ({ onSuccess, initialData
           {(activeCycle?.type === 'series' || activeCycle?.type === 'specialites') && (
             <Select 
               name="serie" 
-              label={activeCycle.type === 'series' ? "Série" : "Spécialité"} 
+              label={activeCycle.type === 'series' ? "Série *" : "Spécialité *"} 
               options={[
-                { value: '', label: 'Aucune' },
+                { value: '', label: 'Sélectionnez...' },
                 ...(activeCycle.type === 'series' ? activeCycle.series : activeCycle.specialites).map(s => ({ value: s, label: s }))
               ]}
               value={formData.serie || ''}
               onChange={handleChange}
+              required={(activeCycle.type === 'series' ? activeCycle.series.length > 0 : activeCycle.specialites.length > 0)}
             />
           )}
         </div>

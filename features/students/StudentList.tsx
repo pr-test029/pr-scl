@@ -33,7 +33,8 @@ export const StudentList: React.FC = () => {
                            student.id.toLowerCase().includes(searchTerm.toLowerCase()) ||
                            student.matricule?.toLowerCase().includes(searchTerm.toLowerCase());
       const matchesCycle = selectedCycle === 'all' || student.cycle === selectedCycle;
-      const matchesClass = selectedClass === 'all' || student.classe === selectedClass;
+      const fullStudentClass = student.serie ? `${student.classe} ${student.serie}` : student.classe;
+      const matchesClass = selectedClass === 'all' || fullStudentClass === selectedClass || student.classe === selectedClass;
       return matchesSearch && matchesCycle && matchesClass;
     });
   }, [students, searchTerm, selectedCycle, selectedClass, session, staffRecord]);
@@ -42,18 +43,31 @@ export const StudentList: React.FC = () => {
   const availableClasses = useMemo(() => {
       let baseClasses: string[] = [];
       
+      const getFullClass = (s: Student) => s.serie ? `${s.classe} ${s.serie}` : s.classe;
+
       if (selectedCycle === 'all') {
-          baseClasses = Array.from(new Set(students.map(s => s.classe)));
+          baseClasses = Array.from(new Set(students.map(getFullClass)));
       } else {
-          baseClasses = cycles[selectedCycle]?.levels || [];
-          // Si c'est un cycle à séries/spécialités, on doit reconstruire les noms complets
+          // Utiliser les classes réelles des élèves de ce cycle
+          const cycleStudentsClasses = Array.from(new Set(students.filter(s => s.cycle === selectedCycle).map(getFullClass)));
+          
+          // Ajouter les classes théoriques du cycle
           const cycle = cycles[selectedCycle];
-          if (cycle && cycle.type !== 'simple') {
-              const suffixes = cycle.type === 'series' ? cycle.series : cycle.specialites;
-              const expanded: string[] = [];
-              cycle.levels.forEach(lvl => suffixes.forEach(s => expanded.push(`${lvl} ${s}`)));
-              baseClasses = expanded;
+          let theoreticalClasses: string[] = [];
+          if (cycle) {
+              if (cycle.type === 'simple') {
+                  theoreticalClasses = cycle.levels;
+              } else {
+                  const suffixes = cycle.type === 'series' ? cycle.series : cycle.specialites;
+                  if (suffixes && suffixes.length > 0) {
+                      cycle.levels.forEach(lvl => suffixes.forEach(s => theoreticalClasses.push(`${lvl} ${s}`)));
+                  } else {
+                      theoreticalClasses = cycle.levels;
+                  }
+              }
           }
+          
+          baseClasses = Array.from(new Set([...theoreticalClasses, ...cycleStudentsClasses]));
       }
 
       // Restriction Professeur
@@ -61,7 +75,7 @@ export const StudentList: React.FC = () => {
           return baseClasses.filter(c => staffRecord.assignedClasses.includes(c)).sort();
       }
 
-      return baseClasses.sort();
+      return baseClasses.filter(Boolean).sort();
   }, [selectedCycle, cycles, students, session, staffRecord]);
 
   // Filtrer les cycles visibles pour les profs
@@ -140,6 +154,12 @@ export const StudentList: React.FC = () => {
                     icon={<i className="fas fa-search"></i>}
                 />
              </div>
+           </div>
+        </div>
+
+        <div className="flex items-center justify-end mb-4">
+          <div className="bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 px-4 py-2 rounded-xl text-sm font-bold shadow-sm">
+            Total : {filteredStudents.length} élève{filteredStudents.length > 1 ? 's' : ''}
           </div>
         </div>
 
@@ -180,7 +200,7 @@ export const StudentList: React.FC = () => {
                         </div>
                       </td>
                       <td className="px-8 py-5 whitespace-nowrap">
-                        <div className="text-sm font-bold text-gray-900 dark:text-gray-200">{student.classe}</div>
+                        <div className="text-sm font-bold text-gray-900 dark:text-gray-200">{student.serie ? `${student.classe} ${student.serie}` : student.classe}</div>
                         <div className="text-[10px] font-black text-gray-400 uppercase tracking-widest">
                           {cycles[student.cycle]?.name} 
                         </div>
@@ -221,7 +241,7 @@ export const StudentList: React.FC = () => {
                           </div>
                           <div>
                             <h4 className="font-black text-gray-900 dark:text-white">{student.nom} {student.prenom}</h4>
-                            <p className="text-xs font-bold text-blue-600 dark:text-blue-400">{student.classe} • {cycles[student.cycle]?.name}</p>
+                            <p className="text-xs font-bold text-blue-600 dark:text-blue-400">{student.serie ? `${student.classe} ${student.serie}` : student.classe} • {cycles[student.cycle]?.name}</p>
                           </div>
                       </div>
                       <div className="flex gap-2">
