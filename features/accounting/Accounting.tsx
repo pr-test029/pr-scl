@@ -1,30 +1,31 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useRef } from 'react';
 import { Card, Input, Button, Select, Modal } from '../../components/ui/Common';
 import { useSchool } from '../../App';
-import { Student, Payment, Cycle } from '../../types';
-// @ts-ignore
-import html2pdf from 'html2pdf.js';
+import { Student, Payment, Expense } from '../../types';
+import { ReceiptGenerator, ReceiptData, ReceiptGeneratorRef } from './ReceiptGenerator';
 
 export const Accounting: React.FC = () => {
-    const { students, payments, cycles, settings, addPayment, session, selectedAcademicYear } = useSchool();
+    const { students, payments, expenses, cycles, settings, addPayment, addExpense, deleteExpense, session, selectedAcademicYear } = useSchool();
     
-    // State for filtering
+    // Tabs
+    const [activeTab, setActiveTab] = useState<'encaissements' | 'decaissements'>('encaissements');
+
+    // -- ENCAISSEMENTS STATE --
     const [searchQuery, setSearchQuery] = useState('');
     const [selectedCycle, setSelectedCycle] = useState<string>('');
     const [selectedClass, setSelectedClass] = useState<string>('');
-    
-    // State for selected student details
     const [selectedStudent, setSelectedStudent] = useState<Student | null>(null);
     const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
-    
-    // Payment Form State
     const [paymentAmount, setPaymentAmount] = useState<number>(0);
     const [paymentMethod, setPaymentMethod] = useState<Payment['method']>('cash');
     const [paymentNotes, setPaymentNotes] = useState('');
 
-    // Receipt State
-    const [showReceipt, setShowReceipt] = useState(false);
-    const [lastPayment, setLastPayment] = useState<Payment | null>(null);
+    // -- DÉCAISSEMENTS STATE --
+    const [expenseLabel, setExpenseLabel] = useState('');
+    const [expenseAmount, setExpenseAmount] = useState<number>(0);
+
+    // Receipt Generator Ref
+    const receiptGenRef = useRef<ReceiptGeneratorRef>(null);
 
     // Filtering logic
     const filteredStudents = useMemo(() => {
@@ -42,6 +43,7 @@ export const Accounting: React.FC = () => {
     const stats = useMemo(() => {
         let totalExpected = 0;
         let totalCollected = 0;
+        let totalExpenses = 0;
 
         students.forEach(s => {
             const fullClassName = s.serie ? `${s.classe} ${s.serie}` : s.classe;
@@ -51,15 +53,28 @@ export const Accounting: React.FC = () => {
             totalCollected += (s.totalPaid || 0);
         });
 
+        expenses.forEach(e => {
+            totalExpenses += (e.amount || 0);
+        });
+
         const collectionRate = totalExpected > 0 ? (totalCollected / totalExpected) * 100 : 0;
+        const balance = totalCollected - totalExpenses;
         
         return {
             totalExpected,
             totalCollected,
             totalRemaining: totalExpected - totalCollected,
-            collectionRate: Math.round(collectionRate)
+            collectionRate: Math.round(collectionRate),
+            totalExpenses,
+            balance
         };
-    }, [students, settings.accounting]);
+    }, [students, expenses, settings.accounting]);
+
+    const getStudentAnnualFee = (student: Student) => {
+        const fullClassName = student.serie ? `${student.classe} ${student.serie}` : student.classe;
+        const monthlyFee = settings.accounting?.classFees[fullClassName] || 0;
+        return monthlyFee * 9;
+    };
 
     const handleRecordPayment = () => {
         if (!selectedStudent || paymentAmount <= 0) return;
@@ -74,7 +89,7 @@ export const Accounting: React.FC = () => {
             return;
         }
 
-        const newPayment: Payment = {
+        const p: Payment = {
             id: Date.now().toString(),
             studentId: selectedStudent.id,
             academic_year: selectedAcademicYear,
@@ -86,26 +101,60 @@ export const Accounting: React.FC = () => {
             recorded_by_name: session?.display_name || 'Inconnu'
         };
 
-        const p: Payment = newPayment;
         addPayment(p);
         setIsPaymentModalOpen(false);
         setPaymentAmount(0);
         setPaymentNotes('');
-        // No longer showing receipt automatically
         alert("Paiement enregistré avec succès !");
     };
 
-    const getStudentAnnualFee = (student: Student) => {
-        const fullClassName = student.serie ? `${student.classe} ${student.serie}` : student.classe;
-        const monthlyFee = settings.accounting?.classFees[fullClassName] || 0;
-        return monthlyFee * 9;
+    const handleGenerateReceipt = (type: 'ENCAISSEMENT' | 'DÉCAISSEMENT', item: Payment | Expense, student?: Student) => {
+        if (!receiptGenRef.current) return;
+        
+        let label = (item as Expense).label || '';
+        if (type === 'ENCAISSEMENT') {
+            label = student ? `Scolarité : ${student.nom} ${student.prenom} - ${(item as Payment).notes || 'Versement'}` : 'Paiement scolarité';
+        }
+
+        const receiptData: ReceiptData = {
+            type,
+            id: item.id,
+            date: item.date,
+            amount: item.amount,
+            label,
+            recordedBy: item.recorded_by_name || 'Inconnu',
+            schoolName: settings.appName
+        };
+        receiptGenRef.current.generateReceipt(receiptData);
+    };
+
+    const handleRecordExpense = () => {
+        if (!expenseLabel || expenseAmount <= 0) {
+            alert("Veuillez remplir le libellé et le montant.");
+            return;
+        }
+        
+        const e: Expense = {
+            id: Date.now().toString(),
+            academic_year: selectedAcademicYear,
+            label: expenseLabel,
+            amount: expenseAmount,
+            date: new Date().toISOString(),
+            recorded_by: session?.user_id,
+            recorded_by_name: session?.display_name || 'Inconnu'
+        };
+        
+        addExpense(e);
+        setExpenseLabel('');
+        setExpenseAmount(0);
+        alert("Dépense enregistrée avec succès !");
     };
 
     return (
         <div className="space-y-6 animate-fade-in">
             {/* Global Stats Dashboard */}
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                <Card className="lg:col-span-2">
+            <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
+                <Card className="lg:col-span-4">
                     <div className="flex flex-col md:flex-row items-center gap-8 p-4">
                         <div className="relative w-40 h-40">
                             {/* SVG Doughnut Chart */}
@@ -125,136 +174,235 @@ export const Accounting: React.FC = () => {
                         </div>
                         <div className="flex-1 space-y-4 w-full">
                             <h3 className="text-xl font-bold dark:text-white">Santé Financière Globale</h3>
-                            <div className="grid grid-cols-2 gap-4">
+                            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                                 <div className="p-3 bg-green-50 dark:bg-green-900/20 rounded-xl border border-green-100 dark:border-green-800/30">
                                     <p className="text-xs text-green-600 dark:text-green-400 font-bold uppercase">Encaissé</p>
                                     <p className="text-lg font-bold dark:text-white">{stats.totalCollected.toLocaleString()} <span className="text-[10px]">FCFA</span></p>
                                 </div>
-                                <div className="p-3 bg-blue-50 dark:bg-blue-900/20 rounded-xl border border-blue-100 dark:border-blue-800/30">
-                                    <p className="text-xs text-blue-600 dark:text-blue-400 font-bold uppercase">Attendu (Total)</p>
-                                    <p className="text-lg font-bold dark:text-white">{stats.totalExpected.toLocaleString()} <span className="text-[10px]">FCFA</span></p>
-                                </div>
                                 <div className="p-3 bg-red-50 dark:bg-red-900/20 rounded-xl border border-red-100 dark:border-red-800/30">
-                                    <p className="text-xs text-red-600 dark:text-red-400 font-bold uppercase">Reste à Recouvrer</p>
-                                    <p className="text-lg font-bold dark:text-white">{stats.totalRemaining.toLocaleString()} <span className="text-[10px]">FCFA</span></p>
+                                    <p className="text-xs text-red-600 dark:text-red-400 font-bold uppercase">Décaissements</p>
+                                    <p className="text-lg font-bold dark:text-white">{stats.totalExpenses.toLocaleString()} <span className="text-[10px]">FCFA</span></p>
+                                </div>
+                                <div className="p-3 bg-blue-50 dark:bg-blue-900/20 rounded-xl border border-blue-100 dark:border-blue-800/30">
+                                    <p className="text-xs text-blue-600 dark:text-blue-400 font-bold uppercase">Solde Caisse</p>
+                                    <p className="text-lg font-bold dark:text-white">{stats.balance.toLocaleString()} <span className="text-[10px]">FCFA</span></p>
                                 </div>
                                 <div className="p-3 bg-purple-50 dark:bg-purple-900/20 rounded-xl border border-purple-100 dark:border-purple-800/30">
-                                    <p className="text-xs text-purple-600 dark:text-purple-400 font-bold uppercase">Taux de Recouvrement</p>
-                                    <p className="text-lg font-bold dark:text-white">{stats.collectionRate}%</p>
+                                    <p className="text-xs text-purple-600 dark:text-purple-400 font-bold uppercase">Reste à Recouvrer</p>
+                                    <p className="text-lg font-bold dark:text-white">{stats.totalRemaining.toLocaleString()} <span className="text-[10px]">FCFA</span></p>
                                 </div>
                             </div>
                         </div>
                     </div>
                 </Card>
-
-                <Card title="Accès Rapide" className="flex flex-col justify-center">
-                    <div className="space-y-4">
-                        <Input 
-                            placeholder="Rechercher par Nom ou Matricule..." 
-                            icon={<i className="fas fa-search"></i>}
-                            value={searchQuery}
-                            onChange={e => setSearchQuery(e.target.value)}
-                        />
-                        <div className="grid grid-cols-2 gap-2">
-                            <Select 
-                                value={selectedCycle}
-                                onChange={e => setSelectedCycle(e.target.value)}
-                                options={[
-                                    { value: '', label: 'Tous Cycles' },
-                                    ...Object.values(cycles).map(c => ({ value: c.id, label: c.name }))
-                                ]}
-                            />
-                            <Select 
-                                value={selectedClass}
-                                onChange={e => setSelectedClass(e.target.value)}
-                                options={[
-                                    { value: '', label: 'Toutes Classes' },
-                                    ...(selectedCycle ? cycles[selectedCycle].levels.map(l => ({ value: l, label: l })) : [])
-                                ]}
-                                disabled={!selectedCycle}
-                            />
-                        </div>
-                    </div>
-                </Card>
             </div>
 
-            {/* Students List with Payment Status */}
-            <Card title={`Liste des Élèves (${filteredStudents.length})`}>
-                <div className="overflow-x-auto">
-                    <table className="min-w-full divide-y divide-gray-200 dark:divide-white/10">
-                        <thead className="bg-gray-50 dark:bg-white/5">
-                            <tr>
-                                <th className="px-4 py-3 text-left text-xs font-bold text-gray-500 dark:text-gray-400 uppercase">Matricule</th>
-                                <th className="px-4 py-3 text-left text-xs font-bold text-gray-500 dark:text-gray-400 uppercase">Nom & Prénom</th>
-                                <th className="px-4 py-3 text-left text-xs font-bold text-gray-500 dark:text-gray-400 uppercase">Classe</th>
-                                <th className="px-4 py-3 text-left text-xs font-bold text-gray-500 dark:text-gray-400 uppercase">Progression</th>
-                                <th className="px-4 py-3 text-left text-xs font-bold text-gray-500 dark:text-gray-400 uppercase">Solde</th>
-                                <th className="px-4 py-3 text-right">Actions</th>
-                            </tr>
-                        </thead>
-                        <tbody className="bg-white dark:bg-transparent divide-y divide-gray-200 dark:divide-white/10">
-                            {filteredStudents.map(s => {
-                                const annual = getStudentAnnualFee(s);
-                                const paid = s.totalPaid || 0;
-                                const remaining = annual - paid;
-                                const progress = annual > 0 ? Math.round((paid / annual) * 100) : 0;
+            {/* Tabs */}
+            <div className="flex gap-4 border-b border-gray-200 dark:border-white/10 pb-4">
+                <button
+                    className={`px-6 py-2 rounded-xl font-bold transition-all ${activeTab === 'encaissements' ? 'bg-[var(--primary-color)] text-white shadow-lg' : 'bg-white dark:bg-white/5 text-gray-600 dark:text-gray-300'}`}
+                    onClick={() => setActiveTab('encaissements')}
+                >
+                    <i className="fas fa-hand-holding-usd mr-2"></i> Encaissements (Scolarité)
+                </button>
+                <button
+                    className={`px-6 py-2 rounded-xl font-bold transition-all ${activeTab === 'decaissements' ? 'bg-red-600 text-white shadow-lg shadow-red-500/30' : 'bg-white dark:bg-white/5 text-gray-600 dark:text-gray-300'}`}
+                    onClick={() => setActiveTab('decaissements')}
+                >
+                    <i className="fas fa-file-invoice-dollar mr-2"></i> Décaissements (Dépenses)
+                </button>
+            </div>
 
-                                return (
-                                    <tr key={s.id} className="hover:bg-gray-50 dark:hover:bg-white/5 transition-colors group">
-                                        <td className="px-4 py-4 whitespace-nowrap text-sm font-mono font-bold text-[var(--primary-color)] dark:text-blue-300">
-                                            {s.matricule}
-                                        </td>
-                                        <td className="px-4 py-4 whitespace-nowrap">
-                                            <div className="flex items-center gap-3">
-                                                {s.photo ? <img src={s.photo} className="w-8 h-8 rounded-full object-cover" /> : <div className="w-8 h-8 rounded-full bg-gray-200 dark:bg-gray-700 flex items-center justify-center text-xs font-bold">{s.nom[0]}</div>}
-                                                <span className="text-sm font-medium dark:text-white">{s.nom} {s.prenom}</span>
-                                            </div>
-                                        </td>
-                                        <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-600 dark:text-gray-300">
-                                            {s.classe}
-                                        </td>
-                                        <td className="px-4 py-4 whitespace-nowrap">
-                                            <div className="w-32">
-                                                <div className="flex justify-between text-[10px] mb-1 dark:text-gray-400">
-                                                    <span>{progress}%</span>
-                                                    <span>{paid.toLocaleString()} FCFA</span>
-                                                </div>
-                                                <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-1.5 overflow-hidden">
-                                                    <div 
-                                                        className={`h-full transition-all duration-500 ${progress === 100 ? 'bg-green-500' : 'bg-[var(--primary-color)]'}`} 
-                                                        style={{ width: `${progress}%` }}
-                                                    ></div>
-                                                </div>
-                                            </div>
-                                        </td>
-                                        <td className={`px-4 py-4 whitespace-nowrap text-sm font-bold ${annual === 0 ? 'text-orange-500' : remaining === 0 ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>
-                                            {annual === 0 ? 'Non Configuré' : remaining === 0 ? 'SOLDÉ' : `${remaining.toLocaleString()} FCFA`}
-                                        </td>
-                                        <td className="px-4 py-4 whitespace-nowrap text-right">
-                                            <Button 
-                                                size="sm" 
-                                                variant={remaining === 0 && annual > 0 ? "secondary" : "primary"}
-                                                onClick={() => { setSelectedStudent(s); setIsPaymentModalOpen(true); }}
-                                            >
-                                                <i className="fas fa-receipt mr-2"></i> Gérer
-                                            </Button>
-                                        </td>
+            {/* Hidden Receipt Generator component */}
+            <ReceiptGenerator ref={receiptGenRef} />
+
+            {/* TAB CONTENT: ENCAISSEMENTS */}
+            {activeTab === 'encaissements' && (
+                <div className="space-y-6 animate-fade-in">
+                    <Card title="Accès Rapide" className="flex flex-col justify-center">
+                        <div className="space-y-4">
+                            <Input 
+                                placeholder="Rechercher par Nom ou Matricule..." 
+                                icon={<i className="fas fa-search"></i>}
+                                value={searchQuery}
+                                onChange={e => setSearchQuery(e.target.value)}
+                            />
+                            <div className="grid grid-cols-2 gap-2">
+                                <Select 
+                                    value={selectedCycle}
+                                    onChange={e => setSelectedCycle(e.target.value)}
+                                    options={[
+                                        { value: '', label: 'Tous Cycles' },
+                                        ...Object.values(cycles).map(c => ({ value: c.id, label: c.name }))
+                                    ]}
+                                />
+                                <Select 
+                                    value={selectedClass}
+                                    onChange={e => setSelectedClass(e.target.value)}
+                                    options={[
+                                        { value: '', label: 'Toutes Classes' },
+                                        ...(selectedCycle ? cycles[selectedCycle].levels.map(l => ({ value: l, label: l })) : [])
+                                    ]}
+                                    disabled={!selectedCycle}
+                                />
+                            </div>
+                        </div>
+                    </Card>
+
+                    <Card title={`Liste des Élèves (${filteredStudents.length})`}>
+                        <div className="overflow-x-auto">
+                            <table className="min-w-full divide-y divide-gray-200 dark:divide-white/10">
+                                <thead className="bg-gray-50 dark:bg-white/5">
+                                    <tr>
+                                        <th className="px-4 py-3 text-left text-xs font-bold text-gray-500 dark:text-gray-400 uppercase">Matricule</th>
+                                        <th className="px-4 py-3 text-left text-xs font-bold text-gray-500 dark:text-gray-400 uppercase">Nom & Prénom</th>
+                                        <th className="px-4 py-3 text-left text-xs font-bold text-gray-500 dark:text-gray-400 uppercase">Classe</th>
+                                        <th className="px-4 py-3 text-left text-xs font-bold text-gray-500 dark:text-gray-400 uppercase">Progression</th>
+                                        <th className="px-4 py-3 text-left text-xs font-bold text-gray-500 dark:text-gray-400 uppercase">Solde</th>
+                                        <th className="px-4 py-3 text-right">Actions</th>
                                     </tr>
-                                );
-                            })}
-                            {filteredStudents.length === 0 && (
-                                <tr>
-                                    <td colSpan={6} className="px-4 py-12 text-center text-gray-500 italic">
-                                        Aucun élève trouvé avec ces critères.
-                                    </td>
-                                </tr>
-                            )}
-                        </tbody>
-                    </table>
-                </div>
-            </Card>
+                                </thead>
+                                <tbody className="bg-white dark:bg-transparent divide-y divide-gray-200 dark:divide-white/10">
+                                    {filteredStudents.map(s => {
+                                        const annual = getStudentAnnualFee(s);
+                                        const paid = s.totalPaid || 0;
+                                        const remaining = annual - paid;
+                                        const progress = annual > 0 ? Math.round((paid / annual) * 100) : 0;
 
-            {/* Payment Modal */}
+                                        return (
+                                            <tr key={s.id} className="hover:bg-gray-50 dark:hover:bg-white/5 transition-colors group">
+                                                <td className="px-4 py-4 whitespace-nowrap text-sm font-mono font-bold text-[var(--primary-color)] dark:text-blue-300">
+                                                    {s.matricule}
+                                                </td>
+                                                <td className="px-4 py-4 whitespace-nowrap">
+                                                    <div className="flex items-center gap-3">
+                                                        {s.photo ? <img src={s.photo} className="w-8 h-8 rounded-full object-cover" /> : <div className="w-8 h-8 rounded-full bg-gray-200 dark:bg-gray-700 flex items-center justify-center text-xs font-bold">{s.nom[0]}</div>}
+                                                        <span className="text-sm font-medium dark:text-white">{s.nom} {s.prenom}</span>
+                                                    </div>
+                                                </td>
+                                                <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-600 dark:text-gray-300">
+                                                    {s.classe}
+                                                </td>
+                                                <td className="px-4 py-4 whitespace-nowrap">
+                                                    <div className="w-32">
+                                                        <div className="flex justify-between text-[10px] mb-1 dark:text-gray-400">
+                                                            <span>{progress}%</span>
+                                                            <span>{paid.toLocaleString()} FCFA</span>
+                                                        </div>
+                                                        <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-1.5 overflow-hidden">
+                                                            <div 
+                                                                className={`h-full transition-all duration-500 ${progress === 100 ? 'bg-green-500' : 'bg-[var(--primary-color)]'}`} 
+                                                                style={{ width: `${progress}%` }}
+                                                            ></div>
+                                                        </div>
+                                                    </div>
+                                                </td>
+                                                <td className={`px-4 py-4 whitespace-nowrap text-sm font-bold ${annual === 0 ? 'text-orange-500' : remaining === 0 ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>
+                                                    {annual === 0 ? 'Non Configuré' : remaining === 0 ? 'SOLDÉ' : `${remaining.toLocaleString()} FCFA`}
+                                                </td>
+                                                <td className="px-4 py-4 whitespace-nowrap text-right">
+                                                    <Button 
+                                                        size="sm" 
+                                                        variant={remaining === 0 && annual > 0 ? "secondary" : "primary"}
+                                                        onClick={() => { setSelectedStudent(s); setIsPaymentModalOpen(true); }}
+                                                    >
+                                                        <i className="fas fa-receipt mr-2"></i> Gérer
+                                                    </Button>
+                                                </td>
+                                            </tr>
+                                        );
+                                    })}
+                                    {filteredStudents.length === 0 && (
+                                        <tr>
+                                            <td colSpan={6} className="px-4 py-12 text-center text-gray-500 italic">
+                                                Aucun élève trouvé avec ces critères.
+                                            </td>
+                                        </tr>
+                                    )}
+                                </tbody>
+                            </table>
+                        </div>
+                    </Card>
+                </div>
+            )}
+
+            {/* TAB CONTENT: DÉCAISSEMENTS */}
+            {activeTab === 'decaissements' && (
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6 animate-fade-in">
+                    <Card title="Enregistrer une dépense" className="md:col-span-1 h-fit">
+                        <div className="space-y-4">
+                            <Input 
+                                label="Libellé / Achat matériel" 
+                                value={expenseLabel} 
+                                onChange={e => setExpenseLabel(e.target.value)}
+                                placeholder="Ex: Achat de craies, Facture d'eau..."
+                            />
+                            <Input 
+                                label="Montant décaissé (FCFA)" 
+                                type="number" 
+                                value={expenseAmount || ''} 
+                                onChange={e => setExpenseAmount(parseInt(e.target.value) || 0)}
+                                placeholder="Ex: 15000"
+                                className="text-lg font-bold text-red-600"
+                            />
+                            <Button 
+                                variant="primary" 
+                                className="w-full !bg-red-600 hover:!bg-red-700 mt-2 shadow-lg shadow-red-500/20"
+                                onClick={handleRecordExpense}
+                            >
+                                <i className="fas fa-minus-circle mr-2"></i> Valider la dépense
+                            </Button>
+                        </div>
+                    </Card>
+
+                    <Card title="Historique des Décaissements" className="md:col-span-2">
+                        <div className="space-y-3 max-h-[600px] overflow-y-auto pr-2 custom-scrollbar">
+                            {expenses.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()).map(e => (
+                                <div key={e.id} className="flex justify-between items-center p-4 bg-white dark:bg-white/5 border dark:border-white/10 rounded-xl transition-all hover:border-red-200 dark:hover:border-red-900/50">
+                                    <div>
+                                        <p className="font-bold text-gray-800 dark:text-white text-lg">{e.label}</p>
+                                        <div className="flex gap-3 text-xs text-gray-500 mt-1">
+                                            <span><i className="far fa-clock mr-1"></i> {new Date(e.date).toLocaleDateString('fr-FR')} à {new Date(e.date).toLocaleTimeString('fr-FR')}</span>
+                                            <span><i className="far fa-user mr-1"></i> {e.recorded_by_name}</span>
+                                        </div>
+                                    </div>
+                                    <div className="flex items-center gap-4">
+                                        <span className="font-black text-red-600 dark:text-red-400 text-xl">
+                                            - {e.amount.toLocaleString()} FCFA
+                                        </span>
+                                        <button 
+                                            onClick={() => handleGenerateReceipt('DÉCAISSEMENT', e)}
+                                            className="w-10 h-10 flex items-center justify-center bg-gray-100 hover:bg-gray-200 dark:bg-gray-800 dark:hover:bg-gray-700 text-gray-600 dark:text-gray-300 rounded-lg transition-colors"
+                                            title="Générer un reçu PDF"
+                                        >
+                                            <i className="fas fa-file-pdf"></i>
+                                        </button>
+                                        <button 
+                                            onClick={() => {
+                                                if(confirm('Supprimer cette dépense ?')) {
+                                                    deleteExpense(e.id);
+                                                }
+                                            }}
+                                            className="w-10 h-10 flex items-center justify-center bg-red-50 hover:bg-red-100 text-red-500 rounded-lg transition-colors"
+                                            title="Supprimer"
+                                        >
+                                            <i className="fas fa-trash"></i>
+                                        </button>
+                                    </div>
+                                </div>
+                            ))}
+                            {expenses.length === 0 && (
+                                <div className="text-center py-10 text-gray-400 italic">
+                                    <i className="fas fa-file-invoice-dollar text-4xl mb-3 opacity-20 block"></i>
+                                    Aucune dépense enregistrée.
+                                </div>
+                            )}
+                        </div>
+                    </Card>
+                </div>
+            )}
+
+            {/* Payment Modal (Encaissements only) */}
             {isPaymentModalOpen && selectedStudent && (
                 <Modal 
                     isOpen={true} 
@@ -315,20 +463,20 @@ export const Accounting: React.FC = () => {
                             {/* Recent Payments for this student */}
                             <div>
                                 <h4 className="font-bold text-gray-700 dark:text-white mb-3 text-sm">Historique Récent</h4>
-                                <div className="space-y-2 max-h-40 overflow-y-auto pr-2">
+                                <div className="space-y-2 max-h-40 overflow-y-auto pr-2 custom-scrollbar">
                                     {payments.filter(p => p.studentId === selectedStudent.id).reverse().map(p => (
                                         <div key={p.id} className="flex justify-between items-center p-3 bg-white dark:bg-white/5 border dark:border-white/10 rounded-xl text-xs transition-transform hover:scale-[1.02]">
                                             <div className="flex-1">
                                                 <p className="font-bold dark:text-white">{p.amount.toLocaleString()} FCFA</p>
-                                                <p className="text-gray-500 dark:text-gray-400">{p.date} • <span className="capitalize">{p.method.replace('_', ' ')}</span></p>
+                                                <p className="text-gray-500 dark:text-gray-400">{new Date(p.date).toLocaleDateString('fr-FR')} • <span className="capitalize">{p.method.replace('_', ' ')}</span></p>
                                                 {p.notes && <p className="text-[10px] italic mt-0.5 text-gray-400">{p.notes}</p>}
                                             </div>
                                             <button 
-                                                onClick={() => { setLastPayment(p); setShowReceipt(true); }}
+                                                onClick={() => handleGenerateReceipt('ENCAISSEMENT', p, selectedStudent)}
                                                 className="p-2 text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg transition-colors"
-                                                title="Imprimer le reçu"
+                                                title="Générer un reçu PDF avec QR Code"
                                             >
-                                                <i className="fas fa-print"></i>
+                                                <i className="fas fa-file-pdf"></i> PDF
                                             </button>
                                         </div>
                                     ))}
@@ -400,184 +548,6 @@ export const Accounting: React.FC = () => {
                     </div>
                 </Modal>
             )}
-            {/* Receipt Modal */}
-            {showReceipt && selectedStudent && lastPayment && (
-                <ReceiptModal 
-                    student={selectedStudent}
-                    payment={lastPayment}
-                    schoolName={settings.appName}
-                    logo={settings.logo}
-                    annualFee={getStudentAnnualFee(selectedStudent)}
-                    onClose={() => setShowReceipt(false)}
-                />
-            )}
         </div>
-    );
-};
-
-// --- Professional Receipt Component ---
-
-const ReceiptModal: React.FC<{
-    student: Student;
-    payment: Payment;
-    schoolName: string;
-    logo?: string;
-    annualFee: number;
-    onClose: () => void;
-}> = ({ student, payment, schoolName, logo, annualFee, onClose }) => {
-    const remaining = annualFee - (student.totalPaid || 0);
-    
-    const qrData = JSON.stringify({
-        st: `${student.nom} ${student.prenom}`,
-        am: payment.amount,
-        re: remaining,
-        dt: payment.date,
-        sc: schoolName,
-        id: payment.id.slice(-6),
-        by: payment.recorded_by_name || 'Inconnu'
-    });
-
-    const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=250x250&ecc=M&margin=1&data=${encodeURIComponent(qrData)}`;
-
-    const handlePrint = () => {
-        const content = document.getElementById('receipt-content')?.outerHTML;
-        if (!content) return;
-        
-        const printWindow = window.open('', '', 'width=800,height=600');
-        if (!printWindow) {
-            alert("Veuillez autoriser les pop-ups pour imprimer le reçu.");
-            return;
-        }
-        
-        // Obtenir tous les styles actuels pour les appliquer à la fenêtre d'impression
-        const styles = Array.from(document.querySelectorAll('style, link[rel="stylesheet"]'))
-            .map(el => el.outerHTML)
-            .join('');
-
-        printWindow.document.write(`
-            <html>
-            <head>
-                <title>Impression Reçu - ${schoolName}</title>
-                ${styles}
-                <style>
-                    body { background: white; padding: 20px; margin: 0; }
-                    /* Forcer l'impression des couleurs d'arrière-plan */
-                    * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
-                </style>
-            </head>
-            <body>
-                ${content}
-                <script>
-                    window.onload = () => {
-                        setTimeout(() => {
-                            window.print();
-                            window.close();
-                        }, 500);
-                    };
-                </script>
-            </body>
-            </html>
-        `);
-        printWindow.document.close();
-    };
-
-    const handleDownloadPDF = () => {
-        const element = document.getElementById('receipt-content');
-        if (!element) return;
-        
-        // Hide elements not needed in PDF (like shadows, borders that are too thick)
-        const opt = {
-            margin:       10,
-            filename:     `Recu_${student.matricule}_${payment.date.replace(/\//g, '-')}.pdf`,
-            image:        { type: 'jpeg', quality: 0.98 },
-            html2canvas:  { scale: 2, useCORS: true },
-            jsPDF:        { unit: 'mm', format: 'a4', orientation: 'portrait' }
-        };
-
-        html2pdf().set(opt).from(element).save();
-    };
-
-    return (
-        <Modal isOpen={true} onClose={onClose} title="Reçu de Paiement" maxWidth="max-w-2xl">
-            <div id="receipt-content" className="p-8 bg-white text-gray-800 rounded-lg shadow-inner border border-gray-100 print:shadow-none print:border-none print:p-0">
-                {/* Header */}
-                <div className="flex justify-between items-start border-b-2 border-gray-100 pb-6 mb-6">
-                    <div className="flex items-center gap-4">
-                        {logo ? (
-                            <img src={logo} alt="Logo" className="h-16 w-16 object-contain rounded-lg border p-1" />
-                        ) : (
-                            <div className="h-16 w-16 bg-blue-600 rounded-lg flex items-center justify-center text-white text-2xl">
-                                <i className="fas fa-graduation-cap"></i>
-                            </div>
-                        )}
-                        <div>
-                            <h2 className="text-2xl font-black uppercase tracking-tight text-blue-900">{schoolName}</h2>
-                            <p className="text-xs text-gray-500 font-bold uppercase tracking-widest">Reçu de Caisse Officiel</p>
-                        </div>
-                    </div>
-                    <div className="text-right">
-                        <p className="text-sm font-bold text-gray-400">N° {payment.id.slice(-6)}</p>
-                        <p className="text-sm font-medium">{payment.date}</p>
-                    </div>
-                </div>
-
-                {/* Content */}
-                <div className="grid grid-cols-2 gap-8 mb-8">
-                    <div className="space-y-4">
-                        <div>
-                            <p className="text-[10px] text-gray-400 uppercase font-black mb-1">Élève</p>
-                            <p className="font-bold text-lg">{student.nom} {student.prenom}</p>
-                            <p className="text-sm text-gray-600">Matricule : <span className="font-mono">{student.matricule}</span></p>
-                            <p className="text-sm text-gray-600">Classe : {student.classe}</p>
-                        </div>
-                        <div>
-                            <p className="font-bold capitalize">{payment.method.replace('_', ' ')}</p>
-                        </div>
-                        {payment.recorded_by_name && (
-                            <div>
-                                <p className="text-[10px] text-gray-400 uppercase font-black mb-1">Encaissé par</p>
-                                <p className="text-sm font-bold">{payment.recorded_by_name}</p>
-                            </div>
-                        )}
-                    </div>
-
-                    <div className="bg-gray-50 p-4 rounded-xl space-y-3">
-                        <div className="flex justify-between text-sm">
-                            <span className="text-gray-500">Montant Versé :</span>
-                            <span className="font-black text-blue-600">{payment.amount.toLocaleString()} FCFA</span>
-                        </div>
-                        <div className="flex justify-between text-sm">
-                            <span className="text-gray-500">Déjà Payé :</span>
-                            <span className="font-bold text-green-600">{(student.totalPaid || 0).toLocaleString()} FCFA</span>
-                        </div>
-                        <div className="flex justify-between text-sm pt-2 border-t border-gray-200">
-                            <span className="font-bold">Reste à Payer :</span>
-                            <span className="font-black text-red-600">{remaining.toLocaleString()} FCFA</span>
-                        </div>
-                    </div>
-                </div>
-
-                {/* QR & Footer */}
-                <div className="flex justify-between items-end border-t border-dashed border-gray-200 pt-6 mt-6">
-                    <div>
-                        <p className="text-[10px] text-gray-400 font-bold mb-2">SCANNER POUR VÉRIFIER</p>
-                        <img src={qrUrl} alt="QR Code Verification" className="w-24 h-24 border p-1 rounded-md bg-white shadow-sm" />
-                    </div>
-                    <div className="text-right space-y-1">
-                        <div className="h-16 w-32 border-b-2 border-gray-100 mb-2 flex items-center justify-center italic text-gray-300 text-xs">
-                            Cachet & Signature
-                        </div>
-                        <p className="text-[10px] text-gray-400 italic">ID Transaction: {payment.id}</p>
-                    </div>
-                </div>
-            </div>
-
-            <div className="mt-6 flex justify-end gap-3 print:hidden">
-                <Button variant="secondary" onClick={onClose}>Fermer</Button>
-                <Button variant="secondary" onClick={handleDownloadPDF} icon={<i className="fas fa-file-pdf"></i>}>Télécharger PDF</Button>
-                <Button variant="primary" onClick={handlePrint} icon={<i className="fas fa-print"></i>}>Imprimer le Reçu</Button>
-            </div>
-
-        </Modal>
     );
 };

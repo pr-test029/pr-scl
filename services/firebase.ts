@@ -31,7 +31,7 @@ import {
     Timestamp,
     limit
 } from "firebase/firestore";
-import { Student, Grade, AppSettings, Cycle, Subject, UserSession, School, Payment } from '../types';
+import { Student, Grade, AppSettings, Cycle, Subject, UserSession, School, Payment, Expense } from '../types';
 import { INITIAL_CYCLES, INITIAL_SUBJECTS, INITIAL_SETTINGS } from '../constants';
 
 // --- CONFIGURATION FIREBASE RÉELLE ---
@@ -430,30 +430,38 @@ export const generateMatricule = (): string => {
 // --- API STUDENTS ---
 
 export const fetchStudents = async (academicYear: string): Promise<Student[]> => {
-    const schoolId = await ensureSchoolId();
-    if (!schoolId) {
-        console.warn("fetchStudents: No schoolId found");
-        return [];
+  const schoolId = await ensureSchoolId();
+  if (!schoolId) {
+    console.warn("fetchStudents: No schoolId found");
+    return [];
+  }
+  try {
+    const constraints: any[] = [where("school_id", "==", schoolId)];
+    if (academicYear) {
+      constraints.push(where("academic_year", "==", academicYear));
     }
-    try {
-        const q = query(collection(db, "students"), where("school_id", "==", schoolId), where("academic_year", "==", academicYear));
-        const querySnapshot = await getDocs(q);
-        const students = querySnapshot.docs.map(doc => doc.data() as Student);
-        return students;
-    } catch (error) {
-        console.error("fetchStudents Error:", error);
-        return [];
-    }
+    const q = query(collection(db, "students"), ...constraints);
+    const querySnapshot = await getDocs(q);
+    const students = querySnapshot.docs.map(doc => doc.data() as Student);
+    return students;
+  } catch (error) {
+    console.error("fetchStudents Error:", error);
+    return [];
+  }
 };
 
 export const subscribeToStudents = (schoolId: string, academicYear: string, callback: (students: Student[]) => void): (() => void) => {
-    const q = query(collection(db, "students"), where("school_id", "==", schoolId), where("academic_year", "==", academicYear));
-    return onSnapshot(q, (snapshot) => {
-        const students = snapshot.docs.map(doc => doc.data() as Student);
-        callback(students);
-    }, (error) => {
-        console.error("subscribeToStudents Error:", error);
-    });
+  const constraints: any[] = [where("school_id", "==", schoolId)];
+  if (academicYear) {
+    constraints.push(where("academic_year", "==", academicYear));
+  }
+  const q = query(collection(db, "students"), ...constraints);
+  return onSnapshot(q, (snapshot) => {
+    const students = snapshot.docs.map(doc => doc.data() as Student);
+    callback(students);
+  }, (error) => {
+    console.error("subscribeToStudents Error:", error);
+  });
 };
 
 export const addStudentDB = async (student: Student) => {
@@ -526,30 +534,38 @@ export const deleteStudentDB = async (id: string, academicYear: string) => {
 // --- API GRADES ---
 
 export const fetchGrades = async (academicYear: string): Promise<Grade[]> => {
-    const schoolId = await ensureSchoolId();
-    if (!schoolId) {
-        console.warn("fetchGrades: No schoolId found");
-        return [];
+  const schoolId = await ensureSchoolId();
+  if (!schoolId) {
+    console.warn("fetchGrades: No schoolId found");
+    return [];
+  }
+  try {
+    const constraints: any[] = [where("school_id", "==", schoolId)];
+    if (academicYear) {
+      constraints.push(where("academic_year", "==", academicYear));
     }
-    try {
-        const q = query(collection(db, "grades"), where("school_id", "==", schoolId), where("academic_year", "==", academicYear));
-        const querySnapshot = await getDocs(q);
-        const grades = querySnapshot.docs.map(doc => doc.data() as Grade);
-        return grades;
-    } catch (error) {
-        console.error("fetchGrades Error:", error);
-        return [];
-    }
+    const q = query(collection(db, "grades"), ...constraints);
+    const querySnapshot = await getDocs(q);
+    const grades = querySnapshot.docs.map(doc => doc.data() as Grade);
+    return grades;
+  } catch (error) {
+    console.error("fetchGrades Error:", error);
+    return [];
+  }
 };
 
 export const subscribeToGrades = (schoolId: string, academicYear: string, callback: (grades: Grade[]) => void): (() => void) => {
-    const q = query(collection(db, "grades"), where("school_id", "==", schoolId), where("academic_year", "==", academicYear));
-    return onSnapshot(q, (snapshot) => {
-        const grades = snapshot.docs.map(doc => doc.data() as Grade);
-        callback(grades);
-    }, (error) => {
-        console.error("subscribeToGrades Error:", error);
-    });
+  const constraints: any[] = [where("school_id", "==", schoolId)];
+  if (academicYear) {
+    constraints.push(where("academic_year", "==", academicYear));
+  }
+  const q = query(collection(db, "grades"), ...constraints);
+  return onSnapshot(q, (snapshot) => {
+    const grades = snapshot.docs.map(doc => doc.data() as Grade);
+    callback(grades);
+  }, (error) => {
+    console.error("subscribeToGrades Error:", error);
+  });
 };
 
 export const addGradeDB = async (grade: Grade) => {
@@ -676,26 +692,34 @@ export const clearDB = async () => {
 // --- API ACCOUNTING ---
 
 export const fetchPayments = async (academicYear: string): Promise<Payment[]> => {
-    const schoolId = await ensureSchoolId();
-    if (!schoolId) return [];
-    try {
-        const q = query(collection(db, "payments"), where("school_id", "==", schoolId), where("academic_year", "==", academicYear));
-        const querySnapshot = await getDocs(q);
-        return querySnapshot.docs.map(doc => doc.data() as Payment);
-    } catch (error) {
-        console.error("fetchPayments Error:", error);
-        return [];
+  const schoolId = await ensureSchoolId();
+  if (!schoolId) return [];
+  try {
+    const constraints: any[] = [where("school_id", "==", schoolId)];
+    if (academicYear) {
+      constraints.push(where("academic_year", "==", academicYear));
     }
+    const q = query(collection(db, "payments"), ...constraints);
+    const querySnapshot = await getDocs(q);
+    return querySnapshot.docs.map(doc => doc.data() as Payment);
+  } catch (error) {
+    console.error("fetchPayments Error:", error);
+    return [];
+  }
 };
 
 export const subscribeToPayments = (schoolId: string, academicYear: string, callback: (payments: Payment[]) => void): (() => void) => {
-    const q = query(collection(db, "payments"), where("school_id", "==", schoolId), where("academic_year", "==", academicYear));
-    return onSnapshot(q, (snapshot) => {
-        const payments = snapshot.docs.map(doc => doc.data() as Payment);
-        callback(payments);
-    }, (error) => {
-        console.error("subscribeToPayments Error:", error);
-    });
+  const constraints: any[] = [where("school_id", "==", schoolId)];
+  if (academicYear) {
+    constraints.push(where("academic_year", "==", academicYear));
+  }
+  const q = query(collection(db, "payments"), ...constraints);
+  return onSnapshot(q, (snapshot) => {
+    const payments = snapshot.docs.map(doc => doc.data() as Payment);
+    callback(payments);
+  }, (error) => {
+    console.error("subscribeToPayments Error:", error);
+  });
 };
 
 export const addPaymentDB = async (payment: Payment) => {
@@ -903,6 +927,63 @@ export const updateUserRole = async (userId: string, newRole: 'admin' | 'user'):
         role: newRole
     });
 };
+
+export const subscribeToExpenses = (schoolId: string, academicYear: string, callback: (expenses: Expense[]) => void): (() => void) => {
+    const q = query(collection(db, "expenses"), where("school_id", "==", schoolId), where("academic_year", "==", academicYear));
+    return onSnapshot(q, (snapshot) => {
+        const expenses = snapshot.docs.map(doc => doc.data() as Expense);
+        callback(expenses);
+    }, (error) => {
+        console.error("subscribeToExpenses Error:", error);
+    });
+};
+
+export const addExpenseDB = async (expense: Expense) => {
+    const schoolId = await ensureSchoolId();
+    if (!schoolId) return;
+    try {
+        const docId = `${schoolId}_${expense.academic_year}_${expense.id}`;
+        const dataToSave = {
+            ...expense,
+            school_id: schoolId,
+            id: expense.id
+        };
+        await setDoc(doc(db, "expenses", docId), cleanData(dataToSave));
+    } catch (error) {
+        console.error("addExpenseDB Error:", error);
+        throw error;
+    }
+};
+
+export const updateExpenseDB = async (expense: Expense) => {
+    const schoolId = await ensureSchoolId();
+    if (!schoolId) return;
+    try {
+        const docId = `${schoolId}_${expense.academic_year}_${expense.id}`;
+        const dataToSave = {
+            ...expense,
+            school_id: schoolId,
+            id: expense.id
+        };
+        await updateDoc(doc(db, "expenses", docId), cleanData(dataToSave));
+    } catch (error) {
+        console.error("updateExpenseDB Error:", error);
+        throw error;
+    }
+};
+
+export const deleteExpenseDB = async (id: string, academicYear: string) => {
+    const schoolId = await ensureSchoolId();
+    if (!schoolId) return;
+    try {
+        const docId = `${schoolId}_${academicYear}_${id}`;
+        await deleteDoc(doc(db, "expenses", docId));
+    } catch (error) {
+        console.error("deleteExpenseDB Error:", error);
+        throw error;
+    }
+};
+
 // --- MIGRATION SCRIPT ---
 export const migrateToAcademicYear = async () => {
     const schoolId = await ensureSchoolId();

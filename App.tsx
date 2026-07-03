@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useContext, createContext } from 'react';
 import { doc, getDoc } from 'firebase/firestore';
 import {
-  Student, Grade, Cycle, Subject, AppSettings, View, SchoolContextType, UserSession, School, Payment
+  Student, Grade, Cycle, Subject, AppSettings, View, SchoolContextType, UserSession, School, Payment, Expense
 } from './types';
 import {
   INITIAL_CYCLES, INITIAL_SUBJECTS, INITIAL_SETTINGS, THEME_HEX_COLORS
@@ -52,6 +52,7 @@ const App: React.FC = () => {
   const [subjects, setSubjects] = useState<Record<string, Subject[]>>(INITIAL_SUBJECTS);
   const [settings, setSettings] = useState<AppSettings>(INITIAL_SETTINGS);
   const [payments, setPayments] = useState<Payment[]>([]);
+  const [expenses, setExpenses] = useState<Expense[]>([]);
 
   const [currentView, setCurrentView] = useState<View>('dashboard');
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
@@ -162,6 +163,7 @@ const App: React.FC = () => {
         unsubscribes.push(api.subscribeToStudents(schoolId, selectedAcademicYear, setStudents));
         unsubscribes.push(api.subscribeToGrades(schoolId, selectedAcademicYear, setGrades));
         unsubscribes.push(api.subscribeToPayments(schoolId, selectedAcademicYear, setPayments));
+        unsubscribes.push(api.subscribeToExpenses(schoolId, selectedAcademicYear, setExpenses));
       } catch (e) {
         console.error("Yearly load error", e);
         setError("Erreur de synchronisation des données de l'année.");
@@ -177,6 +179,7 @@ const App: React.FC = () => {
       setStudents([]);
       setGrades([]);
       setPayments([]);
+      setExpenses([]);
     }
 
     return () => {
@@ -314,6 +317,33 @@ const App: React.FC = () => {
     }
   };
 
+  const addExpense = async (e: Expense) => {
+    try {
+      setExpenses(prev => [...prev, e]);
+      await api.addExpenseDB(e);
+    } catch (err: any) {
+      alert("Erreur lors de l'enregistrement de la dépense : " + err.message);
+    }
+  };
+
+  const updateExpense = async (e: Expense) => {
+    try {
+      setExpenses(prev => prev.map(prevE => prevE.id === e.id ? e : prevE));
+      await api.updateExpenseDB(e);
+    } catch (err: any) {
+      alert("Erreur lors de la modification de la dépense : " + err.message);
+    }
+  };
+
+  const deleteExpense = async (id: string) => {
+    try {
+      setExpenses(prev => prev.filter(e => e.id !== id));
+      await api.deleteExpenseDB(id, selectedAcademicYear);
+    } catch (err: any) {
+      alert("Erreur lors de la suppression de la dépense : " + err.message);
+    }
+  };
+
   const handleUpdateSettings = (newSettings: AppSettings) => {
     setSettings(newSettings);
     api.saveSettingsDB(newSettings);
@@ -354,11 +384,13 @@ const App: React.FC = () => {
     subjects,
     settings,
     payments,
+    expenses,
     addStudent,
     updateStudent,
     deleteStudent,
     addGrade, updateGrade, deleteGrade,
     addPayment,
+    addExpense, updateExpense, deleteExpense,
     updateSettings: handleUpdateSettings,
     updateCycles: handleUpdateCycles,
     updateSubjects: handleUpdateSubjects,

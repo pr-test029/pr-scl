@@ -32,6 +32,16 @@ export interface Payment {
   recorded_by_name?: string; // Nom de celui qui a encaissé
 }
 
+export interface Expense {
+  id: string;
+  academic_year: string; // Année scolaire
+  label: string; // Libellé de la dépense
+  amount: number; // Montant de la dépense
+  date: string;
+  recorded_by?: string; // UID de celui qui a décaissé
+  recorded_by_name?: string; // Nom de celui qui a décaissé
+}
+
 export interface Grade {
   id: string;
   studentId: string;
@@ -173,6 +183,7 @@ export interface SchoolContextType {
   subjects: Record<string, Subject[]>;
   settings: AppSettings;
   payments: Payment[];
+  expenses: Expense[];
   addStudent: (student: Student) => void;
   updateStudent: (student: Student) => void;
   deleteStudent: (id: string) => void;
@@ -180,6 +191,9 @@ export interface SchoolContextType {
   updateGrade: (grade: Grade) => void;
   deleteGrade: (id: string) => void;
   addPayment: (payment: Payment) => void;
+  addExpense: (expense: Expense) => void;
+  updateExpense: (expense: Expense) => void;
+  deleteExpense: (id: string) => void;
   updateSettings: (settings: AppSettings) => void;
   updateCycles: (cycles: Record<string, Cycle>) => void;
   updateSubjects: (className: string, subjects: Subject[]) => void;

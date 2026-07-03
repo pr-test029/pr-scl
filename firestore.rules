@@ -84,8 +84,15 @@ service cloud.firestore {
       allow create, update, delete: if isAdmin() || belongsToSchool(request.resource.data.school_id);
     }
 
-        // --- COLLECTION PAYMENTS ---
+    // --- COLLECTION PAYMENTS ---
     match /payments/{paymentId} {
+      allow read: if isAdmin() || belongsToSchool(resource.data.school_id);
+      allow create, delete: if isAdmin() || belongsToSchool(request.resource.data.school_id);
+      allow update: if isAdmin() || isSchoolOwner(request.resource.data.school_id) || (belongsToSchool(request.resource.data.school_id) && isEnrolled(request.auth.uid, request.resource.data.school_id, request.resource.data.academic_year));
+    }
+
+    // --- COLLECTION EXPENSES ---
+    match /expenses/{expenseId} {
       allow read: if isAdmin() || belongsToSchool(resource.data.school_id);
       allow create, delete: if isAdmin() || belongsToSchool(request.resource.data.school_id);
       allow update: if isAdmin() || isSchoolOwner(request.resource.data.school_id) || (belongsToSchool(request.resource.data.school_id) && isEnrolled(request.auth.uid, request.resource.data.school_id, request.resource.data.academic_year));
