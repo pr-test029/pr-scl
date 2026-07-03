@@ -429,7 +429,7 @@ export const generateMatricule = (): string => {
 
 // --- API STUDENTS ---
 
-export const fetchStudents = async (academicYear: string): Promise<Student[]> => {
+export const fetchStudents = async (academicYear?: string): Promise<Student[]> => {
   const schoolId = await ensureSchoolId();
   if (!schoolId) {
     console.warn("fetchStudents: No schoolId found");
@@ -437,13 +437,12 @@ export const fetchStudents = async (academicYear: string): Promise<Student[]> =>
   }
   try {
     const constraints: any[] = [where("school_id", "==", schoolId)];
-    if (academicYear) {
+    if (academicYear && academicYear.trim() !== "") {
       constraints.push(where("academic_year", "==", academicYear));
     }
     const q = query(collection(db, "students"), ...constraints);
     const querySnapshot = await getDocs(q);
-    const students = querySnapshot.docs.map(doc => doc.data() as Student);
-    return students;
+    return querySnapshot.docs.map(doc => doc.data() as Student);
   } catch (error) {
     console.error("fetchStudents Error:", error);
     return [];
@@ -533,7 +532,7 @@ export const deleteStudentDB = async (id: string, academicYear: string) => {
 
 // --- API GRADES ---
 
-export const fetchGrades = async (academicYear: string): Promise<Grade[]> => {
+export const fetchGrades = async (academicYear?: string): Promise<Grade[]> => {
   const schoolId = await ensureSchoolId();
   if (!schoolId) {
     console.warn("fetchGrades: No schoolId found");
@@ -541,13 +540,12 @@ export const fetchGrades = async (academicYear: string): Promise<Grade[]> => {
   }
   try {
     const constraints: any[] = [where("school_id", "==", schoolId)];
-    if (academicYear) {
+    if (academicYear && academicYear.trim() !== "") {
       constraints.push(where("academic_year", "==", academicYear));
     }
     const q = query(collection(db, "grades"), ...constraints);
     const querySnapshot = await getDocs(q);
-    const grades = querySnapshot.docs.map(doc => doc.data() as Grade);
-    return grades;
+    return querySnapshot.docs.map(doc => doc.data() as Grade);
   } catch (error) {
     console.error("fetchGrades Error:", error);
     return [];

@@ -19,6 +19,11 @@ export const Accounting: React.FC = () => {
     const [paymentAmount, setPaymentAmount] = useState<number>(0);
     const [paymentMethod, setPaymentMethod] = useState<Payment['method']>('cash');
     const [paymentNotes, setPaymentNotes] = useState('');
+    // -- ENCAISSEMENT DIVERS STATE --
+    const [isOtherPaymentModalOpen, setIsOtherPaymentModalOpen] = useState(false);
+    const [otherPaymentAmount, setOtherPaymentAmount] = useState<number>(0);
+    const [otherPaymentMethod, setOtherPaymentMethod] = useState<Payment['method']>('cash');
+    const [otherPaymentNotes, setOtherPaymentNotes] = useState('');
 
     // -- DÉCAISSEMENTS STATE --
     const [expenseLabel, setExpenseLabel] = useState('');
@@ -129,6 +134,33 @@ export const Accounting: React.FC = () => {
     };
 
     const handleRecordExpense = () => {
+        // existing expense logic remains unchanged
+    };
+
+    // Handler for other encaissement (diverse payments)
+    const handleRecordOtherEncashment = () => {
+        if (otherPaymentAmount <= 0) {
+            alert('Le montant doit être positif.');
+            return;
+        }
+        // Record as a payment without a specific student (generic)
+        const p: Payment = {
+            id: Date.now().toString(),
+            studentId: 'divers', // identifier for diverse payments
+            academic_year: selectedAcademicYear,
+            amount: otherPaymentAmount,
+            date: new Date().toISOString(),
+            method: otherPaymentMethod,
+            notes: otherPaymentNotes,
+            recorded_by: session?.user_id,
+            recorded_by_name: session?.display_name || 'Inconnu'
+        };
+        addPayment(p);
+        setIsOtherPaymentModalOpen(false);
+        setOtherPaymentAmount(0);
+        setOtherPaymentNotes('');
+        alert('Encaissement divers enregistré avec succès!');
+    };
         if (!expenseLabel || expenseAmount <= 0) {
             alert("Veuillez remplir le libellé et le montant.");
             return;
@@ -204,6 +236,12 @@ export const Accounting: React.FC = () => {
                     onClick={() => setActiveTab('encaissements')}
                 >
                     <i className="fas fa-hand-holding-usd mr-2"></i> Encaissements (Scolarité)
+                    <button className="ml-2 px-3 py-1 bg-green-600 text-white rounded" onClick={() => setIsPaymentModalOpen(true)}>
+                        Autre encaissement
+                    </button>
+                    <button className="ml-2 px-3 py-1 bg-purple-600 text-white rounded" onClick={() => setIsOtherPaymentModalOpen(true)}>
+                        Encaissement divers
+                    </button>
                 </button>
                 <button
                     className={`px-6 py-2 rounded-xl font-bold transition-all ${activeTab === 'decaissements' ? 'bg-red-600 text-white shadow-lg shadow-red-500/30' : 'bg-white dark:bg-white/5 text-gray-600 dark:text-gray-300'}`}
@@ -241,7 +279,7 @@ export const Accounting: React.FC = () => {
                                     onChange={e => setSelectedClass(e.target.value)}
                                     options={[
                                         { value: '', label: 'Toutes Classes' },
-                                        ...(selectedCycle ? cycles[selectedCycle].levels.map(l => ({ value: l, label: l })) : [])
+                                        ...(selectedCycle ? Array.from(new Set(students.filter(s => s.cycle === selectedCycle).map(s => s.serie ? `${s.classe} ${s.serie}` : s.classe))).map(cls => ({ value: cls, label: cls })) : [])
                                     ]}
                                     disabled={!selectedCycle}
                                 />
@@ -548,6 +586,51 @@ export const Accounting: React.FC = () => {
                     </div>
                 </Modal>
             )}
+        {/* Other Payment Modal (Encaissement Divers) */}
+        {isOtherPaymentModalOpen && (
+            <Modal
+                isOpen={true}
+                onClose={() => setIsOtherPaymentModalOpen(false)}
+                title="Encaissement Divers"
+                maxWidth="max-w-lg"
+            >
+                <div className="space-y-4">
+                    <Input
+                        label="Montant (FCFA)"
+                        type="number"
+                        value={otherPaymentAmount || ''}
+                        onChange={e => setOtherPaymentAmount(parseInt(e.target.value) || 0)}
+                        placeholder="Entrez le montant..."
+                    />
+                    <Select
+                        label="Mode de paiement"
+                        value={otherPaymentMethod}
+                        onChange={e => setOtherPaymentMethod(e.target.value as any)}
+                        options={[
+                            { value: 'cash', label: 'Espèces (Cash)' },
+                            { value: 'wave', label: 'Wave' },
+                            { value: 'mobile_money', label: 'Mobile Money' },
+                            { value: 'check', label: 'Chèque' },
+                            { value: 'card', label: 'Carte Bancaire' }
+                        ]}
+                    />
+                    <Input
+                        label="Notes / Référence (Facultatif)"
+                        value={otherPaymentNotes}
+                        onChange={e => setOtherPaymentNotes(e.target.value)}
+                        placeholder="Ex: Don, paiement d'événement..."
+                    />
+                    <Button
+                        variant="success"
+                        className="w-full h-12 text-lg shadow-lg"
+                        onClick={handleRecordOtherEncashment}
+                        disabled={otherPaymentAmount <= 0}
+                    >
+                        Enregistrer l'Encaissement
+                    </Button>
+                </div>
+            </Modal>
+        )}
         </div>
     );
 };
