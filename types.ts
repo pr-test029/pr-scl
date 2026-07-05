@@ -104,6 +104,8 @@ export interface BulletinSettings {
 
 export interface AccountingSettings {
   classFees: Record<string, number>; // Monthly fee per class ID (9 months assumed)
+  registrationFee?: number; // Frais d'inscription globaux
+  reRegistrationFee?: number; // Frais de réinscription globaux
 }
 
 export type UserRole = 'dirigeant' | 'gestionnaire' | 'eleve' | 'professeur';

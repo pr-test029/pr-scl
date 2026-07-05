@@ -6,7 +6,7 @@ import { Cycle } from '../../types';
 import * as api from '../../services/firebase';
 
 export const Dashboard: React.FC = () => {
-  const { students, grades, cycles, subjects, settings, payments } = useSchool();
+  const { students, grades, cycles, subjects, settings, payments, expenses } = useSchool();
   const [dbStatus, setDbStatus] = useState<'checking' | 'online' | 'error'>('checking');
 
   useEffect(() => {
@@ -24,7 +24,19 @@ export const Dashboard: React.FC = () => {
   const textPrimary = "text-[var(--primary-color)] dark:text-white dark:drop-shadow-[0_0_5px_var(--primary-color)]";
 
   // Financial Calculations
-  const totalRevenue = payments.reduce((acc, p) => acc + (p.amount || 0), 0);
+  const baseCollected = payments.reduce((acc, p) => acc + (p.amount || 0), 0);
+  const regFee = settings.accounting?.registrationFee || 0;
+  let unrecordedInscriptions = 0;
+  students.forEach(s => {
+      const hasRegPayment = payments.some(p => p.studentId === s.id && p.notes?.toLowerCase().includes("inscription"));
+      if (!hasRegPayment) {
+          unrecordedInscriptions += regFee;
+      }
+  });
+  const totalCollected = baseCollected + unrecordedInscriptions;
+  const totalExpenses = expenses.reduce((acc, e) => acc + (e.amount || 0), 0);
+  const balance = totalCollected - totalExpenses;
+
   const staffCount = settings.staff?.length || 0;
 
   // Helper to parse dates from various formats (ISO or local fr-FR)
@@ -73,7 +85,7 @@ export const Dashboard: React.FC = () => {
   const statCards = [
     { title: 'Élèves Inscrits', value: students.length, icon: 'fa-user-graduate', color: 'bg-blue-100 dark:bg-blue-500/20 text-blue-600 dark:text-blue-300 dark:border dark:border-blue-400/30' },
     { title: 'Personnel Actif', value: staffCount, icon: 'fa-users', color: 'bg-indigo-100 dark:bg-indigo-500/20 text-indigo-600 dark:text-indigo-300 dark:border dark:border-indigo-400/30' },
-    { title: 'Recettes Totales', value: `${totalRevenue.toLocaleString()} FCFA`, icon: 'fa-money-bill-wave', color: 'bg-green-100 dark:bg-green-500/20 text-green-600 dark:text-green-300 dark:border dark:border-green-400/30' },
+    { title: 'Solde Caisse', value: `${balance.toLocaleString()} FCFA`, icon: 'fa-money-bill-wave', color: 'bg-green-100 dark:bg-green-500/20 text-green-600 dark:text-green-300 dark:border dark:border-green-400/30' },
     { title: 'Cycles Actifs', value: Object.keys(cycles).length, icon: 'fa-layer-group', color: 'bg-purple-100 dark:bg-purple-500/20 text-purple-600 dark:text-purple-300 dark:border dark:border-purple-400/30' },
   ];
 

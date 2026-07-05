@@ -747,6 +747,29 @@ const AccountingSettingsEditor: React.FC<{
                 </div>
             </div>
 
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 bg-purple-50 dark:bg-purple-900/20 p-6 rounded-xl border border-purple-100 dark:border-purple-800/30 mb-6">
+                <div>
+                    <h4 className="font-bold text-purple-800 dark:text-purple-300 mb-2">Frais d'inscription globaux</h4>
+                    <Input 
+                        type="number" 
+                        placeholder="0" 
+                        value={settings.accounting?.registrationFee || ''} 
+                        onChange={e => onUpdateSettings({...settings, accounting: {...settings.accounting, registrationFee: parseInt(e.target.value) || 0}})}
+                        className="font-mono text-lg"
+                    />
+                </div>
+                <div>
+                    <h4 className="font-bold text-purple-800 dark:text-purple-300 mb-2">Frais de réinscription globaux</h4>
+                    <Input 
+                        type="number" 
+                        placeholder="0" 
+                        value={settings.accounting?.reRegistrationFee || ''} 
+                        onChange={e => onUpdateSettings({...settings, accounting: {...settings.accounting, reRegistrationFee: parseInt(e.target.value) || 0}})}
+                        className="font-mono text-lg"
+                    />
+                </div>
+            </div>
+
             <div className="bg-blue-50 dark:bg-blue-900/20 p-4 rounded-xl border border-blue-100 dark:border-blue-800/30">
                 <p className="text-sm text-blue-700 dark:text-blue-300">
                     <i className="fas fa-info-circle mr-2"></i>

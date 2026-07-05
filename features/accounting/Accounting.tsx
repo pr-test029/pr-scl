@@ -8,7 +8,7 @@ export const Accounting: React.FC = () => {
     const { students, payments, expenses, cycles, settings, addPayment, addExpense, deleteExpense, session, selectedAcademicYear } = useSchool();
     
     // Tabs
-    const [activeTab, setActiveTab] = useState<'encaissements' | 'decaissements'>('encaissements');
+    const [activeTab, setActiveTab] = useState<'encaissements' | 'historique_encaissements' | 'decaissements'>('encaissements');
 
     // -- ENCAISSEMENTS STATE --
     const [searchQuery, setSearchQuery] = useState('');
@@ -39,7 +39,8 @@ export const Accounting: React.FC = () => {
                                  s.prenom.toLowerCase().includes(searchQuery.toLowerCase()) ||
                                  s.matricule.toLowerCase().includes(searchQuery.toLowerCase());
             const matchesCycle = selectedCycle ? s.cycle === selectedCycle : true;
-            const matchesClass = selectedClass ? s.classe === selectedClass : true;
+            const fullClassName = s.serie ? `${s.classe} ${s.serie}` : s.classe;
+            const matchesClass = selectedClass ? fullClassName === selectedClass : true;
             return matchesSearch && matchesCycle && matchesClass;
         });
     }, [students, searchQuery, selectedCycle, selectedClass]);
@@ -49,13 +50,35 @@ export const Accounting: React.FC = () => {
         let totalExpected = 0;
         let totalCollected = 0;
         let totalExpenses = 0;
+        let totalInscriptions = 0;
+        let totalReInscriptions = 0;
+
+        const regFee = settings.accounting?.registrationFee || 0;
+        // const reRegFee = settings.accounting?.reRegistrationFee || 0;
 
         students.forEach(s => {
             const fullClassName = s.serie ? `${s.classe} ${s.serie}` : s.classe;
             const monthlyFee = settings.accounting?.classFees[fullClassName] || 0;
             const annualFee = monthlyFee * 9;
-            totalExpected += annualFee;
-            totalCollected += (s.totalPaid || 0);
+            totalExpected += annualFee + regFee; // We assume regFee is expected for everyone
+            
+            // Check if this student has a recorded registration payment
+            const hasRegPayment = payments.some(p => p.studentId === s.id && p.notes?.toLowerCase().includes("inscription"));
+            
+            if (!hasRegPayment) {
+                // Retroactively simulate that existing students paid their registration fee
+                totalInscriptions += regFee;
+                totalCollected += regFee;
+            }
+        });
+
+        payments.forEach(p => {
+            totalCollected += p.amount;
+            if (p.notes?.toLowerCase().includes("frais d'inscription")) {
+                totalInscriptions += p.amount;
+            } else if (p.notes?.toLowerCase().includes("réinscription")) {
+                totalReInscriptions += p.amount;
+            }
         });
 
         expenses.forEach(e => {
@@ -71,9 +94,11 @@ export const Accounting: React.FC = () => {
             totalRemaining: totalExpected - totalCollected,
             collectionRate: Math.round(collectionRate),
             totalExpenses,
-            balance
+            balance,
+            totalInscriptions,
+            totalReInscriptions
         };
-    }, [students, expenses, settings.accounting]);
+    }, [students, payments, expenses, settings.accounting]);
 
     const getStudentAnnualFee = (student: Student) => {
         const fullClassName = student.serie ? `${student.classe} ${student.serie}` : student.classe;
@@ -134,8 +159,27 @@ export const Accounting: React.FC = () => {
     };
 
     const handleRecordExpense = () => {
-        // existing expense logic remains unchanged
-    };
+        // Validate input
+        if (!expenseLabel || expenseAmount <= 0) {
+            alert("Veuillez remplir le libellé et le montant.");
+            return;
+        }
+        // Create expense object
+        const e: Expense = {
+            id: Date.now().toString(),
+            academic_year: selectedAcademicYear,
+            label: expenseLabel,
+            amount: expenseAmount,
+            date: new Date().toISOString(),
+            recorded_by: session?.user_id,
+            recorded_by_name: session?.display_name || 'Inconnu'
+        };
+        // Add expense and reset fields
+        addExpense(e);
+        setExpenseLabel('');
+        setExpenseAmount(0);
+        alert("Dépense enregistrée avec succès !");
+    };;
 
     // Handler for other encaissement (diverse payments)
     const handleRecordOtherEncashment = () => {
@@ -160,26 +204,6 @@ export const Accounting: React.FC = () => {
         setOtherPaymentAmount(0);
         setOtherPaymentNotes('');
         alert('Encaissement divers enregistré avec succès!');
-    };
-        if (!expenseLabel || expenseAmount <= 0) {
-            alert("Veuillez remplir le libellé et le montant.");
-            return;
-        }
-        
-        const e: Expense = {
-            id: Date.now().toString(),
-            academic_year: selectedAcademicYear,
-            label: expenseLabel,
-            amount: expenseAmount,
-            date: new Date().toISOString(),
-            recorded_by: session?.user_id,
-            recorded_by_name: session?.display_name || 'Inconnu'
-        };
-        
-        addExpense(e);
-        setExpenseLabel('');
-        setExpenseAmount(0);
-        alert("Dépense enregistrée avec succès !");
     };
 
     return (
@@ -224,31 +248,47 @@ export const Accounting: React.FC = () => {
                                     <p className="text-lg font-bold dark:text-white">{stats.totalRemaining.toLocaleString()} <span className="text-[10px]">FCFA</span></p>
                                 </div>
                             </div>
+                            <div className="grid grid-cols-2 gap-4 mt-4">
+                                <div className="p-3 bg-teal-50 dark:bg-teal-900/20 rounded-xl border border-teal-100 dark:border-teal-800/30">
+                                    <p className="text-xs text-teal-600 dark:text-teal-400 font-bold uppercase">Inscriptions</p>
+                                    <p className="text-lg font-bold dark:text-white">{stats.totalInscriptions.toLocaleString()} <span className="text-[10px]">FCFA</span></p>
+                                </div>
+                                <div className="p-3 bg-orange-50 dark:bg-orange-900/20 rounded-xl border border-orange-100 dark:border-orange-800/30">
+                                    <p className="text-xs text-orange-600 dark:text-orange-400 font-bold uppercase">Réinscriptions</p>
+                                    <p className="text-lg font-bold dark:text-white">{stats.totalReInscriptions.toLocaleString()} <span className="text-[10px]">FCFA</span></p>
+                                </div>
+                            </div>
                         </div>
                     </div>
                 </Card>
             </div>
 
             {/* Tabs */}
-            <div className="flex gap-4 border-b border-gray-200 dark:border-white/10 pb-4">
-                <button
-                    className={`px-6 py-2 rounded-xl font-bold transition-all ${activeTab === 'encaissements' ? 'bg-[var(--primary-color)] text-white shadow-lg' : 'bg-white dark:bg-white/5 text-gray-600 dark:text-gray-300'}`}
-                    onClick={() => setActiveTab('encaissements')}
-                >
-                    <i className="fas fa-hand-holding-usd mr-2"></i> Encaissements (Scolarité)
-                    <button className="ml-2 px-3 py-1 bg-green-600 text-white rounded" onClick={() => setIsPaymentModalOpen(true)}>
-                        Autre encaissement
-                    </button>
-                    <button className="ml-2 px-3 py-1 bg-purple-600 text-white rounded" onClick={() => setIsOtherPaymentModalOpen(true)}>
-                        Encaissement divers
-                    </button>
-                </button>
-                <button
-                    className={`px-6 py-2 rounded-xl font-bold transition-all ${activeTab === 'decaissements' ? 'bg-red-600 text-white shadow-lg shadow-red-500/30' : 'bg-white dark:bg-white/5 text-gray-600 dark:text-gray-300'}`}
-                    onClick={() => setActiveTab('decaissements')}
-                >
-                    <i className="fas fa-file-invoice-dollar mr-2"></i> Décaissements (Dépenses)
-                </button>
+            <div className="flex flex-wrap gap-4 border-b border-gray-200 dark:border-white/10 pb-4 items-center">
+              <button
+                className={`px-6 py-2 rounded-xl font-bold transition-all ${activeTab === 'encaissements' ? 'bg-[var(--primary-color)] text-white shadow-lg' : 'bg-white dark:bg-white/5 text-gray-600 dark:text-gray-300'}`}
+                onClick={() => setActiveTab('encaissements')}
+              >
+                <i className="fas fa-hand-holding-usd mr-2"></i> Scolarité (Élèves)
+              </button>
+              <button
+                className={`px-6 py-2 rounded-xl font-bold transition-all ${activeTab === 'historique_encaissements' ? 'bg-[var(--primary-color)] text-white shadow-lg' : 'bg-white dark:bg-white/5 text-gray-600 dark:text-gray-300'}`}
+                onClick={() => setActiveTab('historique_encaissements')}
+              >
+                <i className="fas fa-list mr-2"></i> Historique (Autres)
+              </button>
+              <button
+                className={`px-6 py-2 rounded-xl font-bold transition-all ${activeTab === 'decaissements' ? 'bg-red-600 text-white shadow-lg shadow-red-500/30' : 'bg-white dark:bg-white/5 text-gray-600 dark:text-gray-300'}`}
+                onClick={() => setActiveTab('decaissements')}
+              >
+                <i className="fas fa-file-invoice-dollar mr-2"></i> Décaissements (Dépenses)
+              </button>
+              <button 
+                className="ml-auto px-4 py-2 bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-600 hover:to-teal-600 text-white rounded-xl font-bold shadow-lg shadow-teal-500/30 transition-all flex items-center gap-2" 
+                onClick={() => setIsOtherPaymentModalOpen(true)}
+              >
+                <i className="fas fa-plus-circle"></i> Autre Encaissement
+              </button>
             </div>
 
             {/* Hidden Receipt Generator component */}
@@ -359,6 +399,50 @@ export const Accounting: React.FC = () => {
                                     )}
                                 </tbody>
                             </table>
+                        </div>
+                    </Card>
+                </div>
+            )}
+
+            {/* TAB CONTENT: HISTORIQUE ENCAISSEMENTS DIVERS */}
+            {activeTab === 'historique_encaissements' && (
+                <div className="space-y-6 animate-fade-in">
+                    <Card title="Historique des Autres Encaissements">
+                        <div className="space-y-3 max-h-[600px] overflow-y-auto pr-2 custom-scrollbar">
+                            {payments.filter(p => p.studentId === 'divers').sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()).map(p => {
+                                const studentName = 'Encaissement Divers';
+                                return (
+                                <div key={p.id} className="flex justify-between items-center p-4 bg-white dark:bg-white/5 border dark:border-white/10 rounded-xl transition-all hover:border-[var(--primary-color)]">
+                                    <div>
+                                        <p className="font-bold text-gray-800 dark:text-white text-lg">{studentName}</p>
+                                        <p className="text-sm font-medium text-[var(--primary-color)]">{p.notes || 'Scolarité'}</p>
+                                        <div className="flex gap-3 text-xs text-gray-500 mt-1">
+                                            <span><i className="far fa-clock mr-1"></i> {new Date(p.date).toLocaleDateString('fr-FR')} à {new Date(p.date).toLocaleTimeString('fr-FR')}</span>
+                                            <span><i className="far fa-user mr-1"></i> {p.recorded_by_name}</span>
+                                            <span className="capitalize"><i className="fas fa-money-bill mr-1"></i> {p.method.replace('_', ' ')}</span>
+                                        </div>
+                                    </div>
+                                    <div className="flex items-center gap-4">
+                                        <span className="font-black text-green-600 dark:text-green-400 text-xl">
+                                            + {p.amount.toLocaleString()} FCFA
+                                        </span>
+                                        <button 
+                                            onClick={() => handleGenerateReceipt('ENCAISSEMENT', p)}
+                                            className="w-10 h-10 flex items-center justify-center bg-gray-100 hover:bg-gray-200 dark:bg-gray-800 dark:hover:bg-gray-700 text-gray-600 dark:text-gray-300 rounded-lg transition-colors"
+                                            title="Générer un reçu PDF"
+                                        >
+                                            <i className="fas fa-file-pdf"></i>
+                                        </button>
+                                    </div>
+                                </div>
+                                );
+                            })}
+                            {payments.filter(p => p.studentId === 'divers').length === 0 && (
+                                <div className="text-center py-10 text-gray-400 italic">
+                                    <i className="fas fa-receipt text-4xl mb-3 opacity-20 block"></i>
+                                    Aucun encaissement enregistré.
+                                </div>
+                            )}
                         </div>
                     </Card>
                 </div>
@@ -591,43 +675,58 @@ export const Accounting: React.FC = () => {
             <Modal
                 isOpen={true}
                 onClose={() => setIsOtherPaymentModalOpen(false)}
-                title="Encaissement Divers"
+                title="Enregistrer un Encaissement Divers"
                 maxWidth="max-w-lg"
             >
-                <div className="space-y-4">
-                    <Input
-                        label="Montant (FCFA)"
-                        type="number"
-                        value={otherPaymentAmount || ''}
-                        onChange={e => setOtherPaymentAmount(parseInt(e.target.value) || 0)}
-                        placeholder="Entrez le montant..."
-                    />
-                    <Select
-                        label="Mode de paiement"
-                        value={otherPaymentMethod}
-                        onChange={e => setOtherPaymentMethod(e.target.value as any)}
-                        options={[
-                            { value: 'cash', label: 'Espèces (Cash)' },
-                            { value: 'wave', label: 'Wave' },
-                            { value: 'mobile_money', label: 'Mobile Money' },
-                            { value: 'check', label: 'Chèque' },
-                            { value: 'card', label: 'Carte Bancaire' }
-                        ]}
-                    />
-                    <Input
-                        label="Notes / Référence (Facultatif)"
-                        value={otherPaymentNotes}
-                        onChange={e => setOtherPaymentNotes(e.target.value)}
-                        placeholder="Ex: Don, paiement d'événement..."
-                    />
-                    <Button
-                        variant="success"
-                        className="w-full h-12 text-lg shadow-lg"
-                        onClick={handleRecordOtherEncashment}
-                        disabled={otherPaymentAmount <= 0}
-                    >
-                        Enregistrer l'Encaissement
-                    </Button>
+                <div className="p-6 bg-emerald-50 dark:bg-emerald-900/10 rounded-2xl border border-emerald-100 dark:border-emerald-800/30">
+                    <div className="flex items-center gap-3 mb-6 border-b border-emerald-200/50 pb-4">
+                        <div className="w-10 h-10 rounded-full bg-emerald-100 dark:bg-emerald-800/50 flex items-center justify-center text-emerald-600 dark:text-emerald-400">
+                            <i className="fas fa-coins text-xl"></i>
+                        </div>
+                        <div>
+                            <h4 className="font-bold text-emerald-800 dark:text-emerald-300 text-lg">Nouvel Encaissement</h4>
+                            <p className="text-xs text-emerald-600 dark:text-emerald-500">Paiement non lié à la scolarité d'un élève</p>
+                        </div>
+                    </div>
+
+                    <div className="space-y-5">
+                        <Input
+                            label="Montant de l'encaissement (FCFA) *"
+                            type="number"
+                            value={otherPaymentAmount || ''}
+                            onChange={e => setOtherPaymentAmount(parseInt(e.target.value) || 0)}
+                            placeholder="Ex: 5000"
+                            className="text-xl font-bold text-emerald-700"
+                        />
+                        <Select
+                            label="Mode de paiement *"
+                            value={otherPaymentMethod}
+                            onChange={e => setOtherPaymentMethod(e.target.value as any)}
+                            options={[
+                                { value: 'cash', label: 'Espèces (Cash)' },
+                                { value: 'wave', label: 'Wave' },
+                                { value: 'mobile_money', label: 'Mobile Money' },
+                                { value: 'check', label: 'Chèque' },
+                                { value: 'card', label: 'Carte Bancaire' }
+                            ]}
+                        />
+                        <Input
+                            label="Motif / Référence *"
+                            value={otherPaymentNotes}
+                            onChange={e => setOtherPaymentNotes(e.target.value)}
+                            placeholder="Ex: Vente de t-shirts, Don, etc..."
+                        />
+                        <div className="pt-4">
+                            <Button
+                                variant="primary"
+                                className="w-full h-12 text-lg shadow-lg shadow-emerald-500/30 !bg-emerald-600 hover:!bg-emerald-700"
+                                onClick={handleRecordOtherEncashment}
+                                disabled={otherPaymentAmount <= 0 || !otherPaymentNotes.trim()}
+                            >
+                                <i className="fas fa-check-circle mr-2"></i> Valider l'encaissement
+                            </Button>
+                        </div>
+                    </div>
                 </div>
             </Modal>
         )}
