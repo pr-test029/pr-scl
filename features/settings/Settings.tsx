@@ -1,7 +1,7 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { Card, Input, Button, Select, Modal } from '../../components/ui/Common';
 import { useSchool } from '../../App';
-import { AppSettings, Cycle, Subject, Classroom, AppreciationRule, StaffMember } from '../../types';
+import { AppSettings, Cycle, Subject, Classroom, AppreciationRule, StaffMember, BulletinHeaderSettings } from '../../types';
 
 
 export const Settings: React.FC = () => {
@@ -14,7 +14,7 @@ export const Settings: React.FC = () => {
   
   const [editingCycleId, setEditingCycleId] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<'general' | 'structure' | 'accounting' | 'personnel'>('general');
-  const [modalTab, setModalTab] = useState<'general' | 'structure' | 'subjects'>('general');
+  const [modalTab, setModalTab] = useState<'general' | 'structure' | 'subjects' | 'bulletin'>('general');
   const [newCycleName, setNewCycleName] = useState('');
   const [newRoleName, setNewRoleName] = useState('');
 
@@ -222,21 +222,25 @@ export const Settings: React.FC = () => {
                           <Input label="Inspection" value={localSettings.bulletin.inspectionName || ''} onChange={e => setLocalSettings({...localSettings, bulletin: {...localSettings.bulletin, inspectionName: e.target.value}})} />
                       </div>
 
-                      <div className="bg-amber-50/50 dark:bg-white/5 p-6 rounded-2xl border border-amber-100 dark:border-white/10 space-y-4">
-                          <h4 className="font-bold text-amber-700 dark:text-amber-300 flex items-center gap-2">
-                              <i className="fas fa-key"></i> Accès Dirigeant
-                          </h4>
-                          <p className="text-sm text-amber-600 dark:text-amber-400">
-                              Si défini, ce mot de passe sera demandé pour accéder au rôle Dirigeant. Laissez vide pour un accès direct.
-                              Le mot de passe doit contenir des chiffres et des lettres en MAJUSCULE.
-                          </p>
-                          <Input 
-                            label="Mot de passe Dirigeant (PIN)" 
-                            placeholder="Ex: SCL2024" 
-                            value={localSettings.managerPassword || ''} 
-                            onChange={e => setLocalSettings({...localSettings, managerPassword: e.target.value.toUpperCase().replace(/\s/g, '')})} 
-                          />
-                        <div className="bg-purple-50/50 dark:bg-white/5 p-6 rounded-2xl border dark:border-white/10 space-y-4 mt-6">
+                      {session?.role === 'dirigeant' && (
+                        <div className="bg-amber-50/50 dark:bg-white/5 p-6 rounded-2xl border border-amber-100 dark:border-white/10 space-y-4">
+                            <h4 className="font-bold text-amber-700 dark:text-amber-300 flex items-center gap-2">
+                                <i className="fas fa-key"></i> Accès Dirigeant
+                            </h4>
+                            <p className="text-sm text-amber-600 dark:text-amber-400">
+                                Si défini, ce mot de passe sera demandé pour accéder au rôle Dirigeant. Laissez vide pour un accès direct.
+                                Le mot de passe doit contenir des chiffres et des lettres en MAJUSCULE.
+                            </p>
+                            <Input 
+                              label="Mot de passe Dirigeant (PIN)" 
+                              placeholder="Ex: SCL2024" 
+                              value={localSettings.managerPassword || ''} 
+                              onChange={e => setLocalSettings({...localSettings, managerPassword: e.target.value.toUpperCase().replace(/\s/g, '')})} 
+                            />
+                        </div>
+                      )}
+
+                      <div className="bg-purple-50/50 dark:bg-white/5 p-6 rounded-2xl border dark:border-white/10 space-y-4 mt-6">
                             <h4 className="font-bold text-purple-700 dark:text-purple-300 flex items-center gap-2">
                                 <i className="fas fa-calendar-alt"></i> Années Scolaires
                             </h4>
@@ -304,7 +308,6 @@ export const Settings: React.FC = () => {
                                 <i className="fas fa-database mr-2"></i> Migrer les anciennes données
                             </Button>
                         </div>
-                      </div>
 
                       <div className="flex justify-end mt-6">
                           <Button onClick={handleSaveSettings}>Enregistrer les modifications</Button>
@@ -398,8 +401,8 @@ export const Settings: React.FC = () => {
           <CycleConfigModal 
              cycle={cycles[editingCycleId]} 
              onClose={() => setEditingCycleId(null)} 
-             activeTab={activeTab}
-             setActiveTab={setActiveTab}
+             activeTab={modalTab}
+             setActiveTab={setModalTab}
              allSubjects={subjects}
              onUpdateCycle={(updated) => updateCycles({...cycles, [updated.id]: updated})}
              onUpdateSubjects={updateSubjects}
@@ -414,8 +417,8 @@ export const Settings: React.FC = () => {
 interface CycleConfigModalProps {
     cycle: Cycle;
     onClose: () => void;
-    activeTab: 'general' | 'structure' | 'subjects';
-    setActiveTab: (tab: 'general' | 'structure' | 'subjects') => void;
+    activeTab: 'general' | 'structure' | 'subjects' | 'bulletin';
+    setActiveTab: (tab: 'general' | 'structure' | 'subjects' | 'bulletin') => void;
     allSubjects: Record<string, Subject[]>;
     onUpdateCycle: (c: Cycle) => void;
     onUpdateSubjects: (className: string, subjects: Subject[]) => void;
@@ -428,6 +431,7 @@ const CycleConfigModal: React.FC<CycleConfigModalProps> = ({ cycle, onClose, act
                 <button onClick={() => setActiveTab('general')} className={`px-4 py-2 font-medium transition-colors ${activeTab === 'general' ? 'border-b-2 border-[var(--primary-color)] text-[var(--primary-color)] dark:text-white dark:border-white dark:drop-shadow-[0_0_5px_white]' : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200'}`}>Général</button>
                 <button onClick={() => setActiveTab('structure')} className={`px-4 py-2 font-medium transition-colors ${activeTab === 'structure' ? 'border-b-2 border-[var(--primary-color)] text-[var(--primary-color)] dark:text-white dark:border-white dark:drop-shadow-[0_0_5px_white]' : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200'}`}>Structure (Classes & Salles)</button>
                 <button onClick={() => setActiveTab('subjects')} className={`px-4 py-2 font-medium transition-colors ${activeTab === 'subjects' ? 'border-b-2 border-[var(--primary-color)] text-[var(--primary-color)] dark:text-white dark:border-white dark:drop-shadow-[0_0_5px_white]' : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200'}`}>Matières & Enseignants</button>
+                <button onClick={() => setActiveTab('bulletin')} className={`px-4 py-2 font-medium transition-colors ${activeTab === 'bulletin' ? 'border-b-2 border-[var(--primary-color)] text-[var(--primary-color)] dark:text-white dark:border-white dark:drop-shadow-[0_0_5px_white]' : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200'}`}>Bulletin</button>
             </div>
 
             <div className="min-h-[400px]">
@@ -458,6 +462,10 @@ const CycleConfigModal: React.FC<CycleConfigModalProps> = ({ cycle, onClose, act
 
                 {activeTab === 'subjects' && (
                     <SubjectsEditor cycle={cycle} allSubjects={allSubjects} onUpdateSubjects={onUpdateSubjects} />
+                )}
+
+                {activeTab === 'bulletin' && (
+                    <BulletinCycleEditor cycle={cycle} onUpdateCycle={onUpdateCycle} />
                 )}
             </div>
             
@@ -822,6 +830,111 @@ const AccountingSettingsEditor: React.FC<{
                     <p className="text-gray-500">Veuillez sélectionner un cycle pour configurer les frais.</p>
                 </div>
             )}
+        </div>
+    );
+};
+
+// --- Bulletin Header & Appreciation Rules Editor per Cycle ---
+
+const BulletinCycleEditor: React.FC<{ cycle: Cycle; onUpdateCycle: (c: Cycle) => void }> = ({ cycle, onUpdateCycle }) => {
+    const header = cycle.bulletinHeader || {};
+    const rules = header.appreciationRules || [];
+    const [newRule, setNewRule] = useState<AppreciationRule>({ min: 0, max: 0, text: '' });
+
+    const updateHeader = (field: string, value: string) => {
+        onUpdateCycle({
+            ...cycle,
+            bulletinHeader: { ...header, [field]: value }
+        });
+    };
+
+    const addRule = () => {
+        if (!newRule.text || newRule.min >= newRule.max) {
+            alert("Vérifiez les valeurs (min < max) et le texte de l'appréciation.");
+            return;
+        }
+        const updatedRules = [...rules, newRule];
+        onUpdateCycle({
+            ...cycle,
+            bulletinHeader: { ...header, appreciationRules: updatedRules }
+        });
+        setNewRule({ min: 0, max: 0, text: '' });
+    };
+
+    const removeRule = (index: number) => {
+        const updatedRules = rules.filter((_, i) => i !== index);
+        onUpdateCycle({
+            ...cycle,
+            bulletinHeader: { ...header, appreciationRules: updatedRules }
+        });
+    };
+
+    return (
+        <div className="space-y-8 animate-fade-in">
+            <div className="bg-blue-50/50 dark:bg-white/5 p-6 rounded-2xl border dark:border-white/10 space-y-4">
+                <h4 className="font-bold text-blue-700 dark:text-blue-300 flex items-center gap-2">
+                    <i className="fas fa-file-invoice"></i> Entête du Bulletin — {cycle.name}
+                </h4>
+                <p className="text-sm text-gray-500 dark:text-gray-400">
+                    Ces informations apparaîtront sur les bulletins des élèves de ce cycle. Si un champ est vide, la valeur globale des paramètres sera utilisée.
+                </p>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <Input label="République" value={header.republicName || ''} onChange={e => updateHeader('republicName', e.target.value)} placeholder="Ex: République du Congo" />
+                    <Input label="Devise" value={header.republicMotto || ''} onChange={e => updateHeader('republicMotto', e.target.value)} placeholder="Ex: Unité - Travail - Progrès" />
+                </div>
+                <Input label="Ministère" value={header.ministryName || ''} onChange={e => updateHeader('ministryName', e.target.value)} placeholder="Ex: Ministère de l'Enseignement..." />
+                <Input label="Direction Départementale" value={header.departmentalDirection || ''} onChange={e => updateHeader('departmentalDirection', e.target.value)} />
+                <Input label="Inspection" value={header.inspectionName || ''} onChange={e => updateHeader('inspectionName', e.target.value)} />
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <Input label="Lieu de l'école" value={header.schoolLocation || ''} onChange={e => updateHeader('schoolLocation', e.target.value)} placeholder="Ex: Brazzaville" />
+                    <Input label="Devise de l'école" value={header.schoolMotto || ''} onChange={e => updateHeader('schoolMotto', e.target.value)} placeholder="Ex: L'excellence pour tous" />
+                </div>
+            </div>
+
+            <div className="bg-amber-50/50 dark:bg-white/5 p-6 rounded-2xl border border-amber-100 dark:border-white/10 space-y-4">
+                <h4 className="font-bold text-amber-700 dark:text-amber-300 flex items-center gap-2">
+                    <i className="fas fa-star-half-alt"></i> Règles d'Appréciation — {cycle.name}
+                </h4>
+                <p className="text-sm text-gray-500 dark:text-gray-400">
+                    Définissez les appréciations qui apparaîtront sur le bulletin en fonction de la moyenne de l'élève. Si aucune règle n'est définie ici, les règles globales seront utilisées.
+                </p>
+
+                {rules.length > 0 && (
+                    <div className="overflow-x-auto">
+                        <table className="min-w-full text-sm">
+                            <thead>
+                                <tr className="border-b dark:border-white/10">
+                                    <th className="text-left py-2 px-3 font-bold text-gray-600 dark:text-gray-300">Min</th>
+                                    <th className="text-left py-2 px-3 font-bold text-gray-600 dark:text-gray-300">Max</th>
+                                    <th className="text-left py-2 px-3 font-bold text-gray-600 dark:text-gray-300">Appréciation</th>
+                                    <th className="py-2 px-3"></th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {rules.map((rule, idx) => (
+                                    <tr key={idx} className="border-b dark:border-white/10 hover:bg-gray-50 dark:hover:bg-white/5">
+                                        <td className="py-2 px-3 dark:text-gray-200">{rule.min}</td>
+                                        <td className="py-2 px-3 dark:text-gray-200">{rule.max}</td>
+                                        <td className="py-2 px-3 dark:text-gray-200 font-medium">{rule.text}</td>
+                                        <td className="py-2 px-3">
+                                            <button onClick={() => removeRule(idx)} className="text-red-400 hover:text-red-600 transition-colors">
+                                                <i className="fas fa-trash-alt"></i>
+                                            </button>
+                                        </td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    </div>
+                )}
+
+                <div className="grid grid-cols-1 md:grid-cols-4 gap-3 items-end">
+                    <Input label="Min" type="number" value={newRule.min} onChange={e => setNewRule({ ...newRule, min: parseFloat(e.target.value) || 0 })} />
+                    <Input label="Max" type="number" value={newRule.max} onChange={e => setNewRule({ ...newRule, max: parseFloat(e.target.value) || 0 })} />
+                    <Input label="Appréciation" value={newRule.text} onChange={e => setNewRule({ ...newRule, text: e.target.value })} placeholder="Ex: Très Bien" />
+                    <Button onClick={addRule} variant="secondary">Ajouter</Button>
+                </div>
+            </div>
         </div>
     );
 };

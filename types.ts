@@ -69,6 +69,17 @@ export interface Classroom {
   capacity?: number;
 }
 
+export interface BulletinHeaderSettings {
+  republicName?: string;
+  republicMotto?: string;
+  ministryName?: string;
+  departmentalDirection?: string;
+  inspectionName?: string;
+  schoolLocation?: string;
+  schoolMotto?: string;
+  appreciationRules?: AppreciationRule[];
+}
+
 export interface Cycle {
   id: string;
   name: string;
@@ -77,6 +88,7 @@ export interface Cycle {
   series: string[]; // Ex: ["A", "C", "D"]
   specialites: string[]; // Ex: ["Maths", "Physique"]
   classrooms: Classroom[]; // Salles de classe
+  bulletinHeader?: BulletinHeaderSettings; // Configuration de l'entête spécifique au cycle
 }
 
 export interface AppreciationRule {

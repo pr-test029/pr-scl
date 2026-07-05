@@ -383,6 +383,12 @@ const App: React.FC = () => {
   const filteredPayments = isDirecteur
     ? payments.filter(p => !p.studentId || filteredStudentIds.has(p.studentId))
     : payments;
+  const filteredGrades = isDirecteur
+    ? grades.filter(g => filteredStudentIds.has(g.studentId))
+    : grades;
+  const filteredCycles = isDirecteur
+    ? Object.fromEntries(Object.entries(cycles).filter(([id]) => directorCycles.includes(id)))
+    : cycles;
   const filteredExpenses = isDirecteur ? [] : expenses; // Directeur ne voit pas les dépenses globales
   const filteredStaff = isDirecteur
     ? (settings.staff || []).filter(s => {
@@ -403,8 +409,8 @@ const App: React.FC = () => {
     selectedAcademicYear,
     setSelectedAcademicYear,
     students: filteredStudents,
-    grades,
-    cycles,
+    grades: filteredGrades,
+    cycles: filteredCycles,
     subjects,
     settings: isDirecteur ? { ...settings, staff: filteredStaff } : settings,
     payments: filteredPayments,
@@ -599,7 +605,7 @@ const App: React.FC = () => {
                   <NavItem icon="fa-users-cog" label="Personnel" active={currentView === 'personnel'} collapsed={isSidebarCollapsed} onClick={() => setCurrentView('personnel')} />
                 )}
                 
-                {(session?.role === 'dirigeant' || session?.role === 'admin') && (
+                {(session?.role === 'dirigeant' || session?.role === 'admin' || session?.role === 'directeur') && (
                   <NavItem icon="fa-cogs" label="Paramètres" active={currentView === 'settings'} collapsed={isSidebarCollapsed} onClick={() => setCurrentView('settings')} />
                 )}
 

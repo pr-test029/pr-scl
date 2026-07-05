@@ -11,6 +11,16 @@ export const AcademicResults: React.FC = () => {
     const [selectedClass, setSelectedClass] = useState<string>('');
     const [activeTrimestre, setActiveTrimestre] = useState<string>('1');
 
+    // Résolution de l'entête du bulletin : cycle spécifique > paramètres globaux
+    const currentCycle = cycles[selectedCycle];
+    const cycleHeader = currentCycle?.bulletinHeader || {};
+    const bh = {
+        republicName: cycleHeader.republicName || settings.bulletin.republicName,
+        republicMotto: cycleHeader.republicMotto || settings.bulletin.republicMotto,
+        schoolMotto: cycleHeader.schoolMotto || settings.bulletin.schoolMotto,
+        schoolLocation: cycleHeader.schoolLocation || settings.bulletin.schoolLocation,
+    };
+
     // Filtered Classes for selected cycle
     const availableClasses = useMemo(() => {
         if (!selectedCycle || !cycles[selectedCycle]) return [];
@@ -256,13 +266,13 @@ export const AcademicResults: React.FC = () => {
                                     {settings.logo && <img src={settings.logo} style={{ width: '80px', height: '80px', objectFit: 'contain' }} />}
                                     <div>
                                         <h1 style={{ fontSize: '24px', fontWeight: '900', textTransform: 'uppercase', margin: 0 }}>{settings.appName}</h1>
-                                        <p style={{ fontSize: '10px', fontWeight: 'bold', fontStyle: 'italic', margin: '5px 0' }}>{settings.bulletin.schoolMotto}</p>
-                                        <p style={{ fontSize: '10px', margin: 0 }}>{settings.bulletin.schoolLocation}</p>
+                                        <p style={{ fontSize: '10px', fontWeight: 'bold', fontStyle: 'italic', margin: '5px 0' }}>{bh.schoolMotto}</p>
+                                        <p style={{ fontSize: '10px', margin: 0 }}>{bh.schoolLocation}</p>
                                     </div>
                                 </div>
                                 <div style={{ textAlign: 'right' }}>
-                                    <h2 style={{ fontSize: '14px', fontWeight: '900', textTransform: 'uppercase', margin: 0 }}>{settings.bulletin.republicName}</h2>
-                                    <p style={{ fontSize: '10px', fontStyle: 'italic', margin: '2px 0' }}>"{settings.bulletin.republicMotto}"</p>
+                                    <h2 style={{ fontSize: '14px', fontWeight: '900', textTransform: 'uppercase', margin: 0 }}>{bh.republicName}</h2>
+                                    <p style={{ fontSize: '10px', fontStyle: 'italic', margin: '2px 0' }}>"{bh.republicMotto}"</p>
                                     <div style={{ marginTop: '15px', fontSize: '12px', fontWeight: 'bold', textTransform: 'uppercase' }}>
                                         Année Académique : 2023-2024
                                     </div>

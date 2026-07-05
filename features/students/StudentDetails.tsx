@@ -13,7 +13,21 @@ interface StudentDetailsProps {
 }
 
 export const StudentDetails: React.FC<StudentDetailsProps> = ({ student, onBack }) => {
-    const { session, students, grades, subjects, addGrade, deleteGrade, settings, selectedAcademicYear } = useSchool();
+    const { session, students, grades, subjects, addGrade, deleteGrade, settings, selectedAcademicYear, cycles } = useSchool();
+
+    // Résolution de l'entête du bulletin : cycle spécifique > paramètres globaux
+    const studentCycle = cycles[student.cycle];
+    const cycleHeader = studentCycle?.bulletinHeader || {};
+    const bh = {
+        ministryName: cycleHeader.ministryName || settings.bulletin.ministryName,
+        departmentalDirection: cycleHeader.departmentalDirection || settings.bulletin.departmentalDirection,
+        inspectionName: cycleHeader.inspectionName || settings.bulletin.inspectionName,
+        republicName: cycleHeader.republicName || settings.bulletin.republicName,
+        republicMotto: cycleHeader.republicMotto || settings.bulletin.republicMotto,
+        schoolMotto: cycleHeader.schoolMotto || settings.bulletin.schoolMotto,
+        schoolLocation: cycleHeader.schoolLocation || settings.bulletin.schoolLocation,
+        appreciationRules: (cycleHeader.appreciationRules && cycleHeader.appreciationRules.length > 0) ? cycleHeader.appreciationRules : settings.bulletin.appreciationRules,
+    };
 
     // Détection du cycle universitaire
     const isUniversity = student.cycle === 'universite';
@@ -410,26 +424,26 @@ export const StudentDetails: React.FC<StudentDetailsProps> = ({ student, onBack 
                             <div className="w-1/2 flex flex-col items-center text-center space-y-4">
                                 <div className="space-y-1">
                                     <p className="text-[14px] font-black uppercase leading-[1.2]">
-                                        {settings.bulletin.ministryName}
+                                        {bh.ministryName}
                                     </p>
                                     <div className="w-8 h-[1px] bg-black mx-auto"></div>
                                     <p className="text-[10px] font-bold uppercase leading-tight">
-                                        {settings.bulletin.departmentalDirection}<br/>
-                                        {settings.bulletin.inspectionName}
+                                        {bh.departmentalDirection}<br/>
+                                        {bh.inspectionName}
                                     </p>
                                 </div>
                                 <div className="flex flex-col items-center pt-2">
                                     {settings.logo && <img src={settings.logo} className="w-24 h-24 object-contain mb-1" />}
                                     <h1 className="text-lg font-black tracking-tighter uppercase">{settings.appName}</h1>
-                                    <p className="text-[9px] italic font-bold tracking-wide">{settings.bulletin.schoolMotto}</p>
+                                    <p className="text-[9px] italic font-bold tracking-wide">{bh.schoolMotto}</p>
                                 </div>
                             </div>
 
                             {/* Right Block: Republic + QR Verification */}
                             <div className="w-[40%] flex flex-col items-center text-center space-y-4">
                                 <div className="space-y-1 border-t border-black pt-1 w-full">
-                                    <h2 className="text-[14px] font-black uppercase tracking-tight">{settings.bulletin.republicName}</h2>
-                                    <p className="text-[11px] italic font-medium">"{settings.bulletin.republicMotto}"</p>
+                                    <h2 className="text-[14px] font-black uppercase tracking-tight">{bh.republicName}</h2>
+                                    <p className="text-[11px] italic font-medium">"{bh.republicMotto}"</p>
                                 </div>
                                 <div className="flex flex-col items-center pt-1">
                                     {qrCodeDataUrl && <img src={qrCodeDataUrl} className="w-24 h-24 border border-gray-100 p-0.5 mb-0.5 shadow-sm" />}
@@ -480,7 +494,7 @@ export const StudentDetails: React.FC<StudentDetailsProps> = ({ student, onBack 
                             </thead>
                             <tbody>
                                 {bulletinData.subjects.map((s, idx) => {
-                                    const appreciation = settings.bulletin.appreciationRules.find(r => s.average >= r.min && s.average <= r.max)?.text || "-";
+                                    const appreciation = bh.appreciationRules.find(r => s.average >= r.min && s.average <= r.max)?.text || "-";
                                     return (
                                         <tr key={idx} className="h-6 border-b border-gray-300">
                                             <td className="border-x border-black px-2 font-bold uppercase">{s.name}</td>
