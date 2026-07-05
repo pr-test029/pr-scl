@@ -181,15 +181,23 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess }) => {
                 
                 // Verify role match
                 if (role === 'eleve' && result.type !== 'eleve') throw new Error("Ce matricule n'appartient pas à un élève.");
-                if ((role === 'professeur' || role === 'gestionnaire') && result.type !== 'staff') throw new Error("Ce matricule n'appartient pas au personnel.");
-                if (role === 'gestionnaire' && result.data.role !== 'gestionnaire') throw new Error("Ce matricule appartient à un professeur.");
-                if (role === 'professeur' && result.data.role !== 'professeur') throw new Error("Ce matricule appartient à un gestionnaire.");
+                if ((role === 'professeur' || role === 'gestionnaire' || role === 'directeur') && result.type !== 'staff') throw new Error("Ce matricule n'appartient pas au personnel.");
+                if (role === 'gestionnaire' && result.data.role !== 'gestionnaire') throw new Error("Ce matricule n'appartient pas à un gestionnaire.");
+                if (role === 'professeur' && result.data.role !== 'professeur') throw new Error("Ce matricule n'appartient pas à un professeur.");
+                if (role === 'directeur' && result.data.role !== 'directeur') throw new Error("Ce matricule n'appartient pas à un directeur.");
 
                 setIdentity(result);
                 setShowConfirmation(true);
             } else {
-                const session = await api.loginWithMatricule(matricule, schoolInfo?.id);
-                if (session) onLoginSuccess(session);
+                const rawSession = await api.loginWithMatricule(matricule, schoolInfo?.id);
+                if (rawSession) {
+                    // Pour un directeur, extraire les cycles assignés depuis ses données staff
+                    let assignedCycles: string[] | undefined;
+                    if (role === 'directeur' && identity?.data?.assignedCycles) {
+                        assignedCycles = identity.data.assignedCycles;
+                    }
+                    onLoginSuccess({ ...rawSession, role: role as any, assignedCycles });
+                }
             }
         } catch (err: any) {
             setError(err.message || "Erreur de vérification.");
@@ -208,9 +216,9 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess }) => {
                     setError("Vous n'avez pas les droits de dirigeant. Veuillez vous reconnecter.");
                     return;
                 }
-                onLoginSuccess({
+            onLoginSuccess({
                     ...session,
-                    role: finalRole
+                    role: finalRole,
                 });
             } else {
                 setError("Aucune session trouvée. Veuillez retourner à l'écran de connexion (Changer d'école).");
@@ -432,8 +440,9 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess }) => {
                         <p className="text-gray-500 mt-2">Sélectionnez votre rôle pour continuer</p>
                     </div>
 
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-6">
                         <RoleCard icon="user-tie" title="Dirigeant" desc="Gestion totale" onClick={() => handleRoleSelect('dirigeant')} />
+                        <RoleCard icon="building-columns" title="Directeur" desc="Gestion par cycle" onClick={() => handleRoleSelect('directeur')} />
                         <RoleCard icon="user-cog" title="Gestionnaire" desc="Inscriptions" onClick={() => handleRoleSelect('gestionnaire')} />
                         <RoleCard icon="chalkboard-teacher" title="Professeur" desc="Suivi classes" onClick={() => handleRoleSelect('professeur')} />
                         <RoleCard icon="user-graduate" title="Élève" desc="Espace élève" onClick={() => handleRoleSelect('eleve')} />

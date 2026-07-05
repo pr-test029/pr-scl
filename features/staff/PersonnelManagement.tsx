@@ -5,7 +5,7 @@ import { useSchool } from '../../App';
 import { AppSettings, Cycle, StaffMember, TeacherAssignment, Subject } from '../../types';
 
 export const PersonnelManagement: React.FC = () => {
-    const { settings, updateSettings, cycles, subjects } = useSchool();
+    const { settings, updateSettings, cycles, subjects, session } = useSchool();
     const [activeTab, setActiveTab] = useState<'liste' | 'inscription'>('liste');
     const [searchTerm, setSearchTerm] = useState('');
     const [filterRole, setFilterRole] = useState<'tous' | 'gestionnaire' | 'professeur'>('tous');
@@ -18,7 +18,7 @@ export const PersonnelManagement: React.FC = () => {
     });
 
     const roles = useMemo(() => {
-        const base = ['gestionnaire', 'professeur'];
+        const base = ['gestionnaire', 'professeur', 'directeur'];
         const custom = settings.staffRoles || [];
         return Array.from(new Set([...base, ...custom]));
     }, [settings.staffRoles]);
@@ -26,12 +26,29 @@ export const PersonnelManagement: React.FC = () => {
     const staffList = settings.staff || [];
 
     const filteredStaff = useMemo(() => {
+        // Si l'utilisateur est directeur, on filtre le personnel qui appartient à ses cycles
+        const isDirecteur = session?.role === 'directeur';
+        const directorCycles = session?.assignedCycles || [];
+
         return staffList.filter(s => {
+            // Un directeur ne voit que lui-même + le personnel de ses cycles
+            if (isDirecteur) {
+                const isOwnProfile = s.matricule === session?.matricule;
+                // Personnel dont les classes sont dans les cycles du directeur
+                const staffCycles = (s.assignedCycles || []);
+                const staffClasses = s.assignedClasses || [];
+                const hasOverlap = staffCycles.some(cId => directorCycles.includes(cId)) ||
+                    staffClasses.some(cls => {
+                        const cycle = Object.values(cycles).find(cy => cy.levels.some(lvl => cls.startsWith(lvl)));
+                        return cycle ? directorCycles.includes(cycle.id) : false;
+                    });
+                if (!isOwnProfile && !hasOverlap) return false;
+            }
             const matchesSearch = `${s.nom} ${s.prenom} ${s.matricule}`.toLowerCase().includes(searchTerm.toLowerCase());
             const matchesRole = filterRole === 'tous' || s.role === filterRole;
             return matchesSearch && matchesRole;
         }).sort((a, b) => a.nom.localeCompare(b.nom));
-    }, [staffList, searchTerm, filterRole]);
+    }, [staffList, searchTerm, filterRole, session, cycles]);
 
     const generateStaffMatricule = () => {
         const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
@@ -234,6 +251,7 @@ export const PersonnelManagement: React.FC = () => {
                             cycles={cycles}
                             subjects={subjects}
                             roles={roles}
+                            isDirecteurSession={session?.role === 'directeur'}
                             onSave={(data) => {
                                 const staffMember: StaffMember = {
                                     ...data,
@@ -259,6 +277,7 @@ export const PersonnelManagement: React.FC = () => {
                         cycles={cycles}
                         subjects={subjects}
                         roles={roles}
+                        isDirecteurSession={session?.role === 'directeur' && editingStaff?.matricule === session?.matricule}
                         onSave={handleUpdateStaff}
                         onCancel={() => setEditingStaff(null)}
                     />
@@ -275,11 +294,13 @@ const StaffForm: React.FC<{
     cycles: Record<string, Cycle>,
     subjects: Record<string, Subject[]>,
     roles: string[],
+    isDirecteurSession?: boolean, // true si l'utilisateur connecté est directeur
     onSave: (data: StaffMember) => void,
     onCancel?: () => void
-}> = ({ initialData, allAvailableClasses, cycles, subjects, roles, onSave, onCancel }) => {
+}> = ({ initialData, allAvailableClasses, cycles, subjects, roles, isDirecteurSession, onSave, onCancel }) => {
     const [staff, setStaff] = useState<Partial<StaffMember>>(initialData);
     const [assignments, setAssignments] = useState<TeacherAssignment[]>(initialData.assignments || []);
+    const [selectedCycles, setSelectedCycles] = useState<string[]>(initialData.assignedCycles || []);
 
     const handleSubmit = () => {
         if (!staff.nom || !staff.prenom) return;
@@ -291,7 +312,8 @@ const StaffForm: React.FC<{
             role: staff.role || (roles[0] || 'professeur'),
             matricule: staff.matricule || '', 
             assignedClasses: assignments.map(a => a.classe),
-            assignments: assignments
+            assignments: assignments,
+            assignedCycles: staff.role === 'directeur' ? selectedCycles : [],
         } as StaffMember);
     };
 
@@ -317,6 +339,46 @@ const StaffForm: React.FC<{
                 <Input label="Email Professionnel" type="email" value={staff.email || ''} onChange={e => setStaff({...staff, email: e.target.value})} />
                 <Input label="Téléphone" value={staff.telephone || ''} onChange={e => setStaff({...staff, telephone: e.target.value})} />
             </div>
+
+            {staff.role === 'directeur' && (
+                <div className="p-6 bg-purple-50/50 dark:bg-purple-900/10 rounded-2xl border border-purple-100 dark:border-purple-800/30">
+                    <h3 className="font-bold mb-1 flex items-center gap-2 dark:text-white">
+                        <i className="fas fa-building-columns text-purple-600"></i>
+                        Cycles sous sa responsabilité
+                    </h3>
+                    {isDirecteurSession ? (
+                        <p className="text-sm text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/20 p-3 rounded-xl border border-amber-200 dark:border-amber-800/30 flex items-center gap-2 mt-3">
+                            <i className="fas fa-lock"></i>
+                            Vous ne pouvez pas modifier vos propres cycles d'accès.
+                        </p>
+                    ) : (
+                        <>
+                            <p className="text-xs text-gray-500 mb-3">Sélectionnez les cycles que ce directeur peut gérer.</p>
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                {Object.values(cycles).map(cy => (
+                                    <label key={cy.id} className={`flex items-center gap-3 p-3 rounded-xl cursor-pointer transition-all border ${
+                                        selectedCycles.includes(cy.id)
+                                        ? 'bg-purple-600 text-white border-purple-400 shadow-md'
+                                        : 'bg-white dark:bg-gray-800 border-gray-100 dark:border-white/5 text-gray-600 dark:text-gray-300 hover:border-purple-400'
+                                    }`}>
+                                        <input
+                                            type="checkbox"
+                                            className="hidden"
+                                            checked={selectedCycles.includes(cy.id)}
+                                            onChange={(e) => {
+                                                if (e.target.checked) setSelectedCycles([...selectedCycles, cy.id]);
+                                                else setSelectedCycles(selectedCycles.filter(id => id !== cy.id));
+                                            }}
+                                        />
+                                        <i className={`fas ${selectedCycles.includes(cy.id) ? 'fa-check-circle' : 'fa-circle opacity-20'} text-sm`}></i>
+                                        <span className="text-sm font-bold">{cy.name}</span>
+                                    </label>
+                                ))}
+                            </div>
+                        </>
+                    )}
+                </div>
+            )}
 
             {staff.role === 'professeur' && (
                 <div className="space-y-6">

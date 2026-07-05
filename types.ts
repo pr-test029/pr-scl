@@ -108,7 +108,7 @@ export interface AccountingSettings {
   reRegistrationFee?: number; // Frais de réinscription globaux
 }
 
-export type UserRole = 'dirigeant' | 'gestionnaire' | 'eleve' | 'professeur';
+export type UserRole = 'dirigeant' | 'gestionnaire' | 'eleve' | 'professeur' | 'directeur';
 
 export interface TeacherAssignment {
   classe: string; // Ex: "6ème" or "Terminale C"
@@ -129,6 +129,7 @@ export interface StaffMember {
   activeYears?: string[]; // Années scolaires où ce membre est actif
   assignedClasses: string[]; // Kept for quick access/display
   assignments?: TeacherAssignment[]; // Detailed assignments
+  assignedCycles?: string[]; // IDs des cycles gérés (pour le rôle directeur)
 }
 
 export interface AppSettings {
@@ -158,6 +159,7 @@ export interface UserSession {
   role: UserRole;
   matricule?: string; // Présent pour les élèves et le personnel
   allowed_academic_years: string[]; // Années scolaires que l'utilisateur peut voir
+  assignedCycles?: string[]; // IDs des cycles accessibles (pour le rôle directeur)
 }
 
 // Type pour les écoles (gestion admin)

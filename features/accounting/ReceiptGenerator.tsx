@@ -47,42 +47,42 @@ export const ReceiptGenerator = forwardRef<ReceiptGeneratorRef, {}>((props, ref)
 
     return (
         <div style={{ position: 'absolute', top: '-9999px', left: '-9999px' }}>
-            <div ref={containerRef} style={{ width: '800px', padding: '40px', backgroundColor: 'white', color: 'black', fontFamily: 'sans-serif' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '2px solid #eee', paddingBottom: '20px', marginBottom: '20px' }}>
+            <div ref={containerRef} style={{ width: '190mm', padding: '40px', backgroundColor: 'white', color: 'black', fontFamily: 'sans-serif' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '2px solid #e5e7eb', paddingBottom: '20px', marginBottom: '30px' }}>
                     <div>
-                        <h1 style={{ margin: 0, fontSize: '24px', color: '#1a56db' }}>{receiptData.schoolName}</h1>
-                        <p style={{ margin: '5px 0 0 0', color: '#666' }}>Reçu Officiel / Traceabilité</p>
+                        <h1 style={{ margin: 0, fontSize: '24px', color: '#1a56db', textTransform: 'uppercase' }}>{receiptData.schoolName || 'Institution'}</h1>
+                        <p style={{ margin: '5px 0 0 0', color: '#6b7280', fontSize: '12px', fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: '1px' }}>Reçu Officiel / Traçabilité</p>
                     </div>
                     <div style={{ textAlign: 'right' }}>
                         <h2 style={{ margin: 0, fontSize: '20px', color: receiptData.type === 'ENCAISSEMENT' ? '#059669' : '#dc2626' }}>
                             {receiptData.type}
                         </h2>
-                        <p style={{ margin: '5px 0 0 0', fontWeight: 'bold' }}>N° {receiptData.id.slice(0, 8).toUpperCase()}</p>
+                        <p style={{ margin: '5px 0 0 0', fontWeight: 'bold', fontSize: '14px' }}>Reçu N° {receiptData.id.slice(0, 8).toUpperCase()}</p>
                     </div>
                 </div>
 
-                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '30px' }}>
-                    <div>
-                        <p style={{ margin: '0 0 10px 0' }}><strong>Date :</strong> {new Date(receiptData.date).toLocaleDateString('fr-FR')} à {new Date(receiptData.date).toLocaleTimeString('fr-FR')}</p>
-                        <p style={{ margin: '0 0 10px 0' }}><strong>Libellé / Motif :</strong> {receiptData.label}</p>
-                        <p style={{ margin: '0 0 10px 0' }}><strong>Opérateur :</strong> {receiptData.recordedBy}</p>
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '40px' }}>
+                    <div style={{ flex: 1, paddingRight: '20px' }}>
+                        <p style={{ margin: '0 0 10px 0', fontSize: '14px' }}><strong style={{ color: '#4b5563' }}>Date :</strong> {new Date(receiptData.date).toLocaleDateString('fr-FR')} à {new Date(receiptData.date).toLocaleTimeString('fr-FR')}</p>
+                        <p style={{ margin: '0 0 10px 0', fontSize: '14px', lineHeight: '1.5' }}><strong style={{ color: '#4b5563' }}>Libellé / Motif :</strong><br/>{receiptData.label}</p>
+                        <p style={{ margin: '0 0 10px 0', fontSize: '14px' }}><strong style={{ color: '#4b5563' }}>Opérateur :</strong> {receiptData.recordedBy}</p>
                     </div>
-                    <div style={{ border: '1px solid #ccc', padding: '10px', borderRadius: '8px', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-                        <QRCodeSVG value={qrValue} size={100} />
-                        <p style={{ fontSize: '10px', textAlign: 'center', margin: '5px 0 0 0', color: '#888' }}>Scan d'authenticité</p>
+                    <div style={{ border: '1px solid #e5e7eb', padding: '10px', borderRadius: '8px', display: 'flex', flexDirection: 'column', alignItems: 'center', backgroundColor: '#f9fafb' }}>
+                        <QRCodeSVG value={qrValue} size={90} level="M" />
+                        <p style={{ fontSize: '10px', textAlign: 'center', margin: '5px 0 0 0', color: '#6b7280', fontWeight: 'bold' }}>Scan d'authenticité</p>
                     </div>
                 </div>
 
-                <div style={{ backgroundColor: '#f9fafb', padding: '20px', borderRadius: '8px', border: '1px solid #e5e7eb', textAlign: 'center' }}>
-                    <p style={{ fontSize: '16px', margin: '0 0 10px 0', color: '#6b7280' }}>Montant Total</p>
-                    <p style={{ fontSize: '32px', fontWeight: 'bold', margin: 0, color: '#111827' }}>
+                <div style={{ backgroundColor: receiptData.type === 'ENCAISSEMENT' ? '#ecfdf5' : '#fef2f2', padding: '20px', borderRadius: '8px', border: `1px solid ${receiptData.type === 'ENCAISSEMENT' ? '#a7f3d0' : '#fecaca'}`, textAlign: 'center' }}>
+                    <p style={{ fontSize: '14px', margin: '0 0 5px 0', color: receiptData.type === 'ENCAISSEMENT' ? '#065f46' : '#991b1b', fontWeight: 'bold', textTransform: 'uppercase' }}>Montant Total</p>
+                    <p style={{ fontSize: '32px', fontWeight: '900', margin: 0, color: receiptData.type === 'ENCAISSEMENT' ? '#059669' : '#dc2626' }}>
                         {receiptData.amount.toLocaleString('fr-FR')} FCFA
                     </p>
                 </div>
                 
-                <div style={{ marginTop: '70px', display: 'flex', justifyContent: 'space-between', padding: '0 40px' }}>
-                    <div style={{ borderTop: '1px solid #ccc', paddingTop: '10px', width: '200px', textAlign: 'center' }}>Signature Direction</div>
-                    <div style={{ borderTop: '1px solid #ccc', paddingTop: '10px', width: '200px', textAlign: 'center' }}>Cachet</div>
+                <div style={{ marginTop: '80px', display: 'flex', justifyContent: 'space-between', padding: '0 20px' }}>
+                    <div style={{ borderTop: '1px dashed #9ca3af', paddingTop: '10px', width: '200px', textAlign: 'center', fontSize: '12px', color: '#6b7280' }}>Signature Direction</div>
+                    <div style={{ borderTop: '1px dashed #9ca3af', paddingTop: '10px', width: '200px', textAlign: 'center', fontSize: '12px', color: '#6b7280' }}>Cachet</div>
                 </div>
             </div>
         </div>
