@@ -371,8 +371,10 @@ const App: React.FC = () => {
     }
   };
 
-  const isAdmin = session?.role === 'admin' || session?.email === 'powerfulreach029@gmail.com';
-  const isDirecteur = session?.role === 'directeur';
+  const isSchoolOwner = session?.user_id === school?.owner_id || (session?.email && session.email === school?.owner_email);
+  const effectiveRole = isSchoolOwner ? 'dirigeant' : session?.role;
+  const isAdmin = effectiveRole === 'admin' || session?.email === 'powerfulreach029@gmail.com';
+  const isDirecteur = effectiveRole === 'directeur';
 
   // Filtrage des données si l'utilisateur est directeur
   const directorCycles = session?.assignedCycles || [];
@@ -441,8 +443,8 @@ const App: React.FC = () => {
   };
 
   // Theme Logic (School defaults vs Personal preferences)
-  const currentTheme = (session?.role !== 'dirigeant' && localTheme) ? (localTheme as string) : (settings.theme || 'blue');
-  const currentMode = (session?.role !== 'dirigeant' && localMode) ? (localMode as any) : (settings.mode || 'light');
+  const currentTheme = (effectiveRole !== 'dirigeant' && localTheme) ? (localTheme as string) : (settings.theme || 'blue');
+  const currentMode = (effectiveRole !== 'dirigeant' && localMode) ? (localMode as any) : (settings.mode || 'light');
 
   const activeThemeColors = THEME_HEX_COLORS[currentTheme] || THEME_HEX_COLORS.blue;
   const themeStyles = {
@@ -573,43 +575,43 @@ const App: React.FC = () => {
               </div>
 
               <div className="flex-1 py-6 space-y-1.5 px-3 overflow-y-auto custom-scrollbar">
-                {session?.role === 'eleve' && (
+                {effectiveRole === 'eleve' && (
                   <NavItem icon="fa-user-graduate" label="Mon Portail" active={currentView === 'student_portal'} collapsed={isSidebarCollapsed} onClick={() => setCurrentView('student_portal')} />
                 )}
                 
-                {(session?.role === 'dirigeant' || session?.role === 'directeur' || session?.role === 'admin') && (
+                {(effectiveRole === 'dirigeant' || effectiveRole === 'directeur' || effectiveRole === 'admin') && (
                   <NavItem icon="fa-chart-pie" label="Tableau de bord" active={currentView === 'dashboard'} collapsed={isSidebarCollapsed} onClick={() => setCurrentView('dashboard')} />
                 )}
                 
-                {(session?.role === 'dirigeant' || session?.role === 'gestionnaire' || session?.role === 'directeur' || session?.role === 'admin') && (
+                {(effectiveRole === 'dirigeant' || effectiveRole === 'gestionnaire' || effectiveRole === 'directeur' || effectiveRole === 'admin') && (
                   <NavItem icon="fa-user-plus" label="Inscription" active={currentView === 'inscription'} collapsed={isSidebarCollapsed} onClick={() => setCurrentView('inscription')} />
                 )}
                 
-                {['dirigeant', 'gestionnaire', 'professeur', 'directeur', 'admin'].includes(session?.role || '') && (
+                {['dirigeant', 'gestionnaire', 'professeur', 'directeur', 'admin'].includes(effectiveRole || '') && (
                   <NavItem icon="fa-users" label="Liste des élèves" active={currentView === 'students'} collapsed={isSidebarCollapsed} onClick={() => setCurrentView('students')} />
                 )}
                 
-                {(session?.role === 'dirigeant' || session?.role === 'gestionnaire' || session?.role === 'directeur' || session?.role === 'admin') && (
+                {(effectiveRole === 'dirigeant' || effectiveRole === 'gestionnaire' || effectiveRole === 'directeur' || effectiveRole === 'admin') && (
                   <NavItem icon="fa-wallet" label="Comptabilité" active={currentView === 'accounting'} collapsed={isSidebarCollapsed} onClick={() => setCurrentView('accounting')} />
                 )}
 
-                {(session?.role === 'dirigeant' || session?.role === 'gestionnaire' || session?.role === 'directeur' || session?.role === 'admin') && (
+                {(effectiveRole === 'dirigeant' || effectiveRole === 'gestionnaire' || effectiveRole === 'directeur' || effectiveRole === 'admin') && (
                   <NavItem icon="fa-chart-line" label="Suivi & Éval." active={currentView === 'evaluation'} collapsed={isSidebarCollapsed} onClick={() => setCurrentView('evaluation')} />
                 )}
                 
-                {(session?.role === 'dirigeant' || session?.role === 'gestionnaire' || session?.role === 'directeur' || session?.role === 'admin') && (
+                {(effectiveRole === 'dirigeant' || effectiveRole === 'gestionnaire' || effectiveRole === 'directeur' || effectiveRole === 'admin') && (
                   <NavItem icon="fa-list-ol" label="Résultats" active={currentView === 'academic_results'} collapsed={isSidebarCollapsed} onClick={() => setCurrentView('academic_results')} />
                 )}
                 
-                {(session?.role === 'dirigeant' || session?.role === 'directeur' || session?.role === 'admin') && (
+                {(effectiveRole === 'dirigeant' || effectiveRole === 'directeur' || effectiveRole === 'admin') && (
                   <NavItem icon="fa-users-cog" label="Personnel" active={currentView === 'personnel'} collapsed={isSidebarCollapsed} onClick={() => setCurrentView('personnel')} />
                 )}
                 
-                {(session?.role === 'dirigeant' || session?.role === 'admin' || session?.role === 'directeur') && (
+                {(effectiveRole === 'dirigeant' || effectiveRole === 'admin' || effectiveRole === 'directeur') && (
                   <NavItem icon="fa-cogs" label="Paramètres" active={currentView === 'settings'} collapsed={isSidebarCollapsed} onClick={() => setCurrentView('settings')} />
                 )}
 
-                {session?.role !== 'eleve' && session?.role !== 'admin' && session?.role !== 'dirigeant' && session?.role !== 'directeur' && (
+                {effectiveRole !== 'eleve' && effectiveRole !== 'admin' && effectiveRole !== 'dirigeant' && effectiveRole !== 'directeur' && (
                   <NavItem icon="fa-user-circle" label="Mon Profil" active={currentView === 'profile'} collapsed={isSidebarCollapsed} onClick={() => setCurrentView('profile')} />
                 )}
 
@@ -625,7 +627,7 @@ const App: React.FC = () => {
                    </div>
                    <div className="overflow-hidden">
                       <p className="font-bold text-sm truncate">{session?.display_name}</p>
-                      <p className="text-[10px] text-white/50 uppercase tracking-widest">{session?.role}</p>
+                      <p className="text-[10px] text-white/50 uppercase tracking-widest">{effectiveRole}</p>
                    </div>
                 </div>
               </div>
@@ -667,7 +669,7 @@ const App: React.FC = () => {
                       >
                         {settings.availableAcademicYears?.map(year => {
                           // Filtrer les années accessibles si l'utilisateur n'est pas dirigeant
-                          if (session?.role !== 'dirigeant' && session?.role !== 'admin') {
+                          if (effectiveRole !== 'dirigeant' && effectiveRole !== 'admin') {
                             if (!session?.allowed_academic_years?.includes(year)) {
                               return null;
                             }
@@ -699,7 +701,7 @@ const App: React.FC = () => {
                 )}
 
                 <div className="animate-fade-in" style={{ animationDelay: '0.1s' }}>
-                  {currentView === 'dashboard' && (session?.role === 'dirigeant' || session?.role === 'gestionnaire' || session?.role === 'directeur' || session?.role === 'admin') && <Dashboard />}
+                  {currentView === 'dashboard' && (effectiveRole === 'dirigeant' || effectiveRole === 'gestionnaire' || effectiveRole === 'directeur' || effectiveRole === 'admin') && <Dashboard />}
                   {currentView === 'inscription' && <StudentForm onSuccess={() => setCurrentView('students')} />}
                   {currentView === 'students' && <StudentList />}
                   {currentView === 'accounting' && <Accounting />}
@@ -707,7 +709,7 @@ const App: React.FC = () => {
                   {currentView === 'student_portal' && <StudentPortal />}
                   {currentView === 'personnel' && <PersonnelManagement />}
                   {currentView === 'profile' && <StaffProfile />}
-                  {currentView === 'admin' && isAdmin && <AdminPanel onBack={() => setCurrentView('dashboard')} userRole={session?.role} />}
+                  {currentView === 'admin' && isAdmin && <AdminPanel onBack={() => setCurrentView('dashboard')} userRole={effectiveRole} />}
                   {currentView === 'evaluation' && <Evaluation />}
                   {currentView === 'academic_results' && <AcademicResults />}
                 </div>
