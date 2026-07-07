@@ -200,12 +200,17 @@ const App: React.FC = () => {
             id: schoolDoc.id,
             name: schoolData.name,
             owner_id: schoolData.owner_id,
-            owner_email: schoolData.owner_email || 'N/A',
+            owner_email: schoolData.owner_email || "N/A",
             created_at: schoolData.created_at?.toDate() || null,
-            subscription_plan: schoolData.subscription_plan || 'free',
+            subscription_plan: schoolData.subscription_plan || "free",
             subscription_expires_at: schoolData.subscription_expires_at?.toDate() || null,
-            subscription_status: schoolData.subscription_status || 'free'
+            subscription_status: schoolData.subscription_status || "free"
           } as School);
+          // Refresh session to ensure role is up‑to‑date (especially after Dirigeant login)
+          const freshSession = await api.fetchUserSession();
+          if (freshSession) {
+            setSession(freshSession);
+          }
         }
       }
     }
@@ -405,8 +410,10 @@ const App: React.FC = () => {
       })
     : (settings.staff || []);
 
+  const enhancedSession = session ? { ...session, role: effectiveRole as any } : null;
+
   const contextValue: SchoolContextType = {
-    session,
+    session: enhancedSession,
     school,
     selectedAcademicYear,
     setSelectedAcademicYear,
