@@ -376,27 +376,20 @@ const App: React.FC = () => {
     }
   };
 
-  const isSchoolOwner = session?.user_id === school?.owner_id || (session?.email && session.email === school?.owner_email);
+  const isSchoolOwner = (session?.user_id === school?.owner_id && session?.role === 'dirigeant') || (session?.email && session.email === school?.owner_email && session?.role === 'dirigeant');
   const effectiveRole = isSchoolOwner ? 'dirigeant' : session?.role;
   const isAdmin = effectiveRole === 'admin' || session?.email === 'powerfulreach029@gmail.com';
   const isDirecteur = effectiveRole === 'directeur';
+  const isDirigeant = effectiveRole === 'dirigeant';
 
   // Filtrage des données si l'utilisateur est directeur
-  const directorCycles = session?.assignedCycles || [];
-  const filteredStudents = isDirecteur
-    ? students.filter(s => s.cycle && directorCycles.includes(s.cycle))
-    : students;
+  const directorCycles = effectiveRole === 'directeur' ? session?.assignedCycles || [] : [];
+  const filteredStudents = isDirigeant ? students : (isDirecteur ? students.filter(s => s.cycle && directorCycles.includes(s.cycle)) : students);
   const filteredStudentIds = new Set(filteredStudents.map(s => s.id));
-  const filteredPayments = isDirecteur
-    ? payments.filter(p => !p.studentId || filteredStudentIds.has(p.studentId))
-    : payments;
-  const filteredGrades = isDirecteur
-    ? grades.filter(g => filteredStudentIds.has(g.studentId))
-    : grades;
-  const filteredCycles = isDirecteur
-    ? Object.fromEntries(Object.entries(cycles).filter(([id]) => directorCycles.includes(id)))
-    : cycles;
-  const filteredExpenses = isDirecteur ? [] : expenses; // Directeur ne voit pas les dépenses globales
+  const filteredPayments = isDirigeant ? payments : (isDirecteur ? payments.filter(p => !p.studentId || filteredStudentIds.has(p.studentId)) : payments);
+  const filteredGrades = isDirigeant ? grades : (isDirecteur ? grades.filter(g => filteredStudentIds.has(g.studentId)) : grades);
+  const filteredCycles = isDirigeant ? cycles : (isDirecteur ? Object.fromEntries(Object.entries(cycles).filter(([id]) => directorCycles.includes(id))) : cycles);
+  const filteredExpenses = isDirigeant ? expenses : (isDirecteur ? [] : expenses); // Dirigeant voit tout, Directeur ne voit pas les dépenses globales
   const filteredStaff = isDirecteur
     ? (settings.staff || []).filter(s => {
         if (s.matricule === session?.matricule) return true; // toujours se voir soi-même
@@ -421,7 +414,7 @@ const App: React.FC = () => {
     grades: filteredGrades,
     cycles: filteredCycles,
     subjects,
-    settings: isDirecteur ? { ...settings, staff: filteredStaff } : settings,
+    settings: isDirigeant ? settings : (isDirecteur ? { ...settings, staff: filteredStaff } : settings),
     payments: filteredPayments,
     expenses: filteredExpenses,
     addStudent,
