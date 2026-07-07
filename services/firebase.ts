@@ -417,6 +417,26 @@ const ensureSchoolId = async () => {
     return session?.school_id || null;
 };
 
+export const updateUserRole = async (userId: string, newRole: string, isAnonymous: boolean) => {
+    try {
+        if (isAnonymous) {
+            await updateDoc(doc(db, "sessions", userId), { role: newRole });
+        } else {
+            await updateDoc(doc(db, "profiles", userId), { role: newRole });
+        }
+        
+        // Update local cache
+        const localSessionStr = localStorage.getItem('pr_scl_matricule_session');
+        if (localSessionStr) {
+            const localSession = JSON.parse(localSessionStr);
+            localSession.role = newRole;
+            localStorage.setItem('pr_scl_matricule_session', JSON.stringify(localSession));
+        }
+    } catch (error) {
+        console.error("updateUserRole error:", error);
+    }
+};
+
 // --- UTILITAIRES ---
 export const generateMatricule = (): string => {
     const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';

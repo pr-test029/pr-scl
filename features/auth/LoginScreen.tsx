@@ -212,11 +212,19 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess }) => {
         try {
             const session = await api.fetchUserSession();
             if (session) {
-                if (finalRole === 'dirigeant' && session.role !== 'dirigeant' && session.role !== 'admin') {
-                    setError("Vous n'avez pas les droits de dirigeant. Veuillez vous reconnecter.");
+                // Si on a passé la vérification du code dirigeant, on met à jour le rôle
+                if (finalRole === 'dirigeant') {
+                    const currentUser = api.auth.currentUser;
+                    if (currentUser) {
+                        await api.updateUserRole(currentUser.uid, 'dirigeant', currentUser.isAnonymous);
+                    }
+                    session.role = 'dirigeant';
+                } else if (finalRole === 'admin' && session.role !== 'admin') {
+                    setError("Vous n'avez pas les droits d'administration.");
                     return;
                 }
-            onLoginSuccess({
+
+                onLoginSuccess({
                     ...session,
                     role: finalRole,
                 });
