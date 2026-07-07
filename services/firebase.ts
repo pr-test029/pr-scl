@@ -417,7 +417,7 @@ const ensureSchoolId = async () => {
     return session?.school_id || null;
 };
 
-export const updateUserRole = async (userId: string, newRole: string, isAnonymous: boolean) => {
+export const updateUserRole = async (userId: string, newRole: string, isAnonymous: boolean = false) => {
     try {
         if (isAnonymous) {
             await updateDoc(doc(db, "sessions", userId), { role: newRole });
@@ -939,12 +939,7 @@ export const subscribeToUserProfiles = (callback: (profiles: UserProfile[]) => v
     });
 };
 
-// Mettre à jour le rôle d'un utilisateur (admin seulement)
-export const updateUserRole = async (userId: string, newRole: 'admin' | 'user'): Promise<void> => {
-    await updateDoc(doc(db, "profiles", userId), {
-        role: newRole
-    });
-};
+
 
 export const subscribeToExpenses = (schoolId: string, academicYear: string, callback: (expenses: Expense[]) => void): (() => void) => {
     const q = query(collection(db, "expenses"), where("school_id", "==", schoolId), where("academic_year", "==", academicYear));
