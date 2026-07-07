@@ -40,7 +40,7 @@ service cloud.firestore {
     match /profiles/{userId} {
       allow read: if isAdmin() || (isAuthenticated() && request.auth.uid == userId);
       allow create: if isAuthenticated() && request.auth.uid == userId;
-      allow update: if isAdmin() || (isAuthenticated() && request.auth.uid == userId && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['role']));
+      allow update: if isAdmin() || (isAuthenticated() && request.auth.uid == userId);
     }
 
     // --- COLLECTION SESSIONS (Anonymes) ---
