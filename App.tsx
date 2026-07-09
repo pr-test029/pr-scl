@@ -25,6 +25,10 @@ import { PersonnelManagement } from './features/staff/PersonnelManagement';
 import { Evaluation } from './features/evaluation/Evaluation';
 import { AcademicResults } from './features/evaluation/AcademicResults';
 import { Button } from './components/ui/Common';
+import { BrowserRouter, Routes, Route } from 'react-router-dom';
+import NotFound from './pages/NotFound';
+import ServerError from './pages/ServerError';
+import { ErrorBoundary } from './components/ErrorBoundary';
 
 // Context creation
 const SchoolContext = createContext<SchoolContextType | undefined>(undefined);
@@ -42,6 +46,13 @@ const App: React.FC = () => {
   const [localTheme, setLocalTheme] = useState<string | null>(localStorage.getItem('pr_scl_local_theme'));
   const [localMode, setLocalMode] = useState<'light' | 'dark' | null>(localStorage.getItem('pr_scl_local_mode') as any);
   const [loading, setLoading] = useState(true);
+  // Initialise le mode thème en fonction des préférences du système si aucun réglage local
+  useEffect(() => {
+    if (!localMode) {
+      const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+      setLocalMode(prefersDark ? 'dark' : 'light');
+    }
+  }, [localMode]);
   const [error, setError] = useState<string | null>(null);
 
   // Data State
@@ -496,229 +507,228 @@ const App: React.FC = () => {
     );
   }
 
-  // On ne retourne plus en mode "early exit" pour l'AdminPanel pour garder le menu latéral
-
-
   return (
-    <SchoolContext.Provider value={contextValue}>
-      <div
-        className={`min-h-screen transition-all duration-300 ${currentMode === 'dark' ? 'dark starry-bg text-gray-100' : 'bg-gray-100 text-gray-800'}`}
-        style={themeStyles}
-      >
-        <SubscriptionGuard school={school} isAdmin={isAdmin}>
-          <div className="flex flex-col md:flex-row font-sans min-h-screen relative z-10">
+    </ErrorBoundary>
+      <SchoolContext.Provider value={contextValue}>
+        <div
+          className={`min-h-screen transition-all duration-300 ${currentMode === 'dark' ? 'dark starry-bg text-gray-100' : 'bg-gray-100 text-gray-800'}`}
+          style={themeStyles}
+        >
+          <SubscriptionGuard school={school} isAdmin={isAdmin}>
+            <div className="flex flex-col md:flex-row font-sans min-h-screen relative z-10">
 
-            {/* Mobile Header */}
-            <div className="md:hidden fixed top-0 left-0 w-full z-50 h-16 bg-[var(--primary-color)] dark:bg-slate-900/90 dark:backdrop-blur-xl text-white px-5 flex justify-between items-center shadow-lg border-b dark:border-white/10 transition-all">
-              <div className="flex items-center gap-3 font-bold text-lg tracking-tight">
-                <div className="p-1 bg-white rounded-lg shadow-inner">
-                  {settings.logo ? <img src={settings.logo} className="h-6 w-6 object-contain" /> : <i className="fas fa-graduation-cap text-[var(--primary-color)]"></i>}
-                </div>
-                <span className="truncate max-w-[150px]">{settings.appName}</span>
-              </div>
-              <button 
-                className="w-10 h-10 flex items-center justify-center rounded-full hover:bg-white/10 active:scale-95 transition-all" 
-                onClick={() => {
-                  const nav = document.getElementById('mobile-nav');
-                  const overlay = document.getElementById('mobile-overlay');
-                  nav?.classList.remove('-translate-x-full');
-                  overlay?.classList.remove('hidden');
-                }}
-              >
-                <i className="fas fa-bars text-xl"></i>
-              </button>
-            </div>
-
-            {/* Mobile Navigation Drawer Overlay */}
-            <div 
-              id="mobile-overlay"
-              className="hidden fixed inset-0 bg-black/60 backdrop-blur-sm z-[60] md:hidden transition-opacity"
-              onClick={() => {
-                const nav = document.getElementById('mobile-nav');
-                const overlay = document.getElementById('mobile-overlay');
-                nav?.classList.add('-translate-x-full');
-                overlay?.classList.add('hidden');
-              }}
-            ></div>
-
-            {/* Combined Sidebar/Drawer Navigation */}
-            <nav 
-              id="mobile-nav" 
-              className={`fixed md:sticky top-0 left-0 h-screen z-[70] md:z-40 transition-all duration-350 ease-[cubic-bezier(0.4,0,0.2,1)] bg-[var(--primary-color)] dark:bg-slate-900/95 dark:backdrop-blur-2xl text-white shadow-2xl md:shadow-xl border-r dark:border-white/10 flex flex-col
-                ${isSidebarCollapsed ? 'md:w-20' : 'md:w-64'} 
-                -translate-x-full md:translate-x-0 w-[280px]`}
-            >
-              <div className="p-6 border-b border-white/10 hidden md:flex items-center justify-between overflow-hidden h-20">
-                <div className={`flex items-center gap-3 font-bold text-xl tracking-tight transition-all duration-300 ${isSidebarCollapsed ? 'opacity-0 w-0 scale-0' : 'opacity-100 w-auto scale-100'}`}>
-                  {settings.logo ? <img src={settings.logo} className="h-10 w-10 object-contain bg-white rounded-xl p-1.5 shadow-lg" /> : <i className="fas fa-graduation-cap text-white drop-shadow-[0_0_8px_rgba(255,255,255,0.8)]"></i>}
-                  <span className="dark:text-white truncate">{settings.appName}</span>
+              {/* Mobile Header */}
+              <div className="md:hidden fixed top-0 left-0 w-full z-50 h-16 bg-[var(--primary-color)] dark:bg-slate-900/90 dark:backdrop-blur-xl text-white px-5 flex justify-between items-center shadow-lg border-b dark:border-white/10 transition-all">
+                <div className="flex items-center gap-3 font-bold text-lg tracking-tight">
+                  <div className="p-1 bg-white rounded-lg shadow-inner">
+                    {settings.logo ? <img src={settings.logo} className="h-6 w-6 object-contain" /> : <i className="fas fa-graduation-cap text-[var(--primary-color)]"></i>}
+                  </div>
+                  <span className="truncate max-w-[150px]">{settings.appName}</span>
                 </div>
                 <button 
-                  onClick={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
-                  className="w-9 h-9 flex items-center justify-center rounded-xl bg-white/10 hover:bg-white/20 active:scale-90 transition-all shadow-inner"
-                  title={isSidebarCollapsed ? "Déplier" : "Replier"}
+                  className="w-10 h-10 flex items-center justify-center rounded-full hover:bg-white/10 active:scale-95 transition-all" 
+                  onClick={() => {
+                    const nav = document.getElementById('mobile-nav');
+                    const overlay = document.getElementById('mobile-overlay');
+                    nav?.classList.remove('-translate-x-full');
+                    overlay?.classList.remove('hidden');
+                  }}
                 >
-                  <i className={`fas ${isSidebarCollapsed ? 'fa-chevron-right' : 'fa-chevron-left'} text-sm`}></i>
+                  <i className="fas fa-bars text-xl"></i>
                 </button>
               </div>
 
-              {/* Mobile Only Header inside Drawer */}
-              <div className="md:hidden p-6 flex items-center justify-between border-b border-white/10">
-                <div className="flex items-center gap-3 font-bold text-xl">
-                   <i className="fas fa-graduation-cap text-white"></i>
-                   <span>Menu</span>
-                </div>
-                <button onClick={() => {
-                  document.getElementById('mobile-nav')?.classList.add('-translate-x-full');
-                  document.getElementById('mobile-overlay')?.classList.add('hidden');
-                }} className="text-white/60 hover:text-white p-2"><i className="fas fa-times text-xl"></i></button>
-              </div>
+              {/* Mobile Navigation Drawer Overlay */}
+              <div 
+                id="mobile-overlay"
+                className="hidden fixed inset-0 bg-black/60 backdrop-blur-sm z-[60] md:hidden transition-opacity"
+                onClick={() => {
+                  const nav = document.getElementById('mobile-nav');
+                  const overlay = document.getElementById('mobile-overlay');
+                  nav?.classList.add('-translate-x-full');
+                  overlay?.classList.add('hidden');
+                }}
+              ></div>
 
-              <div className="flex-1 py-6 space-y-1.5 px-3 overflow-y-auto custom-scrollbar">
-                {effectiveRole === 'eleve' && (
-                  <NavItem icon="fa-user-graduate" label="Mon Portail" active={currentView === 'student_portal'} collapsed={isSidebarCollapsed} onClick={() => setCurrentView('student_portal')} />
-                )}
-                
-                {(effectiveRole === 'dirigeant' || effectiveRole === 'directeur' || effectiveRole === 'admin') && (
-                  <NavItem icon="fa-chart-pie" label="Tableau de bord" active={currentView === 'dashboard'} collapsed={isSidebarCollapsed} onClick={() => setCurrentView('dashboard')} />
-                )}
-                
-                {(effectiveRole === 'dirigeant' || effectiveRole === 'gestionnaire' || effectiveRole === 'directeur' || effectiveRole === 'admin') && (
-                  <NavItem icon="fa-user-plus" label="Inscription" active={currentView === 'inscription'} collapsed={isSidebarCollapsed} onClick={() => setCurrentView('inscription')} />
-                )}
-                
-                {['dirigeant', 'gestionnaire', 'professeur', 'directeur', 'admin'].includes(effectiveRole || '') && (
-                  <NavItem icon="fa-users" label="Liste des élèves" active={currentView === 'students'} collapsed={isSidebarCollapsed} onClick={() => setCurrentView('students')} />
-                )}
-                
-                {(effectiveRole === 'dirigeant' || effectiveRole === 'gestionnaire' || effectiveRole === 'directeur' || effectiveRole === 'admin') && (
-                  <NavItem icon="fa-wallet" label="Comptabilité" active={currentView === 'accounting'} collapsed={isSidebarCollapsed} onClick={() => setCurrentView('accounting')} />
-                )}
-
-                {(effectiveRole === 'dirigeant' || effectiveRole === 'gestionnaire' || effectiveRole === 'directeur' || effectiveRole === 'admin') && (
-                  <NavItem icon="fa-chart-line" label="Suivi & Éval." active={currentView === 'evaluation'} collapsed={isSidebarCollapsed} onClick={() => setCurrentView('evaluation')} />
-                )}
-                
-                {(effectiveRole === 'dirigeant' || effectiveRole === 'gestionnaire' || effectiveRole === 'directeur' || effectiveRole === 'admin') && (
-                  <NavItem icon="fa-list-ol" label="Résultats" active={currentView === 'academic_results'} collapsed={isSidebarCollapsed} onClick={() => setCurrentView('academic_results')} />
-                )}
-                
-                {(effectiveRole === 'dirigeant' || effectiveRole === 'directeur' || effectiveRole === 'admin') && (
-                  <NavItem icon="fa-users-cog" label="Personnel" active={currentView === 'personnel'} collapsed={isSidebarCollapsed} onClick={() => setCurrentView('personnel')} />
-                )}
-                
-                {(effectiveRole === 'dirigeant' || effectiveRole === 'admin' || effectiveRole === 'directeur') && (
-                  <NavItem icon="fa-cogs" label="Paramètres" active={currentView === 'settings'} collapsed={isSidebarCollapsed} onClick={() => setCurrentView('settings')} />
-                )}
-
-                {effectiveRole !== 'eleve' && effectiveRole !== 'admin' && effectiveRole !== 'dirigeant' && effectiveRole !== 'directeur' && (
-                  <NavItem icon="fa-user-circle" label="Mon Profil" active={currentView === 'profile'} collapsed={isSidebarCollapsed} onClick={() => setCurrentView('profile')} />
-                )}
-
-                {isAdmin && (
-                  <NavItem icon="fa-shield-alt" label="Administration" active={currentView === 'admin'} collapsed={isSidebarCollapsed} onClick={() => setCurrentView('admin')} />
-                )}
-              </div>
-
-              <div className={`p-6 border-t border-white/10 transition-all duration-300 ${isSidebarCollapsed ? 'opacity-0 h-0 p-0 overflow-hidden' : 'opacity-100'}`}>
-                <div className="flex items-center gap-3 p-3 bg-white/5 rounded-2xl border border-white/10">
-                   <div className="w-10 h-10 rounded-xl bg-white/10 flex items-center justify-center font-bold text-lg shadow-lg">
-                      {session?.display_name?.[0]}
-                   </div>
-                   <div className="overflow-hidden">
-                      <p className="font-bold text-sm truncate">{session?.display_name}</p>
-                      <p className="text-[10px] text-white/50 uppercase tracking-widest">{effectiveRole}</p>
-                   </div>
-                </div>
-              </div>
-            </nav>
-
-            {/* Main Content */}
-            <main className={`flex-1 w-full pt-16 md:pt-0 min-h-screen transition-all duration-300`}>
-              <div className="p-4 md:p-10 max-w-7xl mx-auto pb-24 safe-area-bottom">
-                <header className="mb-10 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-                  <div className="animate-fade-in">
-                    <h1 className="text-3xl md:text-4xl font-black text-gray-900 dark:text-white tracking-tight">
-                      {currentView === 'dashboard' && 'Tableau de bord'}
-                      {currentView === 'inscription' && 'Inscription'}
-                      {currentView === 'students' && 'Élèves'}
-                      {currentView === 'accounting' && 'Comptabilité'}
-                      {currentView === 'settings' && 'Paramètres'}
-                      {currentView === 'student_portal' && 'Mon Portail'}
-                      {currentView === 'personnel' && 'Personnel'}
-                      {currentView === 'profile' && 'Mon Profil'}
-                      {currentView === 'admin' && 'Administration'}
-                      {currentView === 'evaluation' && 'Suivi & Évaluation'}
-                      {currentView === 'academic_results' && 'Palmarès & Résultats'}
-                    </h1>
-                    <p className="text-gray-500 dark:text-gray-400 font-medium mt-1">
-                       {currentView === 'dashboard' && `Bienvenue, ${session?.display_name?.split(' ')[0]}`}
-                       {currentView !== 'dashboard' && 'Espace de gestion institutionnelle'}
-                    </p>
+              {/* Combined Sidebar/Drawer Navigation */}
+              <nav 
+                id="mobile-nav" 
+                className={`fixed md:sticky top-0 left-0 h-screen z-[70] md:z-40 transition-all duration-350 ease-[cubic-bezier(0.4,0,0.2,1)] bg-[var(--primary-color)] dark:bg-slate-900/95 dark:backdrop-blur-2xl text-white shadow-2xl md:shadow-xl border-r dark:border-white/10 flex flex-col
+                  ${isSidebarCollapsed ? 'md:w-20' : 'md:w-64'} 
+                  -translate-x-full md:translate-x-0 w-[280px]`}
+              >
+                <div className="p-6 border-b border-white/10 hidden md:flex items-center justify-between overflow-hidden h-20">
+                  <div className={`flex items-center gap-3 font-bold text-xl tracking-tight transition-all duration-300 ${isSidebarCollapsed ? 'opacity-0 w-0 scale-0' : 'opacity-100 w-auto scale-100'}`}>
+                    {settings.logo ? <img src={settings.logo} className="h-10 w-10 object-contain bg-white rounded-xl p-1.5 shadow-lg" /> : <i className="fas fa-graduation-cap text-white drop-shadow-[0_0_8px_rgba(255,255,255,0.8)]"></i>}
+                    <span className="dark:text-white truncate">{settings.appName}</span>
                   </div>
-                  <div className="flex flex-col md:flex-row items-end md:items-center gap-4 animate-fade-in">
-                    <div className="bg-white dark:bg-white/5 px-4 py-2 rounded-xl shadow-sm border dark:border-white/10 flex items-center gap-3">
-                      <div className="w-8 h-8 rounded-lg bg-[var(--primary-color)]/10 text-[var(--primary-color)] flex items-center justify-center">
-                        <i className="fas fa-calendar-check"></i>
-                      </div>
-                      <select 
-                        className="bg-transparent text-sm font-bold text-gray-800 dark:text-gray-200 outline-none cursor-pointer appearance-none pr-4"
-                        value={selectedAcademicYear}
-                        onChange={(e) => setSelectedAcademicYear(e.target.value)}
-                        style={{ backgroundImage: 'url("data:image/svg+xml;charset=US-ASCII,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%22292.4%22%20height%3D%22292.4%22%3E%3Cpath%20fill%3D%22%23666%22%20d%3D%22M287%2069.4a17.6%2017.6%200%200%200-13-5.4H18.4c-5%200-9.3%201.8-12.9%205.4A17.6%2017.6%200%200%200%200%2082.2c0%205%201.8%209.3%205.4%2012.9l128%20127.9c3.6%203.6%207.8%205.4%2012.8%205.4s9.2-1.8%2012.8-5.4L287%2095c3.5-3.5%205.4-7.8%205.4-12.8%200-5-1.9-9.2-5.5-12.8z%22%2F%3E%3C%2Fsvg%3E")', backgroundRepeat: 'no-repeat', backgroundPosition: 'right center', backgroundSize: '0.65em auto' }}
-                      >
-                        {settings.availableAcademicYears?.map(year => {
-                          // Filtrer les années accessibles si l'utilisateur n'est pas dirigeant
-                          if (effectiveRole !== 'dirigeant' && effectiveRole !== 'admin') {
-                            if (!session?.allowed_academic_years?.includes(year)) {
-                              return null;
+                  <button 
+                    onClick={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
+                    className="w-9 h-9 flex items-center justify-center rounded-xl bg-white/10 hover:bg-white/20 active:scale-90 transition-all shadow-inner"
+                    title={isSidebarCollapsed ? "Déplier" : "Replier"}
+                  >
+                    <i className={`fas ${isSidebarCollapsed ? 'fa-chevron-right' : 'fa-chevron-left'} text-sm`}></i>
+                  </button>
+                </div>
+
+                {/* Mobile Only Header inside Drawer */}
+                <div className="md:hidden p-6 flex items-center justify-between border-b border-white/10">
+                  <div className="flex items-center gap-3 font-bold text-xl">
+                    <i className="fas fa-graduation-cap text-white"></i>
+                    <span>Menu</span>
+                  </div>
+                  <button onClick={() => {
+                    document.getElementById('mobile-nav')?.classList.add('-translate-x-full');
+                    document.getElementById('mobile-overlay')?.classList.add('hidden');
+                  }} className="text-white/60 hover:text-white p-2"><i className="fas fa-times text-xl"></i></button>
+                </div>
+
+                <div className="flex-1 py-6 space-y-1.5 px-3 overflow-y-auto custom-scrollbar">
+                  {effectiveRole === 'eleve' && (
+                    <NavItem icon="fa-user-graduate" label="Mon Portail" active={currentView === 'student_portal'} collapsed={isSidebarCollapsed} onClick={() => setCurrentView('student_portal')} />
+                  )}
+                  
+                  {(effectiveRole === 'dirigeant' || effectiveRole === 'directeur' || effectiveRole === 'admin') && (
+                    <NavItem icon="fa-chart-pie" label="Tableau de bord" active={currentView === 'dashboard'} collapsed={isSidebarCollapsed} onClick={() => setCurrentView('dashboard')} />
+                  )}
+                  
+                  {(effectiveRole === 'dirigeant' || effectiveRole === 'gestionnaire' || effectiveRole === 'directeur' || effectiveRole === 'admin') && (
+                    <NavItem icon="fa-user-plus" label="Inscription" active={currentView === 'inscription'} collapsed={isSidebarCollapsed} onClick={() => setCurrentView('inscription')} />
+                  )}
+                  
+                  {['dirigeant', 'gestionnaire', 'professeur', 'directeur', 'admin'].includes(effectiveRole || '') && (
+                    <NavItem icon="fa-users" label="Liste des élèves" active={currentView === 'students'} collapsed={isSidebarCollapsed} onClick={() => setCurrentView('students')} />
+                  )}
+                  
+                  {(effectiveRole === 'dirigeant' || effectiveRole === 'gestionnaire' || effectiveRole === 'directeur' || effectiveRole === 'admin') && (
+                    <NavItem icon="fa-wallet" label="Comptabilité" active={currentView === 'accounting'} collapsed={isSidebarCollapsed} onClick={() => setCurrentView('accounting')} />
+                  )}
+
+                  {(effectiveRole === 'dirigeant' || effectiveRole === 'gestionnaire' || effectiveRole === 'directeur' || effectiveRole === 'admin') && (
+                    <NavItem icon="fa-chart-line" label="Suivi & Éval." active={currentView === 'evaluation'} collapsed={isSidebarCollapsed} onClick={() => setCurrentView('evaluation')} />
+                  )}
+                  
+                  {(effectiveRole === 'dirigeant' || effectiveRole === 'gestionnaire' || effectiveRole === 'directeur' || effectiveRole === 'admin') && (
+                    <NavItem icon="fa-list-ol" label="Résultats" active={currentView === 'academic_results'} collapsed={isSidebarCollapsed} onClick={() => setCurrentView('academic_results')} />
+                  )}
+                  
+                  {(effectiveRole === 'dirigeant' || effectiveRole === 'directeur' || effectiveRole === 'admin') && (
+                    <NavItem icon="fa-users-cog" label="Personnel" active={currentView === 'personnel'} collapsed={isSidebarCollapsed} onClick={() => setCurrentView('personnel')} />
+                  )}
+                  
+                  {(effectiveRole === 'dirigeant' || effectiveRole === 'admin' || effectiveRole === 'directeur') && (
+                    <NavItem icon="fa-cogs" label="Paramètres" active={currentView === 'settings'} collapsed={isSidebarCollapsed} onClick={() => setCurrentView('settings')} />
+                  )}
+
+                  {effectiveRole !== 'eleve' && effectiveRole !== 'admin' && effectiveRole !== 'dirigeant' && effectiveRole !== 'directeur' && (
+                    <NavItem icon="fa-user-circle" label="Mon Profil" active={currentView === 'profile'} collapsed={isSidebarCollapsed} onClick={() => setCurrentView('profile')} />
+                  )}
+
+                  {isAdmin && (
+                    <NavItem icon="fa-shield-alt" label="Administration" active={currentView === 'admin'} collapsed={isSidebarCollapsed} onClick={() => setCurrentView('admin')} />
+                  )}
+                </div>
+
+                <div className={`p-6 border-t border-white/10 transition-all duration-300 ${isSidebarCollapsed ? 'opacity-0 h-0 p-0 overflow-hidden' : 'opacity-100'}`}>
+                  <div className="flex items-center gap-3 p-3 bg-white/5 rounded-2xl border border-white/10">
+                    <div className="w-10 h-10 rounded-xl bg-white/10 flex items-center justify-center font-bold text-lg shadow-lg">
+                        {session?.display_name?.[0]}
+                    </div>
+                    <div className="overflow-hidden">
+                        <p className="font-bold text-sm truncate">{session?.display_name}</p>
+                        <p className="text-[10px] text-white/50 uppercase tracking-widest">{effectiveRole}</p>
+                    </div>
+                  </div>
+                </div>
+              </nav>
+
+              {/* Main Content */}
+              <main className={`flex-1 w-full pt-16 md:pt-0 min-h-screen transition-all duration-300`}>
+                <div className="p-4 md:p-10 max-w-7xl mx-auto pb-24 safe-area-bottom">
+                  <header className="mb-10 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+                    <div className="animate-fade-in">
+                      <h1 className="text-3xl md:text-4xl font-black text-gray-900 dark:text-white tracking-tight">
+                        {currentView === 'dashboard' && 'Tableau de bord'}
+                        {currentView === 'inscription' && 'Inscription'}
+                        {currentView === 'students' && 'Élèves'}
+                        {currentView === 'accounting' && 'Comptabilité'}
+                        {currentView === 'settings' && 'Paramètres'}
+                        {currentView === 'student_portal' && 'Mon Portail'}
+                        {currentView === 'personnel' && 'Personnel'}
+                        {currentView === 'profile' && 'Mon Profil'}
+                        {currentView === 'admin' && 'Administration'}
+                        {currentView === 'evaluation' && 'Suivi & Évaluation'}
+                        {currentView === 'academic_results' && 'Palmarès & Résultats'}
+                      </h1>
+                      <p className="text-gray-500 dark:text-gray-400 font-medium mt-1">
+                        {currentView === 'dashboard' && `Bienvenue, ${session?.display_name?.split(' ')[0]}`}
+                        {currentView !== 'dashboard' && 'Espace de gestion institutionnelle'}
+                      </p>
+                    </div>
+                    <div className="flex flex-col md:flex-row items-end md:items-center gap-4 animate-fade-in">
+                      <div className="bg-white dark:bg-white/5 px-4 py-2 rounded-xl shadow-sm border dark:border-white/10 flex items-center gap-3">
+                        <div className="w-8 h-8 rounded-lg bg-[var(--primary-color)]/10 text-[var(--primary-color)] flex items-center justify-center">
+                          <i className="fas fa-calendar-check"></i>
+                        </div>
+                        <select 
+                          className="bg-transparent text-sm font-bold text-gray-800 dark:text-gray-200 outline-none cursor-pointer appearance-none pr-4"
+                          value={selectedAcademicYear}
+                          onChange={(e) => setSelectedAcademicYear(e.target.value)}
+                          style={{ backgroundImage: 'url("data:image/svg+xml;charset=US-ASCII,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%22292.4%22%20height%3D%22292.4%22%3E%3Cpath%20fill%3D%22%23666%22%20d%3D%22M287%2069.4a17.6%2017.6%200%200%200-13-5.4H18.4c-5%200-9.3%201.8-12.9%205.4A17.6%2017.6%200%200%200%200%2082.2c0%205%201.8%209.3%205.4%2012.9l128%20127.9c3.6%203.6%207.8%205.4%2012.8%205.4s9.2-1.8%2012.8-5.4L287%2095c3.5-3.5%205.4-7.8%205.4-12.8%200-5-1.9-9.2-5.5-12.8z%22%2F%3E%3C%2Fsvg%3E")', backgroundRepeat: 'no-repeat', backgroundPosition: 'right center', backgroundSize: '0.65em auto' }}
+                        >
+                          {settings.availableAcademicYears?.map(year => {
+                            // Filtrer les années accessibles si l'utilisateur n'est pas dirigeant
+                            if (effectiveRole !== 'dirigeant' && effectiveRole !== 'admin') {
+                              if (!session?.allowed_academic_years?.includes(year)) {
+                                return null;
+                              }
                             }
-                          }
-                          return (
-                            <option key={year} value={year} className="dark:bg-slate-800">{year}</option>
-                          );
-                        })}
-                      </select>
-                    </div>
-
-                    <div className="hidden lg:flex items-center gap-4 bg-white dark:bg-white/5 px-5 py-3 rounded-2xl shadow-sm border dark:border-white/10">
-                      <div className="w-10 h-10 rounded-xl bg-[var(--primary-color)]/10 flex items-center justify-center text-[var(--primary-color)]">
-                        <i className="far fa-calendar-alt"></i>
+                            return (
+                              <option key={year} value={year} className="dark:bg-slate-800">{year}</option>
+                            );
+                          })}
+                        </select>
                       </div>
-                      <div>
-                        <p className="text-[10px] font-black uppercase text-gray-400 tracking-widest">Aujourd'hui</p>
-                        <span className="text-sm font-bold dark:text-gray-200">{new Date().toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' })}</span>
+
+                      <div className="hidden lg:flex items-center gap-4 bg-white dark:bg-white/5 px-5 py-3 rounded-2xl shadow-sm border dark:border-white/10">
+                        <div className="w-10 h-10 rounded-xl bg-[var(--primary-color)]/10 flex items-center justify-center text-[var(--primary-color)]">
+                          <i className="far fa-calendar-alt"></i>
+                        </div>
+                        <div>
+                          <p className="text-[10px] font-black uppercase text-gray-400 tracking-widest">Aujourd'hui</p>
+                          <span className="text-sm font-bold dark:text-gray-200">{new Date().toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' })}</span>
+                        </div>
                       </div>
                     </div>
-                  </div>
-                </header>
+                  </header>
 
-                {isOffline && (
-                  <div className="bg-amber-100 text-amber-800 p-3 text-center text-sm font-medium mb-6 rounded-2xl shadow-sm border border-amber-200 animate-fade-in flex items-center justify-center gap-3">
-                    <i className="fas fa-wifi text-amber-500 relative"><div className="absolute top-0 right-0 w-full h-0.5 bg-amber-500 rotate-45 transform origin-center"></div></i> 
-                    Mode hors-ligne actif. Vos modifications seront synchronisées automatiquement une fois la connexion rétablie.
-                  </div>
-                )}
+                  {isOffline && (
+                    <div className="bg-amber-100 text-amber-800 p-3 text-center text-sm font-medium mb-6 rounded-2xl shadow-sm border border-amber-200 animate-fade-in flex items-center justify-center gap-3">
+                      <i className="fas fa-wifi text-amber-500 relative"><div className="absolute top-0 right-0 w-full h-0.5 bg-amber-500 rotate-45 transform origin-center"></div></i> 
+                      Mode hors-ligne actif. Vos modifications seront synchronisées automatiquement une fois la connexion rétablie.
+                    </div>
+                  )}
 
-                <div className="animate-fade-in" style={{ animationDelay: '0.1s' }}>
-                  {currentView === 'dashboard' && (effectiveRole === 'dirigeant' || effectiveRole === 'gestionnaire' || effectiveRole === 'directeur' || effectiveRole === 'admin') && <Dashboard />}
-                  {currentView === 'inscription' && <StudentForm onSuccess={() => setCurrentView('students')} />}
-                  {currentView === 'students' && <StudentList />}
-                  {currentView === 'accounting' && <Accounting />}
-                  {currentView === 'settings' && <Settings />}
-                  {currentView === 'student_portal' && <StudentPortal />}
-                  {currentView === 'personnel' && <PersonnelManagement />}
-                  {currentView === 'profile' && <StaffProfile />}
-                  {currentView === 'admin' && isAdmin && <AdminPanel onBack={() => setCurrentView('dashboard')} userRole={effectiveRole} />}
-                  {currentView === 'evaluation' && <Evaluation />}
-                  {currentView === 'academic_results' && <AcademicResults />}
+                  <div className="animate-fade-in" style={{ animationDelay: '0.1s' }}>
+                    {currentView === 'dashboard' && (effectiveRole === 'dirigeant' || effectiveRole === 'gestionnaire' || effectiveRole === 'directeur' || effectiveRole === 'admin') && <Dashboard />}
+                    {currentView === 'inscription' && <StudentForm onSuccess={() => setCurrentView('students')} />}
+                    {currentView === 'students' && <StudentList />}
+                    {currentView === 'accounting' && <Accounting />}
+                    {currentView === 'settings' && <Settings />}
+                    {currentView === 'student_portal' && <StudentPortal />}
+                    {currentView === 'personnel' && <PersonnelManagement />}
+                    {currentView === 'profile' && <StaffProfile />}
+                    {currentView === 'admin' && isAdmin && <AdminPanel onBack={() => setCurrentView('dashboard')} userRole={effectiveRole} />}
+                    {currentView === 'evaluation' && <Evaluation />}
+                    {currentView === 'academic_results' && <AcademicResults />}
+                  </div>
                 </div>
-              </div>
-            </main>
-          </div>
-        </SubscriptionGuard>
-      </div>
-    </SchoolContext.Provider>
+              </main>
+            </div>
+          </SubscriptionGuard>
+        </div>
+      </SchoolContext.Provider>
+    </ErrorBoundary>
   );
 };
 
