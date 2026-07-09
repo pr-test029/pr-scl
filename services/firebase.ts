@@ -707,6 +707,41 @@ export const clearDB = async () => {
     await batch.commit();
 };
 
+// Delete a school and all its related data
+export const deleteSchool = async (schoolId: string) => {
+    if (!schoolId) return;
+    try {
+        const batch = writeBatch(db);
+        // Delete students
+        const studentsQuery = query(collection(db, "students"), where("school_id", "==", schoolId));
+        const studentsSnap = await getDocs(studentsQuery);
+        studentsSnap.forEach(docSnap => batch.delete(docSnap.ref));
+        // Delete grades
+        const gradesQuery = query(collection(db, "grades"), where("school_id", "==", schoolId));
+        const gradesSnap = await getDocs(gradesQuery);
+        gradesSnap.forEach(docSnap => batch.delete(docSnap.ref));
+        // Delete expenses
+        const expensesQuery = query(collection(db, "expenses"), where("school_id", "==", schoolId));
+        const expensesSnap = await getDocs(expensesQuery);
+        expensesSnap.forEach(docSnap => batch.delete(docSnap.ref));
+        // Delete payments
+        const paymentsQuery = query(collection(db, "payments"), where("school_id", "==", schoolId));
+        const paymentsSnap = await getDocs(paymentsQuery);
+        paymentsSnap.forEach(docSnap => batch.delete(docSnap.ref));
+        // Delete config
+        const configQuery = query(collection(db, "app_config"), where("school_id", "==", schoolId));
+        const configSnap = await getDocs(configQuery);
+        configSnap.forEach(docSnap => batch.delete(docSnap.ref));
+        // Delete school document
+        batch.delete(doc(db, "schools", schoolId));
+        await batch.commit();
+        console.log(`School ${schoolId} and all related data deleted.`);
+    } catch (error) {
+        console.error("deleteSchool error:", error);
+        throw error;
+    }
+};
+
 // --- API ACCOUNTING ---
 
 export const fetchPayments = async (academicYear: string): Promise<Payment[]> => {

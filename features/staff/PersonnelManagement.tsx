@@ -18,7 +18,7 @@ export const PersonnelManagement: React.FC = () => {
     });
 
     const roles = useMemo(() => {
-        const base = ['gestionnaire', 'professeur', 'directeur'];
+        const base = ['gestionnaire', 'professeur', 'directeur', 'dirigeant'];
         const custom = settings.staffRoles || [];
         return Array.from(new Set([...base, ...custom]));
     }, [settings.staffRoles]);
@@ -26,28 +26,31 @@ export const PersonnelManagement: React.FC = () => {
     const staffList = settings.staff || [];
 
     const filteredStaff = useMemo(() => {
-        // Si l'utilisateur est directeur, on filtre le personnel qui appartient à ses cycles
         const isDirecteur = session?.role === 'directeur';
         const directorCycles = session?.assignedCycles || [];
 
-        return staffList.filter(s => {
-            // Un directeur ne voit que lui-même + le personnel de ses cycles
-            if (isDirecteur) {
-                const isOwnProfile = s.matricule === session?.matricule;
-                // Personnel dont les classes sont dans les cycles du directeur
-                const staffCycles = (s.assignedCycles || []);
+        return isDirecteur
+            ? (settings.staff || []).filter(s => {
+                // Un directeur voit tous les dirigeants, son propre profil et le personnel de ses cycles
+                if (s.role === 'dirigeant') return true;
+                if (s.matricule === session?.matricule) return true;
+                const staffCycles = s.assignedCycles || [];
                 const staffClasses = s.assignedClasses || [];
                 const hasOverlap = staffCycles.some(cId => directorCycles.includes(cId)) ||
                     staffClasses.some(cls => {
                         const cycle = Object.values(cycles).find(cy => cy.levels.some(lvl => cls.startsWith(lvl)));
                         return cycle ? directorCycles.includes(cycle.id) : false;
                     });
-                if (!isOwnProfile && !hasOverlap) return false;
-            }
-            const matchesSearch = `${s.nom} ${s.prenom} ${s.matricule}`.toLowerCase().includes(searchTerm.toLowerCase());
-            const matchesRole = filterRole === 'tous' || s.role === filterRole;
-            return matchesSearch && matchesRole;
-        }).sort((a, b) => a.nom.localeCompare(b.nom));
+                if (!hasOverlap) return false;
+                const matchesSearch = `${s.nom} ${s.prenom} ${s.matricule}`.toLowerCase().includes(searchTerm.toLowerCase());
+                const matchesRole = filterRole === 'tous' || s.role === filterRole;
+                return matchesSearch && matchesRole;
+            }).sort((a, b) => a.nom.localeCompare(b.nom))
+            : (settings.staff || []).filter(s => {
+                const matchesSearch = `${s.nom} ${s.prenom} ${s.matricule}`.toLowerCase().includes(searchTerm.toLowerCase());
+                const matchesRole = filterRole === 'tous' || s.role === filterRole;
+                return matchesSearch && matchesRole;
+            }).sort((a, b) => a.nom.localeCompare(b.nom));
     }, [staffList, searchTerm, filterRole, session, cycles]);
 
     const generateStaffMatricule = () => {

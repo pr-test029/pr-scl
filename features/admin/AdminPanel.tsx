@@ -10,7 +10,8 @@ import {
     updateUserRole,
     getSchoolManagerPassword,
     UserProfile,
-    auth
+    auth,
+    deleteSchool
 } from '../../services/firebase';
 
 interface AdminPanelProps {
@@ -246,6 +247,21 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBack, userRole }) => {
         }
     };
 
+    // Supprimer une école (admin uniquement)
+    const handleDeleteSchool = async (school: any) => {
+        const confirmMsg = `Supprimer l'école "${school.name}" et toutes ses données associées ? Cette action est irréversible.`;
+        if (!window.confirm(confirmMsg)) return;
+        try {
+            setProcessing(true);
+            await deleteSchool(school.id);
+        } catch (error) {
+            console.error('Erreur lors de la suppression de l\'école:', error);
+            alert('Erreur lors de la suppression de l\'école. Voir la console pour plus de détails.');
+        } finally {
+            setProcessing(false);
+        }
+    };
+
     return (
         <div className="space-y-6 animate-fadeIn">
             {/* Header élégant */}
@@ -470,6 +486,16 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBack, userRole }) => {
                                                     >
                                                         +12M
                                                     </button>
+                                                    {/* Bouton suppression école - visible pour admin */}
+                                                    {checkIsAdmin(auth.currentUser?.email) && (
+                                                        <button
+                                                            onClick={() => handleDeleteSchool(school)}
+                                                            className="ml-2 px-2 py-1.5 bg-red-50 hover:bg-red-100 dark:bg-red-500/10 dark:hover:bg-red-500/20 text-red-600 dark:text-red-400 rounded-lg text-sm font-medium transition-all border border-red-200 dark:border-red-500/30 hover:shadow-sm"
+                                                            title="Supprimer l'école"
+                                                        >
+                                                            <i className="fas fa-trash" />
+                                                        </button>
+                                                    )}
                                                 </div>
                                             </td>
                                         </tr>
