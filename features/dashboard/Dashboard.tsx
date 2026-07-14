@@ -38,7 +38,16 @@ export const Dashboard: React.FC = () => {
   const balance = totalCollected - totalExpenses;
 
   const staffCount = settings.staff?.length || 0;
-
+  // Quick Overview Calculations
+  const totalCapacity = Object.values(cycles).reduce(
+    (acc, cycle) => acc + (cycle.classrooms?.reduce((cAcc, room) => cAcc + (room.capacity ?? 0), 0) ?? 0),
+    0,
+  );
+  const fillRate = totalCapacity ? Math.round((students.length / totalCapacity) * 100) : 0;
+  const notesCount = students.filter(s =>
+    grades.some(g => g.studentId === s.id && g.academic_year === settings.currentAcademicYear)
+  ).length;
+  const notesRate = students.length ? Math.round((notesCount / students.length) * 100) : 0;
   // Helper to parse dates from various formats (ISO or local fr-FR)
   const parsePaymentDate = (dateStr: string) => {
     if (!dateStr) return new Date();
@@ -225,7 +234,7 @@ export const Dashboard: React.FC = () => {
                             </div>
                             <span className="font-bold text-sm">Taux de remplissage</span>
                         </div>
-                        <span className="text-blue-600 font-black">78%</span>
+                        <span className="text-blue-600 font-black">{fillRate}%</span>
                     </div>
                     <div className="p-4 bg-gray-50 dark:bg-white/5 rounded-2xl border dark:border-white/10 flex items-center justify-between">
                         <div className="flex items-center gap-3">
@@ -234,7 +243,7 @@ export const Dashboard: React.FC = () => {
                             </div>
                             <span className="font-bold text-sm">Notes à jour</span>
                         </div>
-                        <span className="text-green-600 font-black">92%</span>
+                        <span className="text-green-600 font-black">{notesRate}%</span>
                     </div>
                 </div>
             </Card>
