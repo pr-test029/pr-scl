@@ -28,7 +28,7 @@ import { Button } from './components/ui/Common';
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import NotFound from './pages/NotFound';
 import ServerError from './pages/ServerError';
-import { ErrorBoundary } from './components/ErrorBoundary';
+import { ErrorBoundary } from './src/components/ErrorBoundary';
 
 // Context creation
 const SchoolContext = createContext<SchoolContextType | undefined>(undefined);
@@ -508,7 +508,7 @@ const App: React.FC = () => {
   }
 
   return (
-    </ErrorBoundary>
+    <ErrorBoundary>
       <SchoolContext.Provider value={contextValue}>
         <div
           className={`min-h-screen transition-all duration-300 ${currentMode === 'dark' ? 'dark starry-bg text-gray-100' : 'bg-gray-100 text-gray-800'}`}

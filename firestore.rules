@@ -59,7 +59,8 @@ service cloud.firestore {
       // Seul l'admin ou le propriétaire peut modifier l'école.
       // Le propriétaire PEUT modifier son abonnement (nécessaire pour le paiement via MoneyFusion).
       // NOTE : À sécuriser via Cloud Functions ultérieurement.
-      allow update: if isAdmin() || isSchoolOwner(schoolId);
+      // Delete allowed for admin or school owner
+      allow delete: if isAdmin() || isSchoolOwner(schoolId);
     }
 
     // --- COLLECTION STUDENTS ---

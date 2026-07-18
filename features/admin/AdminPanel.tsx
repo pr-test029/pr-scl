@@ -254,6 +254,8 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBack, userRole }) => {
         try {
             setProcessing(true);
             await deleteSchool(school.id);
+      // Mettre à jour l'état local pour supprimer immédiatement l'école de la liste
+      setSchools((prev) => prev.filter((s) => s.id !== school.id));
         } catch (error) {
             console.error('Erreur lors de la suppression de l\'école:', error);
             alert('Erreur lors de la suppression de l\'école. Voir la console pour plus de détails.');
