@@ -508,7 +508,7 @@ const App: React.FC = () => {
   }
 
   return (
-    <ErrorBoundary>
+    </ErrorBoundary>
       <SchoolContext.Provider value={contextValue}>
         <div
           className={`min-h-screen transition-all duration-300 ${currentMode === 'dark' ? 'dark starry-bg text-gray-100' : 'bg-gray-100 text-gray-800'}`}
