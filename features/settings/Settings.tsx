@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { Card, Input, Button, Select, Modal } from '../../components/ui/Common';
 import { useSchool } from '../../App';
 import { AppSettings, Cycle, Subject, Classroom, AppreciationRule, StaffMember, BulletinHeaderSettings } from '../../types';
@@ -837,15 +837,20 @@ const AccountingSettingsEditor: React.FC<{
 // --- Bulletin Header & Appreciation Rules Editor per Cycle ---
 
 const BulletinCycleEditor: React.FC<{ cycle: Cycle; onUpdateCycle: (c: Cycle) => void }> = ({ cycle, onUpdateCycle }) => {
-    const header = cycle.bulletinHeader || {};
-    const rules = header.appreciationRules || [];
+    // Keep a local copy of the bulletin header to allow free editing.
+    const initialHeader = cycle.bulletinHeader || {};
+    const [localHeader, setLocalHeader] = useState(() => ({ ...initialHeader }));
+    const rules = localHeader.appreciationRules || [];
     const [newRule, setNewRule] = useState<AppreciationRule>({ min: 0, max: 0, text: '' });
 
+    // Sync when the selected cycle changes (e.g., after Firestore fetch).
+    useEffect(() => {
+        setLocalHeader({ ...initialHeader });
+    }, [cycle.id, initialHeader]);
+
+    // Update a field locally; changes are persisted only when the user clicks "Enregistrer".
     const updateHeader = (field: string, value: string) => {
-        onUpdateCycle({
-            ...cycle,
-            bulletinHeader: { ...header, [field]: value }
-        });
+        setLocalHeader(prev => ({ ...prev, [field]: value }));
     };
 
     const addRule = () => {
@@ -854,19 +859,22 @@ const BulletinCycleEditor: React.FC<{ cycle: Cycle; onUpdateCycle: (c: Cycle) =>
             return;
         }
         const updatedRules = [...rules, newRule];
-        onUpdateCycle({
-            ...cycle,
-            bulletinHeader: { ...header, appreciationRules: updatedRules }
-        });
+        const updatedHeader = { ...localHeader, appreciationRules: updatedRules };
+        setLocalHeader(updatedHeader);
         setNewRule({ min: 0, max: 0, text: '' });
+    };
+
+    // Save button handler – envoie le header complet et affiche une alerte de succès
+    const handleSave = () => {
+        onUpdateCycle({ ...cycle, bulletinHeader: localHeader });
+        // Utilisez une alerte native ou un toast UI selon votre design ; ici on utilise alert pour la simplicité
+        alert('Enregistrement du bulletin réussi !');
     };
 
     const removeRule = (index: number) => {
         const updatedRules = rules.filter((_, i) => i !== index);
-        onUpdateCycle({
-            ...cycle,
-            bulletinHeader: { ...header, appreciationRules: updatedRules }
-        });
+        const updatedHeader = { ...localHeader, appreciationRules: updatedRules };
+        setLocalHeader(updatedHeader);
     };
 
     return (
@@ -879,16 +887,19 @@ const BulletinCycleEditor: React.FC<{ cycle: Cycle; onUpdateCycle: (c: Cycle) =>
                     Ces informations apparaîtront sur les bulletins des élèves de ce cycle. Si un champ est vide, la valeur globale des paramètres sera utilisée.
                 </p>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <Input label="République" value={header.republicName || ''} onChange={e => updateHeader('republicName', e.target.value)} placeholder="Ex: République du Congo" />
-                    <Input label="Devise" value={header.republicMotto || ''} onChange={e => updateHeader('republicMotto', e.target.value)} placeholder="Ex: Unité - Travail - Progrès" />
+                    <Input label="République" value={localHeader.republicName || ''} onChange={e => updateHeader('republicName', e.target.value)} placeholder="Ex: République du Congo" />
+                    <Input label="Devise" value={localHeader.republicMotto || ''} onChange={e => updateHeader('republicMotto', e.target.value)} placeholder="Ex: Unité - Travail - Progrès" />
                 </div>
-                <Input label="Ministère" value={header.ministryName || ''} onChange={e => updateHeader('ministryName', e.target.value)} placeholder="Ex: Ministère de l'Enseignement..." />
-                <Input label="Direction Départementale" value={header.departmentalDirection || ''} onChange={e => updateHeader('departmentalDirection', e.target.value)} />
-                <Input label="Inspection" value={header.inspectionName || ''} onChange={e => updateHeader('inspectionName', e.target.value)} />
+                <Input label="Ministère" value={localHeader.ministryName || ''} onChange={e => updateHeader('ministryName', e.target.value)} placeholder="Ex: Ministère de l'Enseignement..." />
+                <Input label="Direction Départementale" value={localHeader.departmentalDirection || ''} onChange={e => updateHeader('departmentalDirection', e.target.value)} />
+                <Input label="Inspection" value={localHeader.inspectionName || ''} onChange={e => updateHeader('inspectionName', e.target.value)} />
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <Input label="Lieu de l'école" value={header.schoolLocation || ''} onChange={e => updateHeader('schoolLocation', e.target.value)} placeholder="Ex: Brazzaville" />
-                    <Input label="Devise de l'école" value={header.schoolMotto || ''} onChange={e => updateHeader('schoolMotto', e.target.value)} placeholder="Ex: L'excellence pour tous" />
+                    <Input label="Lieu de l'école" value={localHeader.schoolLocation || ''} onChange={e => updateHeader('schoolLocation', e.target.value)} placeholder="Ex: Brazzaville" />
+                    <Input label="Devise de l'école" value={localHeader.schoolMotto || ''} onChange={e => updateHeader('schoolMotto', e.target.value)} placeholder="Ex: L'excellence pour tous" />
                 </div>
+                <Button onClick={handleSave} variant="primary" className="mt-4">
+                    Enregistrer les modifications du bulletin
+                </Button>
             </div>
 
             <div className="bg-amber-50/50 dark:bg-white/5 p-6 rounded-2xl border border-amber-100 dark:border-white/10 space-y-4">
