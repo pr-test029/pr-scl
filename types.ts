@@ -1,4 +1,6 @@
 
+export type SubscriptionPlan = 'monthly' | 'quarterly' | 'annual';
+
 export interface Student {
   id: string;
   matricule: string; // ID unique alphanumérique
@@ -162,6 +164,9 @@ export type View = 'dashboard' | 'students' | 'inscription' | 'settings' | 'admi
 
 // Nouveau type pour la session utilisateur
 export interface UserSession {
+  subscriptionPlan?: SubscriptionPlan;
+  subscriptionStatus?: 'inactive' | 'active' | 'canceled';
+  subscriptionExpiresAt?: string;
   user_id: string;
   email: string | null;
   display_name: string | null;

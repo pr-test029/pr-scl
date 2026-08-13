@@ -29,6 +29,8 @@ import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import NotFound from './pages/NotFound';
 import ServerError from './pages/ServerError';
 import { ErrorBoundary } from './src/components/ErrorBoundary';
+import { NetworkStatusIndicator } from './components/NetworkStatusIndicator';
+import { registerBackgroundSync } from './services/syncService';
 
 // Context creation
 const SchoolContext = createContext<SchoolContextType | undefined>(undefined);
@@ -71,6 +73,7 @@ const App: React.FC = () => {
 
   // Network Status
   useEffect(() => {
+    registerBackgroundSync();
     const handleOnline = () => setIsOffline(false);
     const handleOffline = () => setIsOffline(true);
     window.addEventListener('online', handleOnline);
@@ -514,6 +517,7 @@ const App: React.FC = () => {
           className={`min-h-screen transition-all duration-300 ${currentMode === 'dark' ? 'dark starry-bg text-gray-100' : 'bg-gray-100 text-gray-800'}`}
           style={themeStyles}
         >
+          <NetworkStatusIndicator />
           <SubscriptionGuard school={school} isAdmin={isAdmin}>
             <div className="flex flex-col md:flex-row font-sans min-h-screen relative z-10">
 

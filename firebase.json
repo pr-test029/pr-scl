@@ -9,5 +9,8 @@
     "providers": {
       "emailPassword": true
     }
+  },
+  "functions": {
+    "source": "functions"
   }
 }

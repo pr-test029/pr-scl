@@ -33,6 +33,7 @@ import {
 } from "firebase/firestore";
 import { Student, Grade, AppSettings, Cycle, Subject, UserSession, School, Payment, Expense } from '../types';
 import { INITIAL_CYCLES, INITIAL_SUBJECTS, INITIAL_SETTINGS } from '../constants';
+import { cacheData, getCachedData, enqueueMutation } from './offlineStore';
 
 // --- CONFIGURATION FIREBASE RÉELLE ---
 const firebaseConfig = {
@@ -470,6 +471,13 @@ export const fetchStudents = async (academicYear?: string): Promise<Student[]> =
 };
 
 export const subscribeToStudents = (schoolId: string, academicYear: string, callback: (students: Student[]) => void): (() => void) => {
+  const cacheKey = `students_${schoolId}_${academicYear}`;
+  
+  // Provide cached data first if available for instant display
+  getCachedData<Student[]>(cacheKey).then(cached => {
+    if (cached && cached.length > 0) callback(cached);
+  });
+
   const constraints: any[] = [where("school_id", "==", schoolId)];
   if (academicYear) {
     constraints.push(where("academic_year", "==", academicYear));
@@ -477,9 +485,12 @@ export const subscribeToStudents = (schoolId: string, academicYear: string, call
   const q = query(collection(db, "students"), ...constraints);
   return onSnapshot(q, (snapshot) => {
     const students = snapshot.docs.map(doc => doc.data() as Student);
+    cacheData(cacheKey, students);
     callback(students);
-  }, (error) => {
-    console.error("subscribeToStudents Error:", error);
+  }, async (error) => {
+    console.warn("subscribeToStudents network error, falling back to cache:", error);
+    const cached = await getCachedData<Student[]>(cacheKey);
+    if (cached) callback(cached);
   });
 };
 
@@ -490,22 +501,41 @@ export const addStudentDB = async (student: Student) => {
         return;
     }
     const docId = `${schoolId}_${student.academic_year}_${student.id}`;
-    const dataToSave = {
+    const dataToSave = cleanData({
         ...student,
         school_id: schoolId,
         id: student.id
-    };
+    });
+
+    if (!navigator.onLine) {
+        await enqueueMutation({
+            type: 'CREATE',
+            collectionName: 'students',
+            docId,
+            data: dataToSave,
+            schoolId
+        });
+        return;
+    }
 
     try {
-        await setDoc(doc(db, "students", docId), cleanData(dataToSave));
+        await setDoc(doc(db, "students", docId), dataToSave);
     } catch (error: any) {
-        // Si l'erreur est liée à la taille du document (limite Firestore de 1Mo)
+        if (!navigator.onLine || error.code === 'unavailable' || error.message?.includes('network')) {
+            await enqueueMutation({
+                type: 'CREATE',
+                collectionName: 'students',
+                docId,
+                data: dataToSave,
+                schoolId
+            });
+            return;
+        }
+
         if (error.code === 'invalid-argument' || error.message?.includes('too large') || error.code === 'resource-exhausted') {
             console.warn("Données d'élève trop volumineuses (probablement la photo), tentative d'enregistrement sans la photo...");
-            
             const fallbackData = { ...dataToSave };
             delete fallbackData.photo;
-            
             try {
                 await setDoc(doc(db, "students", docId), cleanData(fallbackData));
                 alert("Attention : La photo était trop volumineuse et n'a pas été enregistrée. L'élève a tout de même été enregistré sans sa photo.");
@@ -524,9 +554,33 @@ export const updateStudentDB = async (student: Student) => {
     const schoolId = await ensureSchoolId();
     if (!schoolId) return;
     const docId = `${schoolId}_${student.academic_year}_${student.id}`;
+    const dataToSave = cleanData(student);
+
+    if (!navigator.onLine) {
+        await enqueueMutation({
+            type: 'UPDATE',
+            collectionName: 'students',
+            docId,
+            data: dataToSave,
+            schoolId
+        });
+        return;
+    }
+
     try {
-        await updateDoc(doc(db, "students", docId), cleanData(student));
+        await updateDoc(doc(db, "students", docId), dataToSave);
     } catch (error: any) {
+        if (!navigator.onLine || error.code === 'unavailable' || error.message?.includes('network')) {
+            await enqueueMutation({
+                type: 'UPDATE',
+                collectionName: 'students',
+                docId,
+                data: dataToSave,
+                schoolId
+            });
+            return;
+        }
+
         if (error.code === 'invalid-argument' || error.message?.includes('too large') || error.code === 'resource-exhausted') {
             console.warn("Mise à jour trop volumineuse, tentative sans la photo...");
             const fallbackData = { ...student };
@@ -547,7 +601,31 @@ export const deleteStudentDB = async (id: string, academicYear: string) => {
     const schoolId = await ensureSchoolId();
     if (!schoolId) return;
     const docId = `${schoolId}_${id}`;
-    await deleteDoc(doc(db, "students", docId));
+
+    if (!navigator.onLine) {
+        await enqueueMutation({
+            type: 'DELETE',
+            collectionName: 'students',
+            docId,
+            schoolId
+        });
+        return;
+    }
+
+    try {
+        await deleteDoc(doc(db, "students", docId));
+    } catch (error: any) {
+        if (!navigator.onLine || error.code === 'unavailable' || error.message?.includes('network')) {
+            await enqueueMutation({
+                type: 'DELETE',
+                collectionName: 'students',
+                docId,
+                schoolId
+            });
+        } else {
+            throw error;
+        }
+    }
 };
 
 // --- API GRADES ---
@@ -573,6 +651,12 @@ export const fetchGrades = async (academicYear?: string): Promise<Grade[]> => {
 };
 
 export const subscribeToGrades = (schoolId: string, academicYear: string, callback: (grades: Grade[]) => void): (() => void) => {
+  const cacheKey = `grades_${schoolId}_${academicYear}`;
+  
+  getCachedData<Grade[]>(cacheKey).then(cached => {
+    if (cached && cached.length > 0) callback(cached);
+  });
+
   const constraints: any[] = [where("school_id", "==", schoolId)];
   if (academicYear) {
     constraints.push(where("academic_year", "==", academicYear));
@@ -580,9 +664,12 @@ export const subscribeToGrades = (schoolId: string, academicYear: string, callba
   const q = query(collection(db, "grades"), ...constraints);
   return onSnapshot(q, (snapshot) => {
     const grades = snapshot.docs.map(doc => doc.data() as Grade);
+    cacheData(cacheKey, grades);
     callback(grades);
-  }, (error) => {
-    console.error("subscribeToGrades Error:", error);
+  }, async (error) => {
+    console.warn("subscribeToGrades network error, falling back to cache:", error);
+    const cached = await getCachedData<Grade[]>(cacheKey);
+    if (cached) callback(cached);
   });
 };
 
@@ -592,17 +679,39 @@ export const addGradeDB = async (grade: Grade) => {
         console.warn("addGradeDB: No schoolId found");
         return;
     }
+    const docId = `${schoolId}_${grade.academic_year}_${grade.id}`;
+    const dataToSave = cleanData({
+        ...grade,
+        school_id: schoolId,
+        id: grade.id
+    });
+
+    if (!navigator.onLine) {
+        await enqueueMutation({
+            type: 'CREATE',
+            collectionName: 'grades',
+            docId,
+            data: dataToSave,
+            schoolId
+        });
+        return;
+    }
+
     try {
-        const docId = `${schoolId}_${grade.academic_year}_${grade.id}`;
-        const dataToSave = {
-            ...grade,
-            school_id: schoolId,
-            id: grade.id
-        };
-        await setDoc(doc(db, "grades", docId), cleanData(dataToSave));
-    } catch (error) {
-        console.error("addGradeDB Error:", error);
-        throw error;
+        await setDoc(doc(db, "grades", docId), dataToSave);
+    } catch (error: any) {
+        if (!navigator.onLine || error.code === 'unavailable' || error.message?.includes('network')) {
+            await enqueueMutation({
+                type: 'CREATE',
+                collectionName: 'grades',
+                docId,
+                data: dataToSave,
+                schoolId
+            });
+        } else {
+            console.error("addGradeDB Error:", error);
+            throw error;
+        }
     }
 };
 
@@ -610,14 +719,65 @@ export const updateGradeDB = async (grade: Grade) => {
     const schoolId = await ensureSchoolId();
     if (!schoolId) return;
     const docId = `${schoolId}_${grade.academic_year}_${grade.id}`;
-    await updateDoc(doc(db, "grades", docId), cleanData(grade));
+    const dataToSave = cleanData(grade);
+
+    if (!navigator.onLine) {
+        await enqueueMutation({
+            type: 'UPDATE',
+            collectionName: 'grades',
+            docId,
+            data: dataToSave,
+            schoolId
+        });
+        return;
+    }
+
+    try {
+        await updateDoc(doc(db, "grades", docId), dataToSave);
+    } catch (error: any) {
+        if (!navigator.onLine || error.code === 'unavailable' || error.message?.includes('network')) {
+            await enqueueMutation({
+                type: 'UPDATE',
+                collectionName: 'grades',
+                docId,
+                data: dataToSave,
+                schoolId
+            });
+        } else {
+            throw error;
+        }
+    }
 };
 
 export const deleteGradeDB = async (id: string, academicYear: string) => {
     const schoolId = await ensureSchoolId();
     if (!schoolId) return;
     const docId = `${schoolId}_${id}`;
-    await deleteDoc(doc(db, "grades", docId));
+
+    if (!navigator.onLine) {
+        await enqueueMutation({
+            type: 'DELETE',
+            collectionName: 'grades',
+            docId,
+            schoolId
+        });
+        return;
+    }
+
+    try {
+        await deleteDoc(doc(db, "grades", docId));
+    } catch (error: any) {
+        if (!navigator.onLine || error.code === 'unavailable' || error.message?.includes('network')) {
+            await enqueueMutation({
+                type: 'DELETE',
+                collectionName: 'grades',
+                docId,
+                schoolId
+            });
+        } else {
+            throw error;
+        }
+    }
 };
 
 // --- API CONFIG ---
@@ -625,44 +785,76 @@ export const deleteGradeDB = async (id: string, academicYear: string) => {
 const fetchConfig = async <T>(key: string, defaultValue: T): Promise<T> => {
     const schoolId = await ensureSchoolId();
     if (!schoolId) return defaultValue;
+    const cacheKey = `config_${schoolId}_${key}`;
     try {
         const docRef = doc(db, "app_config", `${schoolId}_${key}`);
         const docSnap = await getDoc(docRef);
         if (docSnap.exists()) {
-            console.log(`fetchConfig: Loaded ${key} for school ${schoolId}`);
-            return docSnap.data().data as T;
+            const data = docSnap.data().data as T;
+            cacheData(cacheKey, data);
+            return data;
         }
         return defaultValue;
     } catch (error) {
-        console.error(`fetchConfig Error (${key}):`, error);
-        return defaultValue;
+        console.warn(`fetchConfig Error (${key}), trying local cache:`, error);
+        const cached = await getCachedData<T>(cacheKey);
+        return cached !== null ? cached : defaultValue;
     }
 };
 
 const saveConfig = async (key: string, data: any) => {
     const schoolId = await ensureSchoolId();
     if (!schoolId) return;
+    const cacheKey = `config_${schoolId}_${key}`;
+    const docId = `${schoolId}_${key}`;
+    const cleaned = cleanData(data);
+    cacheData(cacheKey, cleaned);
+
+    if (!navigator.onLine) {
+        await enqueueMutation({
+            type: 'UPDATE',
+            collectionName: 'app_config',
+            docId,
+            data: { school_id: schoolId, key, data: cleaned },
+            schoolId
+        });
+        return;
+    }
+
     try {
-        const docRef = doc(db, "app_config", `${schoolId}_${key}`);
-        await setDoc(docRef, { school_id: schoolId, key, data: cleanData(data) });
-        console.log(`saveConfig: Saved ${key} for school ${schoolId}`);
-    } catch (error) {
-        console.error(`saveConfig Error (${key}):`, error);
-        throw error;
+        const docRef = doc(db, "app_config", docId);
+        await setDoc(docRef, { school_id: schoolId, key, data: cleaned });
+    } catch (error: any) {
+        if (!navigator.onLine || error.code === 'unavailable' || error.message?.includes('network')) {
+            await enqueueMutation({
+                type: 'UPDATE',
+                collectionName: 'app_config',
+                docId,
+                data: { school_id: schoolId, key, data: cleaned },
+                schoolId
+            });
+        } else {
+            console.error(`saveConfig Error (${key}):`, error);
+            throw error;
+        }
     }
 };
 
 export const fetchSettingsBySchoolId = async (schoolId: string): Promise<AppSettings> => {
+    const cacheKey = `config_${schoolId}_settings`;
     try {
         const docRef = doc(db, "app_config", `${schoolId}_settings`);
         const docSnap = await getDoc(docRef);
         if (docSnap.exists()) {
-            return docSnap.data().data as AppSettings;
+            const data = docSnap.data().data as AppSettings;
+            cacheData(cacheKey, data);
+            return data;
         }
         return INITIAL_SETTINGS;
     } catch (error) {
-        console.error("fetchSettingsBySchoolId Error:", error);
-        return INITIAL_SETTINGS;
+        console.warn("fetchSettingsBySchoolId Error, trying local cache:", error);
+        const cached = await getCachedData<AppSettings>(cacheKey);
+        return cached || INITIAL_SETTINGS;
     }
 };
 
@@ -674,15 +866,25 @@ export const fetchSubjects = () => fetchConfig<Record<string, Subject[]>>('subje
 export const saveSubjectsDB = (subjects: Record<string, Subject[]>) => saveConfig('subjects', subjects);
 
 export const subscribeToConfig = <T>(schoolId: string, key: string, defaultValue: T, callback: (data: T) => void): (() => void) => {
+    const cacheKey = `config_${schoolId}_${key}`;
+
+    getCachedData<T>(cacheKey).then(cached => {
+        if (cached !== null) callback(cached);
+    });
+
     const docRef = doc(db, "app_config", `${schoolId}_${key}`);
     return onSnapshot(docRef, (snap) => {
         if (snap.exists()) {
-            callback(snap.data().data as T);
+            const data = snap.data().data as T;
+            cacheData(cacheKey, data);
+            callback(data);
         } else {
             callback(defaultValue);
         }
-    }, (error) => {
-        console.error(`subscribeToConfig Error (${key}):`, error);
+    }, async (error) => {
+        console.warn(`subscribeToConfig Error (${key}), falling back to cache:`, error);
+        const cached = await getCachedData<T>(cacheKey);
+        if (cached !== null) callback(cached);
     });
 };
 
