@@ -964,6 +964,13 @@ export const fetchPayments = async (academicYear: string): Promise<Payment[]> =>
 };
 
 export const subscribeToPayments = (schoolId: string, academicYear: string, callback: (payments: Payment[]) => void): (() => void) => {
+  const cacheKey = `payments_${schoolId}_${academicYear}`;
+  
+  // Stale-While-Revalidate: Provide cached data immediately
+  getCachedData<Payment[]>(cacheKey).then(cached => {
+    if (cached && cached.length > 0) callback(cached);
+  });
+
   const constraints: any[] = [where("school_id", "==", schoolId)];
   if (academicYear) {
     constraints.push(where("academic_year", "==", academicYear));
@@ -971,23 +978,42 @@ export const subscribeToPayments = (schoolId: string, academicYear: string, call
   const q = query(collection(db, "payments"), ...constraints);
   return onSnapshot(q, (snapshot) => {
     const payments = snapshot.docs.map(doc => doc.data() as Payment);
+    cacheData(cacheKey, payments);
     callback(payments);
-  }, (error) => {
-    console.error("subscribeToPayments Error:", error);
+  }, async (error) => {
+    console.warn("subscribeToPayments network error, falling back to cache:", error);
+    const cached = await getCachedData<Payment[]>(cacheKey);
+    if (cached) callback(cached);
   });
 };
 
 export const addPaymentDB = async (payment: Payment) => {
     const schoolId = await ensureSchoolId();
     if (!schoolId) return;
+    const docId = `${schoolId}_${payment.academic_year}_${payment.id}`;
+    const dataToSave = cleanData({
+        ...payment,
+        school_id: schoolId,
+        id: payment.id
+    });
+
+    if (!navigator.onLine) {
+        await enqueueMutation({
+            type: 'CREATE',
+            collectionName: 'payments',
+            docId,
+            data: dataToSave,
+            schoolId
+        });
+        const cacheKey = `payments_${schoolId}_${payment.academic_year}`;
+        const cached = (await getCachedData<Payment[]>(cacheKey)) || [];
+        cached.push(dataToSave as Payment);
+        await cacheData(cacheKey, cached);
+        return;
+    }
+
     try {
-        const docId = `${schoolId}_${payment.academic_year}_${payment.id}`;
-        const dataToSave = {
-            ...payment,
-            school_id: schoolId,
-            id: payment.id
-        };
-        await setDoc(doc(db, "payments", docId), cleanData(dataToSave));
+        await setDoc(doc(db, "payments", docId), dataToSave);
         
         // Update student totalPaid
         const studentDocId = `${schoolId}_${payment.studentId}`;
@@ -998,9 +1024,23 @@ export const addPaymentDB = async (payment: Payment) => {
                 totalPaid: currentTotal + payment.amount
             });
         }
-    } catch (error) {
-        console.error("addPaymentDB Error:", error);
-        throw error;
+    } catch (error: any) {
+        if (!navigator.onLine || error.code === 'unavailable' || error.message?.includes('network')) {
+            await enqueueMutation({
+                type: 'CREATE',
+                collectionName: 'payments',
+                docId,
+                data: dataToSave,
+                schoolId
+            });
+            const cacheKey = `payments_${schoolId}_${payment.academic_year}`;
+            const cached = (await getCachedData<Payment[]>(cacheKey)) || [];
+            cached.push(dataToSave as Payment);
+            await cacheData(cacheKey, cached);
+        } else {
+            console.error("addPaymentDB Error:", error);
+            throw error;
+        }
     }
 };
 
@@ -1179,58 +1219,149 @@ export const subscribeToUserProfiles = (callback: (profiles: UserProfile[]) => v
 
 
 export const subscribeToExpenses = (schoolId: string, academicYear: string, callback: (expenses: Expense[]) => void): (() => void) => {
+    const cacheKey = `expenses_${schoolId}_${academicYear}`;
+    
+    // Stale-While-Revalidate: Provide cached data immediately
+    getCachedData<Expense[]>(cacheKey).then(cached => {
+        if (cached && cached.length > 0) callback(cached);
+    });
+
     const q = query(collection(db, "expenses"), where("school_id", "==", schoolId), where("academic_year", "==", academicYear));
     return onSnapshot(q, (snapshot) => {
         const expenses = snapshot.docs.map(doc => doc.data() as Expense);
+        cacheData(cacheKey, expenses);
         callback(expenses);
-    }, (error) => {
-        console.error("subscribeToExpenses Error:", error);
+    }, async (error) => {
+        console.warn("subscribeToExpenses network error, falling back to cache:", error);
+        const cached = await getCachedData<Expense[]>(cacheKey);
+        if (cached) callback(cached);
     });
 };
 
 export const addExpenseDB = async (expense: Expense) => {
     const schoolId = await ensureSchoolId();
     if (!schoolId) return;
+    const docId = `${schoolId}_${expense.academic_year}_${expense.id}`;
+    const dataToSave = cleanData({
+        ...expense,
+        school_id: schoolId,
+        id: expense.id
+    });
+
+    if (!navigator.onLine) {
+        await enqueueMutation({
+            type: 'CREATE',
+            collectionName: 'expenses',
+            docId,
+            data: dataToSave,
+            schoolId
+        });
+        const cacheKey = `expenses_${schoolId}_${expense.academic_year}`;
+        const cached = (await getCachedData<Expense[]>(cacheKey)) || [];
+        cached.push(dataToSave as Expense);
+        await cacheData(cacheKey, cached);
+        return;
+    }
+
     try {
-        const docId = `${schoolId}_${expense.academic_year}_${expense.id}`;
-        const dataToSave = {
-            ...expense,
-            school_id: schoolId,
-            id: expense.id
-        };
-        await setDoc(doc(db, "expenses", docId), cleanData(dataToSave));
-    } catch (error) {
-        console.error("addExpenseDB Error:", error);
-        throw error;
+        await setDoc(doc(db, "expenses", docId), dataToSave);
+    } catch (error: any) {
+        if (!navigator.onLine || error.code === 'unavailable' || error.message?.includes('network')) {
+            await enqueueMutation({
+                type: 'CREATE',
+                collectionName: 'expenses',
+                docId,
+                data: dataToSave,
+                schoolId
+            });
+            const cacheKey = `expenses_${schoolId}_${expense.academic_year}`;
+            const cached = (await getCachedData<Expense[]>(cacheKey)) || [];
+            cached.push(dataToSave as Expense);
+            await cacheData(cacheKey, cached);
+        } else {
+            console.error("addExpenseDB Error:", error);
+            throw error;
+        }
     }
 };
 
 export const updateExpenseDB = async (expense: Expense) => {
     const schoolId = await ensureSchoolId();
     if (!schoolId) return;
+    const docId = `${schoolId}_${expense.academic_year}_${expense.id}`;
+    const dataToSave = cleanData({
+        ...expense,
+        school_id: schoolId,
+        id: expense.id
+    });
+
+    if (!navigator.onLine) {
+        await enqueueMutation({
+            type: 'UPDATE',
+            collectionName: 'expenses',
+            docId,
+            data: dataToSave,
+            schoolId
+        });
+        const cacheKey = `expenses_${schoolId}_${expense.academic_year}`;
+        const cached = (await getCachedData<Expense[]>(cacheKey)) || [];
+        const idx = cached.findIndex(e => e.id === expense.id);
+        if (idx >= 0) cached[idx] = dataToSave as Expense;
+        await cacheData(cacheKey, cached);
+        return;
+    }
+
     try {
-        const docId = `${schoolId}_${expense.academic_year}_${expense.id}`;
-        const dataToSave = {
-            ...expense,
-            school_id: schoolId,
-            id: expense.id
-        };
-        await updateDoc(doc(db, "expenses", docId), cleanData(dataToSave));
-    } catch (error) {
-        console.error("updateExpenseDB Error:", error);
-        throw error;
+        await updateDoc(doc(db, "expenses", docId), dataToSave);
+    } catch (error: any) {
+        if (!navigator.onLine || error.code === 'unavailable' || error.message?.includes('network')) {
+            await enqueueMutation({
+                type: 'UPDATE',
+                collectionName: 'expenses',
+                docId,
+                data: dataToSave,
+                schoolId
+            });
+        } else {
+            console.error("updateExpenseDB Error:", error);
+            throw error;
+        }
     }
 };
 
 export const deleteExpenseDB = async (id: string, academicYear: string) => {
     const schoolId = await ensureSchoolId();
     if (!schoolId) return;
+    const docId = `${schoolId}_${academicYear}_${id}`;
+
+    if (!navigator.onLine) {
+        await enqueueMutation({
+            type: 'DELETE',
+            collectionName: 'expenses',
+            docId,
+            schoolId
+        });
+        const cacheKey = `expenses_${schoolId}_${academicYear}`;
+        const cached = (await getCachedData<Expense[]>(cacheKey)) || [];
+        const updated = cached.filter(e => e.id !== id);
+        await cacheData(cacheKey, updated);
+        return;
+    }
+
     try {
-        const docId = `${schoolId}_${academicYear}_${id}`;
         await deleteDoc(doc(db, "expenses", docId));
-    } catch (error) {
-        console.error("deleteExpenseDB Error:", error);
-        throw error;
+    } catch (error: any) {
+        if (!navigator.onLine || error.code === 'unavailable' || error.message?.includes('network')) {
+            await enqueueMutation({
+                type: 'DELETE',
+                collectionName: 'expenses',
+                docId,
+                schoolId
+            });
+        } else {
+            console.error("deleteExpenseDB Error:", error);
+            throw error;
+        }
     }
 };
 
