@@ -45,6 +45,19 @@ export const Accounting: React.FC = () => {
         });
     }, [students, searchQuery, selectedCycle, selectedClass]);
 
+    const getStudentAnnualFee = (student: Student) => {
+        const fullClassName = student.serie ? `${student.classe} ${student.serie}` : student.classe;
+        const monthlyFee = settings.accounting?.classFees[fullClassName] || 0;
+        return monthlyFee * 9;
+    };
+
+    const getStudentTotalPaid = (studentId: string, baseTotalPaid: number = 0) => {
+        const sumPayments = payments
+            .filter(p => p.studentId === studentId)
+            .reduce((acc, p) => acc + (p.amount || 0), 0);
+        return Math.max(baseTotalPaid, sumPayments);
+    };
+
     // Financial Stats
     const stats = useMemo(() => {
         let totalExpected = 0;
@@ -54,27 +67,21 @@ export const Accounting: React.FC = () => {
         let totalReInscriptions = 0;
 
         const regFee = settings.accounting?.registrationFee || 0;
-        // const reRegFee = settings.accounting?.reRegistrationFee || 0;
 
         students.forEach(s => {
-            const fullClassName = s.serie ? `${s.classe} ${s.serie}` : s.classe;
-            const monthlyFee = settings.accounting?.classFees[fullClassName] || 0;
-            const annualFee = monthlyFee * 9;
-            totalExpected += annualFee + regFee; // We assume regFee is expected for everyone
-            
-            // Check if this student has a recorded registration payment
-            const hasRegPayment = payments.some(p => p.studentId === s.id && p.notes?.toLowerCase().includes("inscription"));
-            
-            if (!hasRegPayment) {
-                // Retroactively simulate that existing students paid their registration fee
-                totalInscriptions += regFee;
-                totalCollected += regFee;
-            }
+            const annualFee = getStudentAnnualFee(s);
+            totalExpected += annualFee + regFee;
+            const paid = getStudentTotalPaid(s.id, s.totalPaid || 0);
+            totalCollected += paid;
+        });
+
+        // Add diverse encashments (studentId === 'divers')
+        payments.filter(p => p.studentId === 'divers').forEach(p => {
+            totalCollected += p.amount;
         });
 
         payments.forEach(p => {
-            totalCollected += p.amount;
-            if (p.notes?.toLowerCase().includes("frais d'inscription")) {
+            if (p.notes?.toLowerCase().includes("frais d'inscription") || p.notes?.toLowerCase().includes("inscription")) {
                 totalInscriptions += p.amount;
             } else if (p.notes?.toLowerCase().includes("réinscription")) {
                 totalReInscriptions += p.amount;
@@ -85,14 +92,17 @@ export const Accounting: React.FC = () => {
             totalExpenses += (e.amount || 0);
         });
 
-        const collectionRate = totalExpected > 0 ? (totalCollected / totalExpected) * 100 : 0;
+        const totalRemaining = Math.max(0, totalExpected - totalCollected);
+        const collectionRate = totalExpected > 0 ? Math.min(100, Math.round((totalCollected / totalExpected) * 100)) : 0;
+        const remainingRate = 100 - collectionRate;
         const balance = totalCollected - totalExpenses;
         
         return {
             totalExpected,
             totalCollected,
-            totalRemaining: totalExpected - totalCollected,
-            collectionRate: Math.round(collectionRate),
+            totalRemaining,
+            collectionRate,
+            remainingRate,
             totalExpenses,
             balance,
             totalInscriptions,
@@ -100,28 +110,42 @@ export const Accounting: React.FC = () => {
         };
     }, [students, payments, expenses, settings.accounting]);
 
-    const getStudentAnnualFee = (student: Student) => {
-        const fullClassName = student.serie ? `${student.classe} ${student.serie}` : student.classe;
-        const monthlyFee = settings.accounting?.classFees[fullClassName] || 0;
-        return monthlyFee * 9;
-    };
+    // Live Student & Stats for Modal
+    const currentStudent = useMemo(() => {
+        if (!selectedStudent) return null;
+        return students.find(s => s.id === selectedStudent.id) || selectedStudent;
+    }, [students, selectedStudent]);
+
+    const currentStudentStats = useMemo(() => {
+        if (!currentStudent) return { annualFee: 0, monthlyFee: 0, paidAmount: 0, remainingAmount: 0, progressPercent: 0 };
+        const annualFee = getStudentAnnualFee(currentStudent);
+        const monthlyFee = annualFee / 9;
+        const paidAmount = getStudentTotalPaid(currentStudent.id, currentStudent.totalPaid || 0);
+        const remainingAmount = Math.max(0, annualFee - paidAmount);
+        const progressPercent = annualFee > 0 ? Math.min(100, Math.round((paidAmount / annualFee) * 100)) : 0;
+
+        return {
+            annualFee,
+            monthlyFee,
+            paidAmount,
+            remainingAmount,
+            progressPercent
+        };
+    }, [currentStudent, payments, settings.accounting]);
 
     const handleRecordPayment = () => {
-        if (!selectedStudent || paymentAmount <= 0) return;
+        if (!currentStudent || paymentAmount <= 0) return;
         
-        const fullClassName = selectedStudent.serie ? `${selectedStudent.classe} ${selectedStudent.serie}` : selectedStudent.classe;
-        const monthlyFee = settings.accounting?.classFees[fullClassName] || 0;
-        const annualFee = monthlyFee * 9;
-        const remaining = annualFee - (selectedStudent.totalPaid || 0);
+        const remaining = currentStudentStats.remainingAmount;
 
-        if (paymentAmount > remaining) {
-            alert(`Le montant dépasse le solde annuel restant (${remaining} FCFA).`);
+        if (currentStudentStats.annualFee > 0 && paymentAmount > remaining) {
+            alert(`Le montant dépasse le solde annuel restant (${remaining.toLocaleString()} FCFA).`);
             return;
         }
 
         const p: Payment = {
             id: Date.now().toString(),
-            studentId: selectedStudent.id,
+            studentId: currentStudent.id,
             academic_year: selectedAcademicYear,
             amount: paymentAmount,
             date: new Date().toISOString(),
@@ -132,7 +156,6 @@ export const Accounting: React.FC = () => {
         };
 
         addPayment(p);
-        setIsPaymentModalOpen(false);
         setPaymentAmount(0);
         setPaymentNotes('');
         alert("Paiement enregistré avec succès !");
@@ -212,21 +235,36 @@ export const Accounting: React.FC = () => {
             <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
                 <Card className="lg:col-span-4">
                     <div className="flex flex-col md:flex-row items-center gap-8 p-4">
-                        <div className="relative w-40 h-40">
+                        <div className="relative w-44 h-44 flex-shrink-0 flex items-center justify-center">
                             {/* SVG Doughnut Chart */}
                             <svg viewBox="0 0 36 36" className="w-full h-full transform -rotate-90">
-                                <circle cx="18" cy="18" r="15.915" fill="transparent" stroke="#e2e8f0" strokeWidth="3" />
+                                {/* Track circle for Reste à Recouvrer (Purple/Rose) */}
+                                <circle 
+                                    cx="18" cy="18" r="15.915" 
+                                    fill="transparent" 
+                                    stroke="#f43f5e" 
+                                    strokeWidth="3.5" 
+                                    className="dark:stroke-rose-900/50 opacity-40"
+                                />
+                                {/* Progress circle for Encaissé (Emerald Green / Primary) */}
                                 <circle 
                                     cx="18" cy="18" r="15.915" fill="transparent" 
-                                    stroke="var(--primary-color)" strokeWidth="3" 
+                                    stroke="var(--primary-color, #10b981)" strokeWidth="3.5" 
                                     strokeDasharray={`${stats.collectionRate} ${100 - stats.collectionRate}`}
                                     strokeDashoffset="0"
+                                    strokeLinecap="round"
                                     className="transition-all duration-1000 ease-out"
                                 />
-                                <text x="18" y="20.5" textAnchor="middle" className="text-[6px] font-bold fill-gray-800 dark:fill-white transform rotate-90" style={{ transformOrigin: '18px 18px' }}>
-                                    {stats.collectionRate}%
-                                </text>
                             </svg>
+                            <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
+                                <span className="text-2xl font-black text-gray-800 dark:text-white">
+                                    {stats.collectionRate}%
+                                </span>
+                                <span className="text-[9px] uppercase font-bold text-emerald-600 dark:text-emerald-400 tracking-wider">Recouvré</span>
+                                <span className="text-[8px] font-semibold text-rose-500 dark:text-rose-400 mt-0.5">
+                                    {stats.remainingRate}% à recouvrer
+                                </span>
+                            </div>
                         </div>
                         <div className="flex-1 space-y-4 w-full">
                             <h3 className="text-xl font-bold dark:text-white">Santé Financière Globale</h3>
@@ -343,9 +381,9 @@ export const Accounting: React.FC = () => {
                                 <tbody className="bg-white dark:bg-transparent divide-y divide-gray-200 dark:divide-white/10">
                                     {filteredStudents.map(s => {
                                         const annual = getStudentAnnualFee(s);
-                                        const paid = s.totalPaid || 0;
-                                        const remaining = annual - paid;
-                                        const progress = annual > 0 ? Math.round((paid / annual) * 100) : 0;
+                                        const paid = getStudentTotalPaid(s.id, s.totalPaid || 0);
+                                        const remaining = Math.max(0, annual - paid);
+                                        const progress = annual > 0 ? Math.min(100, Math.round((paid / annual) * 100)) : 0;
 
                                         return (
                                             <tr key={s.id} className="hover:bg-gray-50 dark:hover:bg-white/5 transition-colors group">
@@ -525,11 +563,11 @@ export const Accounting: React.FC = () => {
             )}
 
             {/* Payment Modal (Encaissements only) */}
-            {isPaymentModalOpen && selectedStudent && (
+            {isPaymentModalOpen && currentStudent && (
                 <Modal 
                     isOpen={true} 
                     onClose={() => setIsPaymentModalOpen(false)} 
-                    title={`Compte de : ${selectedStudent.nom} ${selectedStudent.prenom}`}
+                    title={`Compte de : ${currentStudent.nom} ${currentStudent.prenom}`}
                     maxWidth="max-w-4xl"
                 >
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
@@ -542,42 +580,68 @@ export const Accounting: React.FC = () => {
                                 <div className="space-y-3">
                                     <div className="flex justify-between text-sm">
                                         <span className="text-gray-500 dark:text-gray-400">Matricule :</span>
-                                        <span className="font-bold font-mono text-blue-600 dark:text-blue-400">{selectedStudent.matricule}</span>
+                                        <span className="font-bold font-mono text-blue-600 dark:text-blue-400">{currentStudent.matricule}</span>
                                     </div>
                                     <div className="flex justify-between text-sm">
                                         <span className="text-gray-500 dark:text-gray-400">Mensualité Normale :</span>
-                                        <span className="font-bold text-gray-800 dark:text-gray-200">{(getStudentAnnualFee(selectedStudent) / 9).toLocaleString()} FCFA</span>
+                                        <span className="font-bold text-gray-800 dark:text-gray-200">{currentStudentStats.monthlyFee.toLocaleString()} FCFA</span>
                                     </div>
                                     <div className="flex justify-between text-sm">
                                         <span className="text-gray-500 dark:text-gray-400">Total Annuel :</span>
-                                        <span className="font-bold dark:text-white">{getStudentAnnualFee(selectedStudent).toLocaleString()} FCFA</span>
+                                        <span className="font-bold dark:text-white">{currentStudentStats.annualFee.toLocaleString()} FCFA</span>
                                     </div>
                                     <div className="flex justify-between text-sm">
                                         <span className="text-gray-500 dark:text-gray-400">Total Payé :</span>
-                                        <span className="font-bold text-green-600 dark:text-green-400">{(selectedStudent.totalPaid || 0).toLocaleString()} FCFA</span>
+                                        <span className="font-bold text-green-600 dark:text-green-400">{currentStudentStats.paidAmount.toLocaleString()} FCFA</span>
                                     </div>
                                     <div className="flex justify-between text-sm pt-2 border-t dark:border-white/10">
                                         <span className="font-bold text-gray-700 dark:text-white">Solde Restant :</span>
-                                        <span className="font-bold text-red-600 dark:text-red-400">{(getStudentAnnualFee(selectedStudent) - (selectedStudent.totalPaid || 0)).toLocaleString()} FCFA</span>
+                                        <span className="font-bold text-red-600 dark:text-red-400">{currentStudentStats.remainingAmount.toLocaleString()} FCFA</span>
                                     </div>
                                 </div>
 
                                 {/* Radial Progress UI */}
-                                <div className="mt-8 flex justify-center">
-                                    <div className="relative w-32 h-32">
+                                <div className="mt-6 flex flex-col items-center justify-center">
+                                    <div className="relative w-36 h-36">
                                         <svg viewBox="0 0 36 36" className="w-full h-full transform -rotate-90">
-                                            <circle cx="18" cy="18" r="15.915" fill="transparent" stroke="#e2e8f0" strokeWidth="2.5" />
+                                            {/* Track circle (Reste à recouvrer) */}
+                                            <circle 
+                                                cx="18" cy="18" r="15.915" 
+                                                fill="transparent" 
+                                                stroke="#fee2e2" 
+                                                strokeWidth="3.5" 
+                                                className="dark:stroke-red-950/50"
+                                            />
+                                            {/* Progress circle (Montant Payé) */}
                                             <circle 
                                                 cx="18" cy="18" r="15.915" fill="transparent" 
-                                                stroke="var(--primary-color)" strokeWidth="2.5" 
-                                                strokeDasharray={`${Math.round(((selectedStudent.totalPaid || 0) / getStudentAnnualFee(selectedStudent)) * 100)} ${100 - Math.round(((selectedStudent.totalPaid || 0) / getStudentAnnualFee(selectedStudent)) * 100)}`}
+                                                stroke={currentStudentStats.progressPercent === 100 ? "#10b981" : "var(--primary-color, #3b82f6)"} 
+                                                strokeWidth="3.5" 
+                                                strokeDasharray={`${currentStudentStats.progressPercent} ${100 - currentStudentStats.progressPercent}`}
                                                 strokeDashoffset="0"
+                                                strokeLinecap="round"
+                                                className="transition-all duration-700 ease-out"
                                             />
                                         </svg>
-                                        <div className="absolute inset-0 flex flex-col items-center justify-center">
-                                            <span className="text-xl font-black dark:text-white">{Math.round(((selectedStudent.totalPaid || 0) / getStudentAnnualFee(selectedStudent)) * 100)}%</span>
-                                            <span className="text-[8px] uppercase font-bold text-gray-400 tracking-widest">Payé</span>
+                                        <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
+                                            <span className="text-2xl font-black text-gray-800 dark:text-white">
+                                                {currentStudentStats.progressPercent}%
+                                            </span>
+                                            <span className="text-[9px] uppercase font-bold text-gray-400 tracking-widest">
+                                                {currentStudentStats.progressPercent === 100 ? 'SOLDÉ' : 'Payé'}
+                                            </span>
                                         </div>
+                                    </div>
+                                    <div className="mt-2 text-center text-xs">
+                                        {currentStudentStats.remainingAmount === 0 ? (
+                                            <span className="text-emerald-600 dark:text-emerald-400 font-bold">
+                                                <i className="fas fa-check-circle mr-1"></i> Frais de scolarité intégralement réglés
+                                            </span>
+                                        ) : (
+                                            <span className="text-gray-500 dark:text-gray-400">
+                                                Solde restant : <strong className="text-rose-600 dark:text-rose-400">{currentStudentStats.remainingAmount.toLocaleString()} FCFA</strong>
+                                            </span>
+                                        )}
                                     </div>
                                 </div>
                             </div>
@@ -586,7 +650,7 @@ export const Accounting: React.FC = () => {
                             <div>
                                 <h4 className="font-bold text-gray-700 dark:text-white mb-3 text-sm">Historique Récent</h4>
                                 <div className="space-y-2 max-h-40 overflow-y-auto pr-2 custom-scrollbar">
-                                    {payments.filter(p => p.studentId === selectedStudent.id).reverse().map(p => (
+                                    {payments.filter(p => p.studentId === currentStudent.id).reverse().map(p => (
                                         <div key={p.id} className="flex justify-between items-center p-3 bg-white dark:bg-white/5 border dark:border-white/10 rounded-xl text-xs transition-transform hover:scale-[1.02]">
                                             <div className="flex-1">
                                                 <p className="font-bold dark:text-white">{p.amount.toLocaleString()} FCFA</p>
@@ -594,15 +658,15 @@ export const Accounting: React.FC = () => {
                                                 {p.notes && <p className="text-[10px] italic mt-0.5 text-gray-400">{p.notes}</p>}
                                             </div>
                                             <button 
-                                                onClick={() => handleGenerateReceipt('ENCAISSEMENT', p, selectedStudent)}
-                                                className="p-2 text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg transition-colors"
+                                                onClick={() => handleGenerateReceipt('ENCAISSEMENT', p, currentStudent)}
+                                                className="p-2 text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg transition-colors flex items-center gap-1 font-semibold"
                                                 title="Générer un reçu PDF avec QR Code"
                                             >
-                                                <i className="fas fa-file-pdf"></i> PDF
+                                                <i className="fas fa-file-pdf"></i> Reçu
                                             </button>
                                         </div>
                                     ))}
-                                    {payments.filter(p => p.studentId === selectedStudent.id).length === 0 && (
+                                    {payments.filter(p => p.studentId === currentStudent.id).length === 0 && (
                                         <p className="text-center text-gray-500 italic text-sm py-4">Aucun paiement enregistré.</p>
                                     )}
                                 </div>
@@ -615,10 +679,10 @@ export const Accounting: React.FC = () => {
                                 <h4 className="font-bold text-blue-700 dark:text-blue-300 mb-4 flex items-center gap-2">
                                     <i className="fas fa-plus-circle"></i> Enregistrer un Versement
                                 </h4>
-                                {getStudentAnnualFee(selectedStudent) === 0 ? (
+                                {currentStudentStats.annualFee === 0 ? (
                                     <div className="bg-orange-100 text-orange-800 p-4 rounded-xl text-sm border border-orange-200">
                                         <i className="fas fa-exclamation-triangle mr-2"></i>
-                                        Les frais de scolarité pour la classe <strong>{selectedStudent.serie ? `${selectedStudent.classe} ${selectedStudent.serie}` : selectedStudent.classe}</strong> ne sont pas configurés. Veuillez vous rendre dans les <strong>Paramètres</strong> pour définir le montant mensuel de cette classe avant d'enregistrer un paiement.
+                                        Les frais de scolarité pour la classe <strong>{currentStudent.serie ? `${currentStudent.classe} ${currentStudent.serie}` : currentStudent.classe}</strong> ne sont pas configurés. Veuillez vous rendre dans les <strong>Paramètres</strong> pour définir le montant mensuel de cette classe avant d'enregistrer un paiement.
                                     </div>
                                 ) : (
                                     <div className="space-y-4">
