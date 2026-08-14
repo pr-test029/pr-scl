@@ -92,13 +92,12 @@ export default defineConfig(({ mode }) => {
             },
             {
               urlPattern: /^https:\/\/(?:firestore|firestore\.googleapis|identitytoolkit|securetoken)\.googleapis\.com\/.*/i,
-              handler: 'NetworkFirst',
+              handler: 'StaleWhileRevalidate',
               options: {
-                cacheName: 'api-online-first-cache',
-                networkTimeoutSeconds: 4,
+                cacheName: 'api-dynamic-cache',
                 expiration: {
                   maxEntries: 100,
-                  maxAgeSeconds: 60 * 60 * 24 * 7
+                  maxAgeSeconds: 60 * 60 * 24 * 30
                 },
                 cacheableResponse: {
                   statuses: [0, 200]
