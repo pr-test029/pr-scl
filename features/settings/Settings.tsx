@@ -186,6 +186,29 @@ export const Settings: React.FC = () => {
                                     </label>
                                 </div>
                             </div>
+                            <p className="text-xs text-gray-400 italic">
+                                Le logo est automatiquement défini comme icône principale de l'application et favicon du navigateur.
+                            </p>
+
+                            <div className="pt-4 border-t border-gray-100 dark:border-white/10 space-y-3">
+                                <h4 className="font-bold dark:text-white flex items-center gap-2">
+                                    <i className="fas fa-mobile-alt text-[var(--primary-color)]"></i> Application PWA Native
+                                </h4>
+                                <p className="text-xs text-gray-500 dark:text-gray-400">
+                                    Installez PR-SGS directement sur votre ordinateur ou smartphone pour un accès rapide depuis l'écran d'accueil.
+                                </p>
+                                <button
+                                    type="button"
+                                    onClick={() => {
+                                      localStorage.removeItem('pr_scl_install_dismissed');
+                                      window.location.reload();
+                                    }}
+                                    className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-white rounded-xl font-semibold text-xs shadow transition-all inline-flex items-center gap-2"
+                                >
+                                    <i className="fas fa-download text-blue-400"></i>
+                                    <span>Proposer l'installation de l'application</span>
+                                </button>
+                            </div>
                         </div>
 
                         <div className="p-6 bg-gray-50 dark:bg-white/5 rounded-2xl border dark:border-white/10">

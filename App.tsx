@@ -30,6 +30,7 @@ import NotFound from './pages/NotFound';
 import ServerError from './pages/ServerError';
 import { ErrorBoundary } from './src/components/ErrorBoundary';
 import { NetworkStatusIndicator } from './components/NetworkStatusIndicator';
+import { PWAInstallPrompt } from './components/PWAInstallPrompt';
 import { registerBackgroundSync } from './services/syncService';
 
 // Context creation
@@ -101,6 +102,30 @@ const App: React.FC = () => {
         setSelectedAcademicYear(settings.currentAcademicYear);
      }
   }, [settings.currentAcademicYear]);
+
+  // Dynamic App Icon and Title update from settings.logo & settings.appName
+  useEffect(() => {
+    if (settings.appName) {
+      document.title = `${settings.appName} - Gestion Scolaire`;
+    }
+    if (settings.logo) {
+      let favicon = document.querySelector("link[rel*='icon']") as HTMLLinkElement;
+      if (!favicon) {
+        favicon = document.createElement('link');
+        favicon.rel = 'icon';
+        document.head.appendChild(favicon);
+      }
+      favicon.href = settings.logo;
+
+      let appleIcon = document.querySelector("link[rel='apple-touch-icon']") as HTMLLinkElement;
+      if (!appleIcon) {
+        appleIcon = document.createElement('link');
+        appleIcon.rel = 'apple-touch-icon';
+        document.head.appendChild(appleIcon);
+      }
+      appleIcon.href = settings.logo;
+    }
+  }, [settings.logo, settings.appName]);
 
   // Migration and Data Post-Processing
   useEffect(() => {
@@ -518,6 +543,7 @@ const App: React.FC = () => {
           style={themeStyles}
         >
           <NetworkStatusIndicator />
+          <PWAInstallPrompt logo={settings.logo} appName={settings.appName} />
           <SubscriptionGuard school={school} isAdmin={isAdmin}>
             <div className="flex flex-col md:flex-row font-sans min-h-screen relative z-10">
 
