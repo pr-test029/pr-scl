@@ -46,7 +46,8 @@ export const Evaluation: React.FC = () => {
 
             const points = Object.values(subData).reduce((acc, d) => {
                 const moyDev = d.count > 0 ? d.total / d.count : (d.compoNote || 0);
-                const final = d.compoNote !== null ? (moyDev + d.compoNote) / 2 : moyDev;
+                const w = settings.gradeWeights?.[student.cycle] ?? { devoir: 0.5, composition: 0.5 };
+const final = d.compoNote !== null ? (moyDev * w.devoir + d.compoNote * w.composition) : (moyDev * w.devoir);
                 return acc + (final * d.coeff);
             }, 0);
 

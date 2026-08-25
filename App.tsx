@@ -659,7 +659,7 @@ const App: React.FC = () => {
               </nav>
 
               {/* Main Content */}
-              <main className={`flex-1 w-full pt-16 md:pt-0 min-h-screen transition-all duration-300`}>
+              <main className={`flex-1 w-full pt-16 md:pt-0 min-h-screen transition-all duration-300 ${isSidebarCollapsed ? 'ml-20' : 'ml-64'}`}>
                 <div className="p-4 md:p-10 max-w-7xl mx-auto pb-24 safe-area-bottom">
                   <header className="mb-10 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
                     <div className="animate-fade-in">

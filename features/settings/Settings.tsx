@@ -422,14 +422,24 @@ export const Settings: React.FC = () => {
       {/* Configuration Modal */}
       {editingCycleId && cycles[editingCycleId] && (
           <CycleConfigModal 
-             cycle={cycles[editingCycleId]} 
-             onClose={() => setEditingCycleId(null)} 
-             activeTab={modalTab}
-             setActiveTab={setModalTab}
-             allSubjects={subjects}
-             onUpdateCycle={(updated) => updateCycles({...cycles, [updated.id]: updated})}
-             onUpdateSubjects={updateSubjects}
-          />
+              cycle={cycles[editingCycleId]} 
+              onClose={() => setEditingCycleId(null)} 
+              activeTab={modalTab}
+              setActiveTab={setModalTab}
+              allSubjects={subjects}
+              onUpdateCycle={(updated) => updateCycles({...cycles, [updated.id]: updated})}
+              onUpdateSubjects={updateSubjects}
+              weight={localSettings.gradeWeights?.[editingCycleId] ?? { devoir: 50, composition: 50 }}
+              onWeightChange={(newWeight) => {
+                  const total = newWeight.devoir + newWeight.composition;
+                  if (total !== 100) {
+                      alert('La somme des poids doit être égale à 100 %');
+                      return;
+                  }
+                  const updatedWeights = { ...(localSettings.gradeWeights || {}), [editingCycleId]: newWeight };
+                  setLocalSettings({ ...localSettings, gradeWeights: updatedWeights });
+              }}
+           />
       )}
     </div>
   );
@@ -445,9 +455,12 @@ interface CycleConfigModalProps {
     allSubjects: Record<string, Subject[]>;
     onUpdateCycle: (c: Cycle) => void;
     onUpdateSubjects: (className: string, subjects: Subject[]) => void;
+    // New props for grade weight handling per cycle
+    weight: { devoir: number; composition: number };
+    onWeightChange: (newWeight: { devoir: number; composition: number }) => void;
 }
 
-const CycleConfigModal: React.FC<CycleConfigModalProps> = ({ cycle, onClose, activeTab, setActiveTab, allSubjects, onUpdateCycle, onUpdateSubjects }) => {
+const CycleConfigModal: React.FC<CycleConfigModalProps> = ({ cycle, onClose, activeTab, setActiveTab, allSubjects, onUpdateCycle, onUpdateSubjects, weight, onWeightChange }) => {
     return (
         <Modal isOpen={true} onClose={onClose} title={`Configuration : ${cycle.name}`} maxWidth="max-w-4xl">
             <div className="flex border-b dark:border-white/10 mb-6 overflow-x-auto">
@@ -488,8 +501,44 @@ const CycleConfigModal: React.FC<CycleConfigModalProps> = ({ cycle, onClose, act
                 )}
 
                 {activeTab === 'bulletin' && (
-                    <BulletinCycleEditor cycle={cycle} onUpdateCycle={onUpdateCycle} />
-                )}
+    <div className="space-y-4">
+        <div className="grid grid-cols-2 gap-4">
+            <Input
+                label="Devoir %"
+                type="number"
+                min={0}
+                max={100}
+                value={weight.devoir}
+                onChange={e => {
+                    const val = parseInt(e.target.value) || 0;
+                    const newWeight = { ...weight, devoir: val };
+                    if (newWeight.devoir + newWeight.composition !== 100) {
+                        alert('La somme des poids doit être égale à 100 %');
+                        return;
+                    }
+                    onWeightChange(newWeight);
+                }}
+            />
+            <Input
+                label="Composition %"
+                type="number"
+                min={0}
+                max={100}
+                value={weight.composition}
+                onChange={e => {
+                    const val = parseInt(e.target.value) || 0;
+                    const newWeight = { ...weight, composition: val };
+                    if (newWeight.devoir + newWeight.composition !== 100) {
+                        alert('La somme des poids doit être égale à 100 %');
+                        return;
+                    }
+                    onWeightChange(newWeight);
+                }}
+            />
+        </div>
+        <BulletinCycleEditor cycle={cycle} onUpdateCycle={onUpdateCycle} />
+    </div>
+)}
             </div>
             
             <div className="flex justify-end pt-4 border-t dark:border-white/10 mt-4">

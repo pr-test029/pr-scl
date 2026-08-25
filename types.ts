@@ -157,6 +157,7 @@ export interface AppSettings {
   accounting: AccountingSettings;
   staff: StaffMember[]; // Liste du personnel de l'école
   staffRoles?: string[]; // Liste des rôles personnalisés (ex: Surveillant, Comptable, etc.)
+  gradeWeights?: Record<string, { devoir: number; composition: number }>;
   managerPassword?: string; // Mot de passe pour le rôle Dirigeant
 }
 
