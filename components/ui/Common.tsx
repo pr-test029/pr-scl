@@ -1,6 +1,7 @@
 
 import React from 'react';
 import { createPortal } from 'react-dom';
+import { HelpGuide } from './HelpGuide';
 
 // Button Component
 interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
@@ -179,5 +180,5 @@ export const Modal: React.FC<{ isOpen: boolean; onClose: () => void; title: stri
   return createPortal(modalContent, document.body);
 };
 
-export { HelpGuide, PAGE_GUIDES } from './HelpGuide';
+
 

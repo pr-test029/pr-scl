@@ -1,5 +1,6 @@
 import React, { useState, useMemo, useRef } from 'react';
-import { Card, Input, Button, Select, Modal, HelpGuide } from '../../components/ui/Common';
+import { Card, Input, Button, Select, Modal } from '../../components/ui/Common';
+import { HelpGuide } from '../../components/ui/HelpGuide';
 import { useSchool } from '../../App';
 import { Student, Payment, Expense } from '../../types';
 import { ReceiptGenerator, ReceiptData, ReceiptGeneratorRef } from './ReceiptGenerator';

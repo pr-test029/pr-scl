@@ -1,6 +1,7 @@
 
 import React, { useMemo, useState, useEffect } from 'react';
-import { Card, HelpGuide } from '../../components/ui/Common';
+import { Card } from '../../components/ui/Common';
+import { HelpGuide } from '../../components/ui/HelpGuide';
 import { useSchool } from '../../App';
 import { Cycle } from '../../types';
 import * as api from '../../services/firebase';

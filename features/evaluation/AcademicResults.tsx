@@ -1,5 +1,6 @@
 import React, { useState, useMemo } from 'react';
-import { Card, Button, Select, HelpGuide } from '../../components/ui/Common';
+import { Card, Button, Select } from '../../components/ui/Common';
+import { HelpGuide } from '../../components/ui/HelpGuide';
 import { useSchool } from '../../App';
 import { Student, Grade, Subject } from '../../types';
 // @ts-ignore

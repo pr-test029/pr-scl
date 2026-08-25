@@ -1,5 +1,6 @@
 import React, { useMemo } from 'react';
-import { Card, HelpGuide } from '../../components/ui/Common';
+import { Card } from '../../components/ui/Common';
+import { HelpGuide } from '../../components/ui/HelpGuide';
 import { useSchool } from '../../App';
 import { Student, Grade, Payment } from '../../types';
 import { THEME_HEX_COLORS } from '../../constants';
