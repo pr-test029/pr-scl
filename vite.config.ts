@@ -45,7 +45,23 @@ export default defineConfig(({ mode }) => {
         },
         workbox: {
           globPatterns: ['**/*.{js,css,html,ico,png,svg,woff,woff2,ttf,eot}'],
+          navigateFallback: '/index.html',
+          cleanupOutdatedCaches: true,
           runtimeCaching: [
+            {
+              urlPattern: /^https:\/\/cdn\.tailwindcss\.com\/.*/i,
+              handler: 'CacheFirst',
+              options: {
+                cacheName: 'tailwind-cdn-script',
+                expiration: {
+                  maxEntries: 10,
+                  maxAgeSeconds: 60 * 60 * 24 * 365
+                },
+                cacheableResponse: {
+                  statuses: [0, 200]
+                }
+              }
+            },
             {
               urlPattern: /^https:\/\/fonts\.googleapis\.com\/.*/i,
               handler: 'CacheFirst',
@@ -54,6 +70,9 @@ export default defineConfig(({ mode }) => {
                 expiration: {
                   maxEntries: 10,
                   maxAgeSeconds: 60 * 60 * 24 * 365
+                },
+                cacheableResponse: {
+                  statuses: [0, 200]
                 }
               }
             },
@@ -65,6 +84,9 @@ export default defineConfig(({ mode }) => {
                 expiration: {
                   maxEntries: 30,
                   maxAgeSeconds: 60 * 60 * 24 * 365
+                },
+                cacheableResponse: {
+                  statuses: [0, 200]
                 }
               }
             },
@@ -74,8 +96,11 @@ export default defineConfig(({ mode }) => {
               options: {
                 cacheName: 'cdn-assets',
                 expiration: {
-                  maxEntries: 20,
-                  maxAgeSeconds: 60 * 60 * 24 * 30
+                  maxEntries: 50,
+                  maxAgeSeconds: 60 * 60 * 24 * 365
+                },
+                cacheableResponse: {
+                  statuses: [0, 200]
                 }
               }
             },
@@ -85,8 +110,11 @@ export default defineConfig(({ mode }) => {
               options: {
                 cacheName: 'image-cache',
                 expiration: {
-                  maxEntries: 60,
+                  maxEntries: 100,
                   maxAgeSeconds: 60 * 60 * 24 * 30
+                },
+                cacheableResponse: {
+                  statuses: [0, 200]
                 }
               }
             },
