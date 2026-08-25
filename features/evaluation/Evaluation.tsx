@@ -47,7 +47,8 @@ export const Evaluation: React.FC = () => {
             const points = Object.values(subData).reduce((acc, d) => {
                 const moyDev = d.count > 0 ? d.total / d.count : (d.compoNote || 0);
                 const w = settings.gradeWeights?.[student.cycle] ?? { devoir: 0.5, composition: 0.5 };
-const final = d.compoNote !== null ? (moyDev * w.devoir + d.compoNote * w.composition) : (moyDev * w.devoir);
+                console.log('Weight for cycle', student.cycle, w);
+                const final = d.compoNote !== null ? (moyDev * w.devoir + d.compoNote * w.composition) : (moyDev * w.devoir);
                 return acc + (final * d.coeff);
             }, 0);
 
@@ -62,7 +63,7 @@ const final = d.compoNote !== null ? (moyDev * w.devoir + d.compoNote * w.compos
         const bottom10 = [...studentsWithGrades].sort((a, b) => a.average - b.average).slice(0, 10);
 
         return { top5, bottom10 };
-    }, [students, grades, activeTrimestre, subjects]);
+    }, [students, grades, activeTrimestre, subjects, settings.gradeWeights]);
 
     // 2. Financial Recovery Data Preparation
     const recoveryData = useMemo(() => {

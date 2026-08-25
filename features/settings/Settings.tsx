@@ -438,7 +438,9 @@ export const Settings: React.FC = () => {
                       return;
                   }
                   const updatedWeights = { ...(localSettings.gradeWeights || {}), [editingCycleId]: newWeight };
-                  setLocalSettings({ ...localSettings, gradeWeights: updatedWeights });
+                  const newSettings = { ...localSettings, gradeWeights: updatedWeights };
+                  setLocalSettings(newSettings);
+                  updateSettings(newSettings);
               }}
            />
       )}
