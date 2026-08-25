@@ -1,5 +1,6 @@
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { Card, Input, Button, Select, Modal } from '../../components/ui/Common';
+import { TempWeightEditor } from '../../components/ui/TempWeightEditor';
 import { useSchool } from '../../App';
 import { AppSettings, Cycle, Subject, Classroom, AppreciationRule, StaffMember, BulletinHeaderSettings } from '../../types';
 
@@ -501,44 +502,15 @@ const CycleConfigModal: React.FC<CycleConfigModalProps> = ({ cycle, onClose, act
                 )}
 
                 {activeTab === 'bulletin' && (
-    <div className="space-y-4">
-        <div className="grid grid-cols-2 gap-4">
-            <Input
-                label="Devoir %"
-                type="number"
-                min={0}
-                max={100}
-                value={weight.devoir}
-                onChange={e => {
-                    const val = parseInt(e.target.value) || 0;
-                    const newWeight = { ...weight, devoir: val };
-                    if (newWeight.devoir + newWeight.composition !== 100) {
-                        alert('La somme des poids doit être égale à 100 %');
-                        return;
-                    }
-                    onWeightChange(newWeight);
-                }}
-            />
-            <Input
-                label="Composition %"
-                type="number"
-                min={0}
-                max={100}
-                value={weight.composition}
-                onChange={e => {
-                    const val = parseInt(e.target.value) || 0;
-                    const newWeight = { ...weight, composition: val };
-                    if (newWeight.devoir + newWeight.composition !== 100) {
-                        alert('La somme des poids doit être égale à 100 %');
-                        return;
-                    }
-                    onWeightChange(newWeight);
-                }}
-            />
-        </div>
-        <BulletinCycleEditor cycle={cycle} onUpdateCycle={onUpdateCycle} />
-    </div>
-)}
+                <div className="space-y-4">
+                    {/* Bulletin Tab */}
+                    <TempWeightEditor
+                        initialWeight={weight}
+                        onSave={onWeightChange}
+                    />
+                    <BulletinCycleEditor cycle={cycle} onUpdateCycle={onUpdateCycle} />
+                </div>
+            )}
             </div>
             
             <div className="flex justify-end pt-4 border-t dark:border-white/10 mt-4">
