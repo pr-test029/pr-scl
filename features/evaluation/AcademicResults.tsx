@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { Card, Button, Select } from '../../components/ui/Common';
+import { Card, Button, Select, HelpGuide } from '../../components/ui/Common';
 import { useSchool } from '../../App';
 import { Student, Grade, Subject } from '../../types';
 // @ts-ignore
@@ -168,9 +168,12 @@ export const AcademicResults: React.FC = () => {
             {/* Header & Filters */}
             <div className="bg-white dark:bg-white/5 p-8 rounded-3xl shadow-xl border dark:border-white/10 space-y-6">
                 <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
-                    <div>
-                        <h2 className="text-3xl font-black text-gray-900 dark:text-white uppercase tracking-tight">Résultats Scolaires</h2>
-                        <p className="text-gray-500 font-medium">Classement général et export des notes</p>
+                    <div className="flex items-center gap-3">
+                        <div>
+                            <h2 className="text-3xl font-black text-gray-900 dark:text-white uppercase tracking-tight">Résultats Scolaires</h2>
+                            <p className="text-gray-500 font-medium">Classement général et export des notes</p>
+                        </div>
+                        <HelpGuide guideKey="academic_results" size="sm" />
                     </div>
                     <div className="flex bg-gray-100 dark:bg-white/10 p-1.5 rounded-2xl self-center">
                         {['1', '2', '3'].map(p => (

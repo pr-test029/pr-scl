@@ -1,5 +1,5 @@
 import React, { useMemo } from 'react';
-import { Card } from '../../components/ui/Common';
+import { Card, HelpGuide } from '../../components/ui/Common';
 import { useSchool } from '../../App';
 import { Student, Grade, Payment } from '../../types';
 import { THEME_HEX_COLORS } from '../../constants';
@@ -129,6 +129,7 @@ export const StudentPortal: React.FC = () => {
                             <span className="px-3 py-1.5 bg-white/90 text-gray-900 rounded-xl text-xs md:text-sm font-black border border-white/20 shadow-lg">
                                 <i className="fas fa-star mr-2 text-yellow-500"></i> ÉLÈVE ACTIF
                             </span>
+                            <HelpGuide guideKey="student_portal" size="sm" className="bg-white/20 border border-white/30 text-white" />
                         </div>
                     </div>
                     {/* Logout Button */}

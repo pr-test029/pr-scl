@@ -24,7 +24,7 @@ import { StaffProfile } from './features/staff/StaffProfile';
 import { PersonnelManagement } from './features/staff/PersonnelManagement';
 import { Evaluation } from './features/evaluation/Evaluation';
 import { AcademicResults } from './features/evaluation/AcademicResults';
-import { Button } from './components/ui/Common';
+import { Button, HelpGuide } from './components/ui/Common';
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import NotFound from './pages/NotFound';
 import ServerError from './pages/ServerError';
@@ -535,19 +535,22 @@ const App: React.FC = () => {
                   <div className="p-1 bg-white rounded-lg shadow-inner">
                     {settings.logo ? <img src={settings.logo} className="h-6 w-6 object-contain" /> : <i className="fas fa-graduation-cap text-[var(--primary-color)]"></i>}
                   </div>
-                  <span className="truncate max-w-[150px]">{settings.appName}</span>
+                  <span className="truncate max-w-[130px]">{settings.appName}</span>
                 </div>
-                <button 
-                  className="w-10 h-10 flex items-center justify-center rounded-full hover:bg-white/10 active:scale-95 transition-all" 
-                  onClick={() => {
-                    const nav = document.getElementById('mobile-nav');
-                    const overlay = document.getElementById('mobile-overlay');
-                    nav?.classList.remove('-translate-x-full');
-                    overlay?.classList.remove('hidden');
-                  }}
-                >
-                  <i className="fas fa-bars text-xl"></i>
-                </button>
+                <div className="flex items-center gap-2">
+                  <HelpGuide guideKey={currentView} size="sm" />
+                  <button 
+                    className="w-10 h-10 flex items-center justify-center rounded-full hover:bg-white/10 active:scale-95 transition-all" 
+                    onClick={() => {
+                      const nav = document.getElementById('mobile-nav');
+                      const overlay = document.getElementById('mobile-overlay');
+                      nav?.classList.remove('-translate-x-full');
+                      overlay?.classList.remove('hidden');
+                    }}
+                  >
+                    <i className="fas fa-bars text-xl"></i>
+                  </button>
+                </div>
               </div>
 
               {/* Mobile Navigation Drawer Overlay */}
@@ -659,19 +662,22 @@ const App: React.FC = () => {
                 <div className="p-4 md:p-10 max-w-7xl mx-auto pb-24 safe-area-bottom">
                   <header className="mb-10 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
                     <div className="animate-fade-in">
-                      <h1 className="text-3xl md:text-4xl font-black text-gray-900 dark:text-white tracking-tight">
-                        {currentView === 'dashboard' && 'Tableau de bord'}
-                        {currentView === 'inscription' && 'Inscription'}
-                        {currentView === 'students' && 'Élèves'}
-                        {currentView === 'accounting' && 'Comptabilité'}
-                        {currentView === 'settings' && 'Paramètres'}
-                        {currentView === 'student_portal' && 'Mon Portail'}
-                        {currentView === 'personnel' && 'Personnel'}
-                        {currentView === 'profile' && 'Mon Profil'}
-                        {currentView === 'admin' && 'Administration'}
-                        {currentView === 'evaluation' && 'Suivi & Évaluation'}
-                        {currentView === 'academic_results' && 'Palmarès & Résultats'}
-                      </h1>
+                      <div className="flex items-center gap-3">
+                        <h1 className="text-3xl md:text-4xl font-black text-gray-900 dark:text-white tracking-tight">
+                          {currentView === 'dashboard' && 'Tableau de bord'}
+                          {currentView === 'inscription' && 'Inscription'}
+                          {currentView === 'students' && 'Élèves'}
+                          {currentView === 'accounting' && 'Comptabilité'}
+                          {currentView === 'settings' && 'Paramètres'}
+                          {currentView === 'student_portal' && 'Mon Portail'}
+                          {currentView === 'personnel' && 'Personnel'}
+                          {currentView === 'profile' && 'Mon Profil'}
+                          {currentView === 'admin' && 'Administration'}
+                          {currentView === 'evaluation' && 'Suivi & Évaluation'}
+                          {currentView === 'academic_results' && 'Palmarès & Résultats'}
+                        </h1>
+                        <HelpGuide guideKey={currentView} size="md" />
+                      </div>
                       <p className="text-gray-500 dark:text-gray-400 font-medium mt-1">
                         {currentView === 'dashboard' && `Bienvenue, ${session?.display_name?.split(' ')[0]}`}
                         {currentView !== 'dashboard' && 'Espace de gestion institutionnelle'}

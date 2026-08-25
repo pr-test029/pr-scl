@@ -111,7 +111,7 @@ export const StudentList: React.FC = () => {
 
   return (
     <div className="space-y-6 animate-fade-in">
-      <Card>
+      <Card title="Répertoire des Élèves" helpKey="students">
         <div className="flex flex-col lg:flex-row gap-6 justify-between items-start lg:items-center mb-8">
           <div className="flex flex-wrap gap-2 w-full lg:w-auto">
             <Button 

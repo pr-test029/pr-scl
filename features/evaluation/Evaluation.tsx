@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { Card, Button, Select } from '../../components/ui/Common';
+import { Card, Button, Select, HelpGuide } from '../../components/ui/Common';
 import { useSchool } from '../../App';
 import { Student, Grade } from '../../types';
 
@@ -84,9 +84,12 @@ export const Evaluation: React.FC = () => {
         <div className="space-y-10 animate-fade-in pb-20">
             {/* Header with Trimestre Switch */}
             <div className="flex flex-col md:flex-row justify-between items-center gap-6 bg-white dark:bg-white/5 p-6 rounded-3xl shadow-xl border dark:border-white/10">
-                <div>
-                    <h2 className="text-2xl font-black text-gray-900 dark:text-white uppercase tracking-tight">Suivi Académique</h2>
-                    <p className="text-gray-500 dark:text-gray-400 font-medium">Classement général de l'établissement</p>
+                <div className="flex items-center gap-3">
+                    <div>
+                        <h2 className="text-2xl font-black text-gray-900 dark:text-white uppercase tracking-tight">Suivi Académique</h2>
+                        <p className="text-gray-500 dark:text-gray-400 font-medium">Classement général de l'établissement</p>
+                    </div>
+                    <HelpGuide guideKey="evaluation" size="sm" />
                 </div>
                 <div className="flex bg-gray-100 dark:bg-white/10 p-1.5 rounded-2xl">
                     {['1', '2', '3'].map(p => (

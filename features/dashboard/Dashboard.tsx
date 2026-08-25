@@ -1,6 +1,6 @@
 
 import React, { useMemo, useState, useEffect } from 'react';
-import { Card } from '../../components/ui/Common';
+import { Card, HelpGuide } from '../../components/ui/Common';
 import { useSchool } from '../../App';
 import { Cycle } from '../../types';
 import * as api from '../../services/firebase';
@@ -102,7 +102,10 @@ export const Dashboard: React.FC = () => {
     <div className="space-y-6 animate-fade-in pb-12">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-10 gap-6 animate-fade-in">
         <div>
-          <h1 className="text-3xl md:text-4xl font-black dark:text-white tracking-tight">Espace Pilotage</h1>
+          <div className="flex items-center gap-3">
+            <h1 className="text-3xl md:text-4xl font-black dark:text-white tracking-tight">Espace Pilotage</h1>
+            <HelpGuide guideKey="dashboard" size="sm" />
+          </div>
           <div className="flex items-center gap-2 mt-2">
             <div className="relative flex items-center justify-center">
               <span className={`w-3 h-3 rounded-full ${dbStatus === 'online' ? 'bg-green-500 shadow-[0_0_10px_rgba(34,197,94,0.6)]' : 'bg-red-500'} animate-pulse`}></span>

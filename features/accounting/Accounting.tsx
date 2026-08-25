@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useRef } from 'react';
-import { Card, Input, Button, Select, Modal } from '../../components/ui/Common';
+import { Card, Input, Button, Select, Modal, HelpGuide } from '../../components/ui/Common';
 import { useSchool } from '../../App';
 import { Student, Payment, Expense } from '../../types';
 import { ReceiptGenerator, ReceiptData, ReceiptGeneratorRef } from './ReceiptGenerator';
@@ -574,9 +574,12 @@ export const Accounting: React.FC = () => {
                         {/* Summary & Progress */}
                         <div className="space-y-6">
                             <div className="bg-gray-50 dark:bg-white/5 p-6 rounded-2xl border dark:border-white/10">
-                                <h4 className="font-bold text-gray-700 dark:text-white mb-4 flex items-center gap-2">
-                                    <i className="fas fa-id-card text-blue-500"></i> Situation Financière
-                                </h4>
+                                <div className="flex items-center justify-between mb-4">
+                                    <h4 className="font-bold text-gray-700 dark:text-white flex items-center gap-2">
+                                        <i className="fas fa-id-card text-blue-500"></i> Situation Financière
+                                    </h4>
+                                    <HelpGuide guideKey="accounting" size="sm" />
+                                </div>
                                 <div className="space-y-3">
                                     <div className="flex justify-between text-sm">
                                         <span className="text-gray-500 dark:text-gray-400">Matricule :</span>

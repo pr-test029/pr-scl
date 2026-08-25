@@ -162,7 +162,7 @@ export const StudentForm: React.FC<StudentFormProps> = ({ onSuccess, initialData
 
   return (
     <>
-      <Card title={isEditing ? "Modifier les informations" : "Inscription d'un élève"} className="animate-fade-in">
+      <Card title={isEditing ? "Modifier les informations" : "Inscription d'un élève"} helpKey="inscription" className="animate-fade-in">
         <form onSubmit={handleSubmit} className="space-y-6">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <Input name="nom" label="Nom *" value={formData.nom || ''} onChange={handleChange} required />

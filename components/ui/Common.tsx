@@ -122,12 +122,24 @@ export const Select: React.FC<SelectProps> = ({ label, options, error, className
 };
 
 // Card Component
-export const Card: React.FC<{ children: React.ReactNode; title?: React.ReactNode; className?: string; noPadding?: boolean; style?: React.CSSProperties }> = ({ children, title, className = '', noPadding = false, style }) => {
+export const Card: React.FC<{ 
+  children: React.ReactNode; 
+  title?: React.ReactNode; 
+  action?: React.ReactNode;
+  helpKey?: string;
+  className?: string; 
+  noPadding?: boolean; 
+  style?: React.CSSProperties 
+}> = ({ children, title, action, helpKey, className = '', noPadding = false, style }) => {
   return (
     <div className={`bg-white dark:bg-slate-900/60 dark:backdrop-blur-2xl dark:border dark:border-white/10 rounded-[2rem] shadow-xl shadow-gray-200/50 dark:shadow-none overflow-hidden transition-all duration-300 ${className}`} style={style}>
-      {title && (
-        <div className="px-8 py-6 border-b border-gray-50 dark:border-white/5 flex items-center justify-between bg-gray-50/30 dark:bg-white/2">
-          <h3 className="text-xl font-black text-gray-900 dark:text-white tracking-tight">{title}</h3>
+      {(title || action || helpKey) && (
+        <div className="px-6 sm:px-8 py-5 border-b border-gray-50 dark:border-white/5 flex items-center justify-between bg-gray-50/30 dark:bg-white/2 gap-3">
+          <div className="flex items-center gap-3">
+            {title && <h3 className="text-lg sm:text-xl font-black text-gray-900 dark:text-white tracking-tight">{title}</h3>}
+            {helpKey && <HelpGuide guideKey={helpKey} size="sm" />}
+          </div>
+          {action && <div className="flex items-center gap-2">{action}</div>}
         </div>
       )}
       <div className={`${noPadding ? '' : 'p-6 md:p-8'} dark:text-gray-200`}>{children}</div>
@@ -142,13 +154,22 @@ export const Modal: React.FC<{ isOpen: boolean; onClose: () => void; title: stri
   const modalContent = (
     <div className="fixed inset-0 z-[100] overflow-y-auto bg-slate-900/60 backdrop-blur-md flex items-center justify-center p-4 md:p-6 animate-fade-in">
       <div className={`bg-white dark:bg-slate-900 dark:border dark:border-white/10 rounded-[2.5rem] shadow-2xl w-full ${maxWidth} max-h-[90vh] flex flex-col transition-all duration-500 scale-100`}>
-        <div className="flex justify-between items-center px-8 py-6 border-b border-gray-100 dark:border-white/10">
-          <h3 className="text-2xl font-black text-gray-900 dark:text-white tracking-tight">{title}</h3>
-          <button onClick={onClose} className="w-10 h-10 flex items-center justify-center rounded-full bg-gray-50 dark:bg-white/5 text-gray-400 hover:text-gray-900 dark:hover:text-white transition-all active:scale-90">
-            <i className="fas fa-times"></i>
-          </button>
-        </div>
-        <div className="p-8 overflow-y-auto flex-1 custom-scrollbar">
+        {title && (
+          <div className="flex justify-between items-center px-8 py-6 border-b border-gray-100 dark:border-white/10">
+            <h3 className="text-2xl font-black text-gray-900 dark:text-white tracking-tight">{title}</h3>
+            <button onClick={onClose} className="w-10 h-10 flex items-center justify-center rounded-full bg-gray-50 dark:bg-white/5 text-gray-400 hover:text-gray-900 dark:hover:text-white transition-all active:scale-90">
+              <i className="fas fa-times"></i>
+            </button>
+          </div>
+        )}
+        <div className={`${title ? 'p-8' : 'p-6 sm:p-8'} overflow-y-auto flex-1 custom-scrollbar`}>
+          {!title && (
+            <div className="flex justify-end mb-2">
+              <button onClick={onClose} className="w-9 h-9 flex items-center justify-center rounded-full bg-gray-100 dark:bg-white/10 text-gray-500 hover:text-gray-900 dark:hover:text-white transition-all active:scale-90 z-20">
+                <i className="fas fa-times text-sm"></i>
+              </button>
+            </div>
+          )}
           {children}
         </div>
       </div>
@@ -157,3 +178,6 @@ export const Modal: React.FC<{ isOpen: boolean; onClose: () => void; title: stri
 
   return createPortal(modalContent, document.body);
 };
+
+export { HelpGuide, PAGE_GUIDES } from './HelpGuide';
+

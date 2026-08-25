@@ -1,6 +1,6 @@
 
 import React, { useState, useMemo } from 'react';
-import { Card, Input, Button, Select, Modal } from '../../components/ui/Common';
+import { Card, Input, Button, Select, Modal, HelpGuide } from '../../components/ui/Common';
 import { useSchool } from '../../App';
 import { AppSettings, Cycle, StaffMember, TeacherAssignment, Subject } from '../../types';
 
@@ -92,9 +92,12 @@ export const PersonnelManagement: React.FC = () => {
     return (
         <div className="space-y-6 animate-fade-in">
             <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-                <div>
-                    <h1 className="text-3xl font-black dark:text-white">Gestion du Personnel</h1>
-                    <p className="text-gray-500">Administrez les membres de votre équipe.</p>
+                <div className="flex items-center gap-3">
+                    <div>
+                        <h1 className="text-3xl font-black dark:text-white">Gestion du Personnel</h1>
+                        <p className="text-gray-500">Administrez les membres de votre équipe.</p>
+                    </div>
+                    <HelpGuide guideKey="personnel" size="sm" />
                 </div>
                 <div className="flex bg-white dark:bg-white/5 p-1 rounded-xl border dark:border-white/10 shadow-sm">
                     <button 
