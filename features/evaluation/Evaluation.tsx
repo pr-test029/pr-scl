@@ -44,11 +44,21 @@ export const Evaluation: React.FC = () => {
                 }
             });
 
+            const rawW = settings.gradeWeights?.[student.cycle] ?? { devoir: 50, composition: 50 };
+            const wDev = rawW.devoir > 1 ? rawW.devoir / 100 : rawW.devoir;
+            const wCompo = rawW.composition > 1 ? rawW.composition / 100 : rawW.composition;
+
             const points = Object.values(subData).reduce((acc, d) => {
-                const moyDev = d.count > 0 ? d.total / d.count : (d.compoNote || 0);
-                const w = settings.gradeWeights?.[student.cycle] ?? { devoir: 0.5, composition: 0.5 };
-                console.log('Weight for cycle', student.cycle, w);
-                const final = d.compoNote !== null ? (moyDev * w.devoir + d.compoNote * w.composition) : (moyDev * w.devoir);
+                const hasDev = d.count > 0;
+                const hasCompo = d.compoNote !== null;
+                let final = 0;
+                if (hasDev && hasCompo) {
+                    final = (d.total / d.count) * wDev + d.compoNote! * wCompo;
+                } else if (hasDev) {
+                    final = d.total / d.count;
+                } else if (hasCompo) {
+                    final = d.compoNote!;
+                }
                 return acc + (final * d.coeff);
             }, 0);
 

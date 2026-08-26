@@ -51,6 +51,10 @@ export const StudentPortal: React.FC = () => {
     // Calculer les moyennes par trimestre
     const termAverages = useMemo(() => {
         const averages: Record<string, number> = {};
+        const rawW = (student?.cycle && settings.gradeWeights?.[student.cycle]) ? settings.gradeWeights[student.cycle] : { devoir: 50, composition: 50 };
+        const wDev = rawW.devoir > 1 ? rawW.devoir / 100 : rawW.devoir;
+        const wCompo = rawW.composition > 1 ? rawW.composition / 100 : rawW.composition;
+
         Object.entries(groupedGrades).forEach(([term, subjects]) => {
             let totalWeightedPoints = 0;
             let totalCoeffs = 0;
@@ -61,7 +65,7 @@ export const StudentPortal: React.FC = () => {
                 
                 let subAvg = 0;
                 if (devoir !== undefined && compo !== undefined) {
-                    subAvg = (devoir + compo) / 2;
+                    subAvg = devoir * wDev + compo * wCompo;
                 } else if (devoir !== undefined) {
                     subAvg = devoir;
                 } else if (compo !== undefined) {
@@ -75,7 +79,7 @@ export const StudentPortal: React.FC = () => {
             averages[term] = totalCoeffs > 0 ? Number((totalWeightedPoints / totalCoeffs).toFixed(2)) : 0;
         });
         return averages;
-    }, [groupedGrades]);
+    }, [groupedGrades, student?.cycle, settings.gradeWeights]);
 
     const activeTheme = localTheme || settings.theme || 'blue';
     const themeHex = THEME_HEX_COLORS[activeTheme as keyof typeof THEME_HEX_COLORS] || THEME_HEX_COLORS.blue;

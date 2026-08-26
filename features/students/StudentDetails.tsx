@@ -56,6 +56,13 @@ export const StudentDetails: React.FC<StudentDetailsProps> = ({ student, onBack 
     const bulletinData = useMemo(() => {
         const classStudents = students.filter(s => s.classe === student.classe);
         
+        const getWeightsForStudent = (studentCycleKey: string) => {
+            const raw = settings.gradeWeights?.[studentCycleKey] ?? { devoir: 50, composition: 50 };
+            const d = raw.devoir > 1 ? raw.devoir / 100 : raw.devoir;
+            const c = raw.composition > 1 ? raw.composition / 100 : raw.composition;
+            return { devoir: d, composition: c };
+        };
+
         const getPeriodAverage = (targetTrimestre: string) => {
             const studentGrades = grades.filter(g => g.studentId === student.id && g.trimestre === targetTrimestre);
             if (studentGrades.length === 0) return null;
@@ -69,9 +76,18 @@ export const StudentDetails: React.FC<StudentDetailsProps> = ({ student, onBack 
                 if (gType.includes('compo') || gType.includes('session') || gType.includes('examen')) subData[g.matiere].compoNote = g.valeur;
                 else { subData[g.matiere].total += g.valeur; subData[g.matiere].count += 1; }
             });
+            const w = getWeightsForStudent(student.cycle);
             const points = Object.values(subData).reduce((acc, d) => {
-                const moyDev = d.count > 0 ? d.total / d.count : (d.compoNote || 0);
-                const final = d.compoNote !== null ? (moyDev + d.compoNote) / 2 : moyDev;
+                const hasDev = d.count > 0;
+                const hasCompo = d.compoNote !== null;
+                let final = 0;
+                if (hasDev && hasCompo) {
+                    final = (d.total / d.count) * w.devoir + d.compoNote * w.composition;
+                } else if (hasDev) {
+                    final = d.total / d.count;
+                } else if (hasCompo) {
+                    final = d.compoNote!;
+                }
                 return acc + (final * d.coeff);
             }, 0);
             const coeffs = Object.values(subData).reduce((acc, d) => acc + d.coeff, 0);
@@ -94,16 +110,26 @@ export const StudentDetails: React.FC<StudentDetailsProps> = ({ student, onBack 
                 if (gType.includes('compo') || gType.includes('session') || gType.includes('examen')) subData[g.matiere].compoNote = g.valeur;
                 else { subData[g.matiere].total += g.valeur; subData[g.matiere].count += 1; }
             });
+            const w = getWeightsForStudent(s.cycle);
             const detailed = Object.entries(subData).map(([name, d]) => {
-                const moyDev = d.count > 0 ? d.total / d.count : (d.compoNote || 0);
-                const final = d.compoNote !== null ? (moyDev + d.compoNote) / 2 : moyDev;
+                const hasDev = d.count > 0;
+                const hasCompo = d.compoNote !== null;
+                const moyDev = hasDev ? d.total / d.count : null;
+                let final = 0;
+                if (hasDev && hasCompo) {
+                    final = moyDev! * w.devoir + d.compoNote! * w.composition;
+                } else if (hasDev) {
+                    final = moyDev!;
+                } else if (hasCompo) {
+                    final = d.compoNote!;
+                }
                 if (!classSubjectStats[name]) classSubjectStats[name] = { totalPoints: 0, count: 0 };
                 classSubjectStats[name].totalPoints += final;
                 classSubjectStats[name].count += 1;
                 return { name, moyDevoirs: moyDev, compoNote: d.compoNote, average: final, coefficient: d.coeff };
             });
-            const pts = detailed.reduce((acc, s) => acc + (s.average * s.coefficient), 0);
-            const cfs = detailed.reduce((acc, s) => acc + s.coefficient, 0);
+            const pts = detailed.reduce((acc, sub) => acc + (sub.average * sub.coefficient), 0);
+            const cfs = detailed.reduce((acc, sub) => acc + sub.coefficient, 0);
             return { id: s.id, average: cfs > 0 ? pts / cfs : 0, totalPoints: pts, totalCoeffs: cfs, subjects: detailed };
         });
 
@@ -122,7 +148,7 @@ export const StudentDetails: React.FC<StudentDetailsProps> = ({ student, onBack 
         }
 
         return { subjects: finalSubjects, generalAverage: currentData?.average || 0, totalPoints: currentData?.totalPoints || 0, totalCoeffs: currentData?.totalCoeffs || 0, rank, classSize: classStudents.length, t1Avg, t2Avg, annualAvg };
-    }, [students, grades, activeTrimestre, student.id, student.classe, subjects]);
+    }, [students, grades, activeTrimestre, student.id, student.classe, student.cycle, subjects, settings.gradeWeights]);
 
     // Restriction Professeur
     const staffRecord = useMemo(() => settings.staff?.find(s => s.matricule === session?.matricule), [settings.staff, session]);
@@ -484,7 +510,7 @@ export const StudentDetails: React.FC<StudentDetailsProps> = ({ student, onBack 
                             <thead>
                                 <tr className="bg-white">
                                     <th className="border border-black px-2 py-2 text-left font-black w-[25%] uppercase">Matière</th>
-                                    <th className="border border-black px-1 py-2 text-center font-bold">Moy. Classe</th>
+                                    <th className="border border-black px-1 py-2 text-center font-bold">Moy. Devoir</th>
                                     <th className="border border-black px-1 py-2 text-center font-bold">Note Compo</th>
                                     <th className="border border-black px-1 py-2 text-center font-bold">Moy. Trimestre</th>
                                     <th className="border border-black px-1 py-2 text-center font-bold">Coeff</th>
@@ -498,8 +524,8 @@ export const StudentDetails: React.FC<StudentDetailsProps> = ({ student, onBack 
                                     return (
                                         <tr key={idx} className="h-6 border-b border-gray-300">
                                             <td className="border-x border-black px-2 font-bold uppercase">{s.name}</td>
-                                            <td className="border-x border-black text-center font-medium">{s.moyDevoirs.toFixed(2)}</td>
-                                            <td className="border-x border-black text-center font-medium">{s.compoNote !== null ? s.compoNote : '-'}</td>
+                                            <td className="border-x border-black text-center font-medium">{s.moyDevoirs !== null ? s.moyDevoirs.toFixed(2) : '-'}</td>
+                                            <td className="border-x border-black text-center font-medium">{s.compoNote !== null ? s.compoNote.toFixed(2) : '-'}</td>
                                             <td className="border-x border-black text-center font-bold">{s.average.toFixed(2)}</td>
                                             <td className="border-x border-black text-center">{s.coefficient}</td>
                                             <td className="border-x border-black text-center">{(s.average * s.coefficient).toFixed(2)}</td>

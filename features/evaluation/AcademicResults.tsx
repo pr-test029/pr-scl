@@ -87,9 +87,21 @@ export const AcademicResults: React.FC = () => {
                 }
             });
 
+            const rawW = settings.gradeWeights?.[student.cycle] ?? { devoir: 50, composition: 50 };
+            const wDev = rawW.devoir > 1 ? rawW.devoir / 100 : rawW.devoir;
+            const wCompo = rawW.composition > 1 ? rawW.composition / 100 : rawW.composition;
+
             const points = Object.values(subData).reduce((acc, d) => {
-                const moyDev = d.count > 0 ? d.total / d.count : (d.compoNote || 0);
-                const final = d.compoNote !== null ? (moyDev + d.compoNote) / 2 : moyDev;
+                const hasDev = d.count > 0;
+                const hasCompo = d.compoNote !== null;
+                let final = 0;
+                if (hasDev && hasCompo) {
+                    final = (d.total / d.count) * wDev + d.compoNote! * wCompo;
+                } else if (hasDev) {
+                    final = d.total / d.count;
+                } else if (hasCompo) {
+                    final = d.compoNote!;
+                }
                 return acc + (final * d.coeff);
             }, 0);
 
@@ -101,7 +113,7 @@ export const AcademicResults: React.FC = () => {
 
         // Sort by average descending
         return studentAverages.sort((a, b) => b.average - a.average);
-    }, [students, grades, activeTrimestre, selectedCycle, selectedClass, subjects]);
+    }, [students, grades, activeTrimestre, selectedCycle, selectedClass, subjects, settings.gradeWeights]);
 
     const handlePrint = () => {
         const content = document.getElementById('results-print-content')?.outerHTML;
