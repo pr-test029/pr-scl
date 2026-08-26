@@ -528,7 +528,7 @@ const App: React.FC = () => {
           <NetworkStatusIndicator />
           <PWAInstallPrompt logo={settings.logo} appName={settings.appName || school?.name || 'PR-SGS'} />
           <SubscriptionGuard school={school} isAdmin={isAdmin}>
-            <div className="flex flex-col md:flex-row font-sans min-h-screen relative z-10">
+            <div className="flex flex-col md:flex-row font-sans min-h-screen relative z-10 gap-0">
 
               {/* Mobile Header */}
               <div className="md:hidden fixed top-0 left-0 w-full z-50 h-16 bg-[var(--primary-color)] dark:bg-slate-900/90 dark:backdrop-blur-xl text-white px-5 flex justify-between items-center shadow-lg border-b dark:border-white/10 transition-all">
@@ -569,7 +569,7 @@ const App: React.FC = () => {
               {/* Combined Sidebar/Drawer Navigation */}
               <nav 
                 id="mobile-nav" 
-                className={`fixed md:sticky top-0 left-0 min-h-screen z-[70] md:z-40 transition-all duration-350 ease-[cubic-bezier(0.4,0,0.2,1)] bg-[var(--primary-color)] dark:bg-slate-900/95 dark:backdrop-blur-2xl text-white shadow-2xl md:shadow-xl flex flex-col
+                className={`fixed md:sticky top-0 left-0 min-h-screen z-[70] md:z-40 transition-all duration-350 ease-[cubic-bezier(0.4,0,0.2,1)] bg-[var(--primary-color)] dark:bg-slate-900/95 dark:backdrop-blur-2xl text-white shadow-2xl md:shadow-xl flex flex-col flex-none
                   ${isSidebarCollapsed ? 'md:w-20' : 'md:w-64'} 
                   -translate-x-full md:translate-x-0`}
               >
@@ -659,8 +659,8 @@ const App: React.FC = () => {
               </nav>
 
               {/* Main Content */}
-              <main className={`flex-1 w-full pt-16 md:pt-0 min-h-screen transition-all duration-300 ${isSidebarCollapsed ? 'md:ml-20' : 'md:ml-64'}`}>
-                <div className="p-4 md:p-10 w-full pb-24 safe-area-bottom">
+              <main className={`flex-1 w-full pt-16 md:pt-0 min-h-screen transition-all duration-300`}>
+                <div className="pt-4 md:pt-10 pb-24 w-full safe-area-bottom">
                   <header className="mb-10 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
                     <div className="animate-fade-in">
                       <div className="flex items-center gap-3">
