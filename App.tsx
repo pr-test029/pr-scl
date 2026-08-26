@@ -660,7 +660,7 @@ const App: React.FC = () => {
 
               {/* Main Content */}
               <main className={`flex-1 w-full pt-16 md:pt-0 min-h-screen transition-all duration-300`}>
-                <div className="pt-4 md:pt-10 pb-24 w-full safe-area-bottom px-4 md:px-6">
+                <div className="pt-4 md:pt-10 pb-24 w-full safe-area-bottom">
                   <header className="mb-10 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
                     <div className="animate-fade-in">
                       <div className="flex items-center gap-3">
