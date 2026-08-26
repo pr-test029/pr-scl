@@ -476,7 +476,7 @@ export const StudentDetails: React.FC<StudentDetailsProps> = ({ student, onBack 
                                     <p className="text-[7px] font-bold text-gray-400 tracking-widest uppercase mb-2">Vérification Officielle</p>
                                     
                                     <div className="text-[10px] space-y-0.5">
-                                        <p className="font-medium italic">Année Académique : <span className="font-bold">2023-2024</span></p>
+                                        <p className="font-medium italic">Année Académique : <span className="font-bold">{selectedAcademicYear || settings.currentAcademicYear || '2025-2026'}</span></p>
                                         <p className="font-black uppercase underline">Période : {isUniversity ? `SEMESTRE ${activeTrimestre}` : `${activeTrimestre === '1' ? '1ER' : activeTrimestre + 'ÈME'} TRIMESTRE`}</p>
                                     </div>
                                 </div>

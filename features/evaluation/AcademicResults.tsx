@@ -7,7 +7,7 @@ import { Student, Grade, Subject } from '../../types';
 import html2pdf from 'html2pdf.js';
 
 export const AcademicResults: React.FC = () => {
-    const { students, grades, settings, cycles, subjects } = useSchool();
+    const { students, grades, settings, cycles, subjects, selectedAcademicYear } = useSchool();
     const [selectedCycle, setSelectedCycle] = useState<string>('');
     const [selectedClass, setSelectedClass] = useState<string>('');
     const [activeTrimestre, setActiveTrimestre] = useState<string>('1');
@@ -290,7 +290,7 @@ export const AcademicResults: React.FC = () => {
                                     <h2 style={{ fontSize: '14px', fontWeight: '900', textTransform: 'uppercase', margin: 0 }}>{bh.republicName}</h2>
                                     <p style={{ fontSize: '10px', fontStyle: 'italic', margin: '2px 0' }}>"{bh.republicMotto}"</p>
                                     <div style={{ marginTop: '15px', fontSize: '12px', fontWeight: 'bold', textTransform: 'uppercase' }}>
-                                        Année Académique : 2023-2024
+                                        Année Académique : {selectedAcademicYear || settings.currentAcademicYear || '2025-2026'}
                                     </div>
                                 </div>
                             </div>

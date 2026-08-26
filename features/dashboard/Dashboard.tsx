@@ -7,7 +7,7 @@ import { Cycle } from '../../types';
 import * as api from '../../services/firebase';
 
 export const Dashboard: React.FC = () => {
-  const { students, grades, cycles, subjects, settings, payments, expenses } = useSchool();
+  const { students, grades, cycles, subjects, settings, payments, expenses, selectedAcademicYear } = useSchool();
   const [dbStatus, setDbStatus] = useState<'checking' | 'online' | 'error'>('checking');
 
   useEffect(() => {
@@ -39,16 +39,45 @@ export const Dashboard: React.FC = () => {
   const balance = totalCollected - totalExpenses;
 
   const staffCount = settings.staff?.length || 0;
+
   // Quick Overview Calculations
-  const totalCapacity = Object.values(cycles).reduce(
-    (acc, cycle) => acc + (cycle.classrooms?.reduce((cAcc, room) => cAcc + (room.capacity ?? 0), 0) ?? 0),
-    0,
-  );
-  const fillRate = totalCapacity ? Math.round((students.length / totalCapacity) * 100) : 0;
-  const notesCount = students.filter(s =>
-    grades.some(g => g.studentId === s.id && g.academic_year === settings.currentAcademicYear)
-  ).length;
-  const notesRate = students.length ? Math.round((notesCount / students.length) * 100) : 0;
+  // 1. Capacité totale : somme des capacités des salles configurées, ou estimation basée sur les niveaux/classes
+  const totalCapacity = useMemo(() => {
+    let cap = 0;
+    let totalRoomsCount = 0;
+    Object.values(cycles).forEach(cycle => {
+      const rooms = cycle.classrooms || [];
+      totalRoomsCount += rooms.length;
+      rooms.forEach(room => {
+        cap += (room.capacity && room.capacity > 0) ? room.capacity : 35; // 35 élèves par défaut par salle
+      });
+    });
+
+    // Si aucune salle n'est définie, calculer selon les niveaux et séries du cycle
+    if (cap === 0) {
+      let estimatedClassesCount = 0;
+      Object.values(cycles).forEach(cycle => {
+        const levelsCount = cycle.levels?.length || 1;
+        const variantsCount = cycle.type === 'series' 
+          ? (cycle.series?.length || 1)
+          : (cycle.type === 'specialites' ? (cycle.specialites?.length || 1) : 1);
+        estimatedClassesCount += (levelsCount * variantsCount);
+      });
+      cap = Math.max(estimatedClassesCount * 35, students.length > 0 ? students.length : 35);
+    }
+    return cap;
+  }, [cycles, students.length]);
+
+  const fillRate = totalCapacity > 0 ? Math.min(Math.round((students.length / totalCapacity) * 100), 100) : 0;
+
+  // 2. Taux d'élèves ayant des notes enregistrées
+  const studentsWithGradesCount = useMemo(() => {
+    if (students.length === 0) return 0;
+    const studentIdsWithGrades = new Set(grades.map(g => g.studentId));
+    return students.filter(s => studentIdsWithGrades.has(s.id)).length;
+  }, [students, grades]);
+
+  const notesRate = students.length > 0 ? Math.round((studentsWithGradesCount / students.length) * 100) : 0;
   // Helper to parse dates from various formats (ISO or local fr-FR)
   const parsePaymentDate = (dateStr: string) => {
     if (!dateStr) return new Date();
@@ -119,7 +148,7 @@ export const Dashboard: React.FC = () => {
         <div className="flex items-center gap-4 bg-white dark:bg-white/5 p-4 rounded-3xl border dark:border-white/10 shadow-sm self-start sm:self-auto">
             <div className="text-right">
                 <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Année Scolaire</p>
-                <p className="font-bold text-sm dark:text-white">2023 - 2024</p>
+                <p className="font-bold text-sm dark:text-white">{selectedAcademicYear || settings.currentAcademicYear || '2025-2026'}</p>
             </div>
             <div className="w-12 h-12 rounded-2xl bg-[var(--primary-color)]/10 dark:bg-[var(--primary-color)]/20 text-[var(--primary-color)] flex items-center justify-center text-lg shadow-inner">
                 <i className="fas fa-calendar-check"></i>
