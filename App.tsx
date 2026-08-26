@@ -522,7 +522,7 @@ const App: React.FC = () => {
     <ErrorBoundary>
       <SchoolContext.Provider value={contextValue}>
         <div
-          className={`min-h-screen transition-all duration-300 ${currentMode === 'dark' ? 'dark starry-bg text-gray-100' : 'bg-gray-100 text-gray-800'}`}
+          className={`min-h-screen overflow-x-hidden transition-all duration-300 ${currentMode === 'dark' ? 'dark starry-bg text-gray-100' : 'bg-gray-100 text-gray-800'}`}
           style={themeStyles}
         >
           <NetworkStatusIndicator />
@@ -569,7 +569,7 @@ const App: React.FC = () => {
               {/* Combined Sidebar/Drawer Navigation */}
               <nav 
                 id="mobile-nav" 
-                className={`fixed md:sticky top-0 left-0 h-screen z-[70] md:z-40 transition-all duration-350 ease-[cubic-bezier(0.4,0,0.2,1)] bg-[var(--primary-color)] dark:bg-slate-900/95 dark:backdrop-blur-2xl text-white shadow-2xl md:shadow-xl border-r dark:border-white/10 flex flex-col
+                className={`fixed md:sticky top-0 left-0 min-h-screen z-[70] md:z-40 transition-all duration-350 ease-[cubic-bezier(0.4,0,0.2,1)] bg-[var(--primary-color)] dark:bg-slate-900/95 dark:backdrop-blur-2xl text-white shadow-2xl md:shadow-xl border-r dark:border-white/10 flex flex-col
                   ${isSidebarCollapsed ? 'md:w-20' : 'md:w-64'} 
                   -translate-x-full md:translate-x-0 w-[280px]`}
               >
@@ -659,7 +659,7 @@ const App: React.FC = () => {
               </nav>
 
               {/* Main Content */}
-              <main className={`flex-1 w-full pt-16 md:pt-0 min-h-screen transition-all duration-300 ${isSidebarCollapsed ? 'ml-20' : 'ml-64'}`}>
+              <main className={`flex-1 w-full pt-16 md:pt-0 min-h-screen transition-all duration-300 ${isSidebarCollapsed ? 'md:ml-20' : 'md:ml-64'}`}>
                 <div className="p-4 md:p-10 max-w-7xl mx-auto pb-24 safe-area-bottom">
                   <header className="mb-10 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
                     <div className="animate-fade-in">
