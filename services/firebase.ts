@@ -600,7 +600,7 @@ export const updateStudentDB = async (student: Student) => {
 export const deleteStudentDB = async (id: string, academicYear: string) => {
     const schoolId = await ensureSchoolId();
     if (!schoolId) return;
-    const docId = `${schoolId}_${id}`;
+    const docId = `${schoolId}_${academicYear}_${id}`;
 
     if (!navigator.onLine) {
         await enqueueMutation({
@@ -609,11 +609,19 @@ export const deleteStudentDB = async (id: string, academicYear: string) => {
             docId,
             schoolId
         });
+        const cacheKey = `students_${schoolId}_${academicYear}`;
+        const cached = (await getCachedData<Student[]>(cacheKey)) || [];
+        const updated = cached.filter(s => s.id !== id);
+        await cacheData(cacheKey, updated);
         return;
     }
 
     try {
         await deleteDoc(doc(db, "students", docId));
+        const cacheKey = `students_${schoolId}_${academicYear}`;
+        const cached = (await getCachedData<Student[]>(cacheKey)) || [];
+        const updated = cached.filter(s => s.id !== id);
+        await cacheData(cacheKey, updated);
     } catch (error: any) {
         if (!navigator.onLine || error.code === 'unavailable' || error.message?.includes('network')) {
             await enqueueMutation({
@@ -622,7 +630,12 @@ export const deleteStudentDB = async (id: string, academicYear: string) => {
                 docId,
                 schoolId
             });
+            const cacheKey = `students_${schoolId}_${academicYear}`;
+            const cached = (await getCachedData<Student[]>(cacheKey)) || [];
+            const updated = cached.filter(s => s.id !== id);
+            await cacheData(cacheKey, updated);
         } else {
+            console.error("deleteStudentDB Error:", error);
             throw error;
         }
     }
@@ -752,7 +765,7 @@ export const updateGradeDB = async (grade: Grade) => {
 export const deleteGradeDB = async (id: string, academicYear: string) => {
     const schoolId = await ensureSchoolId();
     if (!schoolId) return;
-    const docId = `${schoolId}_${id}`;
+    const docId = `${schoolId}_${academicYear}_${id}`;
 
     if (!navigator.onLine) {
         await enqueueMutation({
@@ -761,11 +774,19 @@ export const deleteGradeDB = async (id: string, academicYear: string) => {
             docId,
             schoolId
         });
+        const cacheKey = `grades_${schoolId}_${academicYear}`;
+        const cached = (await getCachedData<Grade[]>(cacheKey)) || [];
+        const updated = cached.filter(g => g.id !== id);
+        await cacheData(cacheKey, updated);
         return;
     }
 
     try {
         await deleteDoc(doc(db, "grades", docId));
+        const cacheKey = `grades_${schoolId}_${academicYear}`;
+        const cached = (await getCachedData<Grade[]>(cacheKey)) || [];
+        const updated = cached.filter(g => g.id !== id);
+        await cacheData(cacheKey, updated);
     } catch (error: any) {
         if (!navigator.onLine || error.code === 'unavailable' || error.message?.includes('network')) {
             await enqueueMutation({
@@ -774,7 +795,12 @@ export const deleteGradeDB = async (id: string, academicYear: string) => {
                 docId,
                 schoolId
             });
+            const cacheKey = `grades_${schoolId}_${academicYear}`;
+            const cached = (await getCachedData<Grade[]>(cacheKey)) || [];
+            const updated = cached.filter(g => g.id !== id);
+            await cacheData(cacheKey, updated);
         } else {
+            console.error("deleteGradeDB Error:", error);
             throw error;
         }
     }
@@ -1016,13 +1042,23 @@ export const addPaymentDB = async (payment: Payment) => {
         await setDoc(doc(db, "payments", docId), dataToSave);
         
         // Update student totalPaid
-        const studentDocId = `${schoolId}_${payment.studentId}`;
+        const studentDocId = `${schoolId}_${payment.academic_year}_${payment.studentId}`;
         const studentDoc = await getDoc(doc(db, "students", studentDocId));
         if (studentDoc.exists()) {
             const currentTotal = studentDoc.data().totalPaid || 0;
             await updateDoc(doc(db, "students", studentDocId), {
                 totalPaid: currentTotal + payment.amount
             });
+        } else {
+            // Fallback for legacy student doc ID format without academic year
+            const legacyStudentDocId = `${schoolId}_${payment.studentId}`;
+            const legacyDoc = await getDoc(doc(db, "students", legacyStudentDocId));
+            if (legacyDoc.exists()) {
+                const currentTotal = legacyDoc.data().totalPaid || 0;
+                await updateDoc(doc(db, "students", legacyStudentDocId), {
+                    totalPaid: currentTotal + payment.amount
+                });
+            }
         }
     } catch (error: any) {
         if (!navigator.onLine || error.code === 'unavailable' || error.message?.includes('network')) {
