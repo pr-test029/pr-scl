@@ -5,6 +5,7 @@ import { useSchool } from '../../App';
 import { Student, Cycle } from '../../types';
 import { StudentDetails } from './StudentDetails';
 import { StudentForm } from './StudentForm';
+import { StudentBadgeModal } from './StudentBadgeModal';
 
 export const StudentList: React.FC = () => {
   const { students, cycles, deleteStudent, session, settings } = useSchool();
@@ -20,6 +21,7 @@ export const StudentList: React.FC = () => {
   // States pour la navigation
   const [selectedStudentId, setSelectedStudentId] = useState<string | null>(null);
   const [editingStudent, setEditingStudent] = useState<Student | null>(null);
+  const [badgeStudent, setBadgeStudent] = useState<Student | null>(null);
 
   // Filter Logic
   const filteredStudents = useMemo(() => {
@@ -213,6 +215,9 @@ export const StudentList: React.FC = () => {
                         <button onClick={() => setSelectedStudentId(student.id)} className="p-2.5 rounded-xl bg-blue-50 dark:bg-blue-900/20 text-blue-600 hover:bg-blue-600 hover:text-white transition-all shadow-sm active:scale-90" title="Bulletin">
                           <i className="fas fa-file-invoice"></i>
                         </button>
+                        <button onClick={() => setBadgeStudent(student)} className="p-2.5 rounded-xl bg-purple-50 dark:bg-purple-900/20 text-purple-600 hover:bg-purple-600 hover:text-white transition-all shadow-sm active:scale-90" title="Badge étudiant">
+                          <i className="fas fa-id-card"></i>
+                        </button>
                         {session?.role !== 'professeur' && (
                           <>
                             <button onClick={() => handleEdit(student)} className="p-2.5 rounded-xl bg-amber-50 dark:bg-amber-900/20 text-amber-600 hover:bg-amber-600 hover:text-white transition-all shadow-sm active:scale-90" title="Modifier">
@@ -246,6 +251,7 @@ export const StudentList: React.FC = () => {
                       </div>
                       <div className="flex gap-2">
                          <Button fullWidth variant="secondary" size="sm" onClick={() => setSelectedStudentId(student.id)} icon={<i className="fas fa-file-invoice"></i>}>Bulletin</Button>
+                         <Button variant="secondary" size="sm" onClick={() => setBadgeStudent(student)} className="aspect-square p-0 w-12" title="Badge"><i className="fas fa-id-card"></i></Button>
                          {session?.role !== 'professeur' && (
                            <>
                              <Button variant="secondary" size="sm" onClick={() => handleEdit(student)} className="aspect-square p-0 w-12"><i className="fas fa-pen"></i></Button>
@@ -259,6 +265,9 @@ export const StudentList: React.FC = () => {
           </>
         )}
       </Card>
+
+      {/* Modal badge etudiant */}
+      <StudentBadgeModal student={badgeStudent} onClose={() => setBadgeStudent(null)} />
 
       {/* Modal d'édition */}
       {editingStudent && (
