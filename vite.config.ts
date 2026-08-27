@@ -12,6 +12,20 @@ export default defineConfig(({ mode }) => {
         'Cross-Origin-Opener-Policy': 'same-origin-allow-popups',
       },
     },
+    build: {
+      rollupOptions: {
+        output: {
+          manualChunks(id) {
+            if (id.includes('node_modules')) {
+              if (id.includes('firebase')) return 'firebase';
+              if (id.includes('react')) return 'react';
+              if (id.includes('html2pdf') || id.includes('html2canvas') || id.includes('jspdf')) return 'pdf-utils';
+              return 'vendor';
+            }
+          },
+        },
+      },
+    },
     plugins: [
       react(),
       VitePWA({
@@ -44,6 +58,7 @@ export default defineConfig(({ mode }) => {
           ]
         },
         workbox: {
+          maximumFileSizeToCacheInBytes: 5 * 1024 * 1024,
           globPatterns: ['**/*.{js,css,html,ico,png,svg,woff,woff2,ttf,eot}'],
           navigateFallback: '/index.html',
           cleanupOutdatedCaches: true,
