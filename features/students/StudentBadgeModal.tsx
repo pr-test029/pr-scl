@@ -1,6 +1,7 @@
 import React, { useRef } from 'react';
 import { QRCodeSVG } from 'qrcode.react';
 import html2pdf from 'html2pdf.js';
+import html2canvas from 'html2canvas';
 import { useSchool } from '../../App';
 import { Student } from '../../types';
 import { Modal, Button } from '../../components/ui/Common';
@@ -25,6 +26,21 @@ export const StudentBadgeModal: React.FC<StudentBadgeModalProps> = ({ student, o
     '|YEAR:' + year;
 
   const primaryVar = 'var(--primary-color)';
+
+
+  const handleDownloadPNG = async () => {
+    if (!badgeRef.current) return;
+    try {
+      const canvas = await html2canvas(badgeRef.current, { scale: 2, useCORS: true });
+      const imgData = canvas.toDataURL('image/png');
+      const link = document.createElement('a');
+      link.href = imgData;
+      link.download = 'badge_' + (student.matricule || student.id) + '.png';
+      link.click();
+    } catch (err) {
+      console.error('Failed to export PNG', err);
+    }
+  };
 
   const handleDownload = () => {
     if (!badgeRef.current) return;
@@ -220,8 +236,13 @@ export const StudentBadgeModal: React.FC<StudentBadgeModalProps> = ({ student, o
           <Button variant="secondary" onClick={onClose}>
             Fermer
           </Button>
+          <Button variant="primary" onClick={handleDownloadPNG}>
+            <i className="fas fa-image mr-2" />
+            Télécharger PNG
+          </Button>
           <Button variant="primary" onClick={handleDownload}>
-            Telecharger PDF (A4)
+            <i className="fas fa-file-pdf mr-2" />
+            Télécharger PDF (A4)
           </Button>
         </div>
       </div>
