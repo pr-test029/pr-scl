@@ -1,4 +1,4 @@
-import React, { useRef } from 'react';
+import React, { useRef, useState, useEffect } from 'react';
 import { QRCodeSVG } from 'qrcode.react';
 import html2pdf from 'html2pdf.js';
 import html2canvas from 'html2canvas';
@@ -14,6 +14,31 @@ interface StudentBadgeModalProps {
 export const StudentBadgeModal: React.FC<StudentBadgeModalProps> = ({ student, onClose }) => {
   const { settings, selectedAcademicYear } = useSchool();
   const badgeRef = useRef<HTMLDivElement>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [scale, setScale] = useState(1);
+
+  useEffect(() => {
+    const updateScale = () => {
+      if (containerRef.current) {
+        const A4_WIDTH_PX = 1123; // approx 297mm (landscape width) in pixels at 96 DPI
+        const padding = 32; // 16px padding on each side
+        const availableWidth = containerRef.current.clientWidth - padding;
+        if (availableWidth > 0 && availableWidth < A4_WIDTH_PX) {
+          setScale(availableWidth / A4_WIDTH_PX);
+        } else {
+          setScale(1);
+        }
+      }
+    };
+    
+    // Slight delay to ensure modal is rendered and has width
+    const timeout = setTimeout(updateScale, 50);
+    window.addEventListener('resize', updateScale);
+    return () => {
+      clearTimeout(timeout);
+      window.removeEventListener('resize', updateScale);
+    };
+  }, [student]);
 
   if (!student) return null;
 
@@ -56,53 +81,95 @@ export const StudentBadgeModal: React.FC<StudentBadgeModalProps> = ({ student, o
 
   return (
     <Modal isOpen={!!student} onClose={onClose} title="Badge Etudiant" maxWidth="max-w-3xl">
-      <div className="overflow-auto max-h-[80vh] w-full flex flex-col items-center pb-4">
-        {/* ---------- Printable badge ---------- */}
-        <div
-          ref={badgeRef}
-          className="w-full max-w-[297mm] md:min-h-[210mm] h-auto p-4 md:p-8 bg-white text-left"
-        >
+      <div className="overflow-auto max-h-[80vh] flex flex-col items-center pb-4 w-full overflow-x-hidden" ref={containerRef}>
+        {/* ---------- Printable badge wrapper for scaling ---------- */}
+        <div style={{
+           width: '100%',
+           height: `${794 * scale}px`, // 210mm is approx 794px at 96 DPI (landscape height)
+           position: 'relative'
+        }}>
+          <div style={{
+            position: 'absolute',
+            top: 0,
+            left: '50%',
+            transform: `translateX(-50%) scale(${scale})`,
+            transformOrigin: 'top center',
+          }}>
+            <div
+              ref={badgeRef}
+              style={{
+                width: '297mm', // Landscape A4 Width
+                minHeight: '210mm', // Landscape A4 Height
+                backgroundColor: '#ffffff',
+                color: '#111827',
+                fontFamily: 'Arial, sans-serif',
+                padding: '20mm',
+                boxSizing: 'border-box',
+              }}
+            >
           {/* ---- Header ---- */}
           <div
-            className="flex flex-col sm:flex-row justify-between items-center pb-3 mb-6 border-b-[3px] gap-4"
-            style={{ borderColor: primaryVar }}
+            style={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              paddingBottom: '12px',
+              borderBottom: '3px solid ' + primaryVar,
+              marginBottom: '24px',
+            }}
           >
-            <div className="flex flex-col sm:flex-row items-center gap-3 text-center sm:text-left">
+            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
               {settings.logo ? (
                 <img
                   src={settings.logo}
                   alt="logo"
-                  className="h-16 w-16 object-contain rounded-lg"
+                  style={{ height: '60px', width: '60px', objectFit: 'contain', borderRadius: '8px' }}
                 />
               ) : (
                 <div
-                  className="h-16 w-16 rounded-lg flex items-center justify-center text-white text-3xl font-black"
-                  style={{ background: primaryVar }}
+                  style={{
+                    height: '60px',
+                    width: '60px',
+                    borderRadius: '8px',
+                    background: primaryVar,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    color: '#fff',
+                    fontSize: '28px',
+                    fontWeight: 900,
+                  }}
                 >
                   {(settings.appName || 'E').charAt(0)}
                 </div>
               )}
               <div>
-                <div className="text-xl md:text-2xl font-black" style={{ color: primaryVar }}>
+                <div style={{ fontSize: '22px', fontWeight: 900, color: primaryVar }}>
                   {settings.appName || 'Etablissement scolaire'}
                 </div>
-                <div className="text-xs text-gray-500 mt-1">
+                <div style={{ fontSize: '12px', color: '#6b7280', marginTop: '2px' }}>
                   Badge Officiel d'Etudiant
                 </div>
               </div>
             </div>
             <div
-              className="px-5 py-2 rounded-full text-sm font-bold text-white"
-              style={{ background: primaryVar }}
+              style={{
+                background: primaryVar,
+                color: '#fff',
+                padding: '8px 20px',
+                borderRadius: '999px',
+                fontSize: '13px',
+                fontWeight: 700,
+              }}
             >
               {year}
             </div>
           </div>
 
           {/* ---- Body: photo + info + QR ---- */}
-          <div className="flex flex-col md:flex-row gap-6 md:gap-8 items-center md:items-start">
+          <div style={{ display: 'flex', gap: '32px', alignItems: 'flex-start' }}>
             {/* Photo */}
-            <div className="flex-shrink-0 text-center">
+            <div style={{ flexShrink: 0, textAlign: 'center' }}>
               <img
                 src={
                   student.photo ||
@@ -111,22 +178,38 @@ export const StudentBadgeModal: React.FC<StudentBadgeModalProps> = ({ student, o
                     '&background=random&size=200'
                 }
                 alt="photo"
-                className="w-32 h-40 md:w-[120px] md:h-[150px] object-cover rounded-xl border-4"
-                style={{ borderColor: primaryVar }}
+                style={{
+                  width: '120px',
+                  height: '150px',
+                  objectFit: 'cover',
+                  borderRadius: '12px',
+                  border: '3px solid ' + primaryVar,
+                }}
               />
               <div
-                className="mt-2 text-xs font-bold uppercase tracking-widest"
-                style={{ color: student.genre === 'Feminin' ? '#ec4899' : '#3b82f6' }}
+                style={{
+                  marginTop: '8px',
+                  fontSize: '11px',
+                  fontWeight: 700,
+                  color: student.genre === 'Feminin' ? '#ec4899' : '#3b82f6',
+                  textTransform: 'uppercase',
+                  letterSpacing: '0.08em',
+                }}
               >
                 {student.genre || ''}
               </div>
             </div>
 
             {/* Info fields */}
-            <div className="flex-1 w-full text-center md:text-left">
+            <div style={{ flex: 1 }}>
               <div
-                className="text-2xl md:text-[26px] font-black mb-4 leading-tight"
-                style={{ color: primaryVar }}
+                style={{
+                  fontSize: '26px',
+                  fontWeight: 900,
+                  color: primaryVar,
+                  marginBottom: '14px',
+                  lineHeight: 1.15,
+                }}
               >
                 {student.prenom} {student.nom}
               </div>
@@ -139,36 +222,50 @@ export const StudentBadgeModal: React.FC<StudentBadgeModalProps> = ({ student, o
               ].map(({ label, value }) => (
                 <div
                   key={label}
-                  className="flex flex-col sm:flex-row sm:gap-2 mb-2 text-sm"
+                  style={{ display: 'flex', gap: '8px', marginBottom: '7px', fontSize: '13px' }}
                 >
-                  <span className="text-gray-500 sm:min-w-[150px] font-semibold">{label} :</span>
-                  <span className="font-extrabold text-gray-900">{value}</span>
+                  <span style={{ color: '#6b7280', minWidth: '150px', fontWeight: 600 }}>{label} :</span>
+                  <span style={{ fontWeight: 800, color: '#111827' }}>{value}</span>
                 </div>
               ))}
             </div>
 
             {/* QR code */}
-            <div className="flex-shrink-0 text-center mt-4 md:mt-0">
+            <div style={{ flexShrink: 0, textAlign: 'center' }}>
               <div
-                className="p-3 rounded-xl border-2 bg-white inline-block"
-                style={{ borderColor: primaryVar }}
+                style={{
+                  padding: '10px',
+                  border: '2px solid ' + primaryVar,
+                  borderRadius: '12px',
+                  background: '#fff',
+                }}
               >
                 <QRCodeSVG value={qrValue} size={110} level="M" />
               </div>
-              <div className="text-[10px] text-gray-500 mt-2 font-semibold">
+              <div style={{ fontSize: '10px', color: '#6b7280', marginTop: '6px', fontWeight: 600 }}>
                 Verification d'authenticite
               </div>
             </div>
           </div>
 
           {/* ---- Footer ---- */}
-          <div className="mt-8 md:mt-12 pt-4 border-t-2 border-dashed border-gray-300 flex flex-col md:flex-row justify-between items-center text-center md:text-left gap-4">
-            <div className="text-xs text-gray-400">
+          <div
+            style={{
+              marginTop: '48px',
+              borderTop: '2px dashed #d1d5db',
+              paddingTop: '16px',
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+            }}
+          >
+            <div style={{ fontSize: '11px', color: '#9ca3af' }}>
               Ce badge est un document officiel. Toute falsification est passible de sanctions.
             </div>
-            <div className="text-xs font-bold uppercase" style={{ color: primaryVar }}>
+            <div style={{ fontSize: '11px', color: primaryVar, fontWeight: 700, textTransform: 'uppercase' }}>
               Cachet &amp; Signature
             </div>
+          </div>
           </div>
         </div>
 
