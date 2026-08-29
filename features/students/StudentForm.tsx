@@ -24,6 +24,8 @@ export const StudentForm: React.FC<StudentFormProps> = ({ onSuccess, initialData
   const [selectedFile, setSelectedFile] = useState<string | null>(null);
 
   const [showValidationModal, setShowValidationModal] = useState(false);
+  const [showTypeModal, setShowTypeModal] = useState(false);
+  const [enrollmentType, setEnrollmentType] = useState<'inscription' | 'reinscription'>('inscription');
   const [pendingStudent, setPendingStudent] = useState<Student | null>(null);
   const receiptRef = React.useRef<HTMLDivElement>(null);
 
@@ -112,8 +114,14 @@ export const StudentForm: React.FC<StudentFormProps> = ({ onSuccess, initialData
       if (onSuccess) onSuccess();
     } else {
       setPendingStudent(studentToSave);
-      setShowValidationModal(true);
+      setShowTypeModal(true); // Étape 1 : choisir inscription ou réinscription
     }
+  };
+
+  const handleSelectType = (type: 'inscription' | 'reinscription') => {
+    setEnrollmentType(type);
+    setShowTypeModal(false);
+    setShowValidationModal(true);
   };
 
   const handlePrintReceipt = () => {
@@ -121,7 +129,7 @@ export const StudentForm: React.FC<StudentFormProps> = ({ onSuccess, initialData
     const element = receiptRef.current;
     html2pdf().from(element).set({
         margin: 10,
-        filename: `recu_inscription_${pendingStudent.matricule}.pdf`,
+        filename: `recu_${enrollmentType}_${pendingStudent.matricule}.pdf`,
         jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
     }).save();
   };
@@ -132,8 +140,19 @@ export const StudentForm: React.FC<StudentFormProps> = ({ onSuccess, initialData
     // 1. Sauvegarder l'élève
     addStudent(pendingStudent);
     
-    // 2. Sauvegarder le paiement d'inscription
-    const regFee = settings.accounting?.registrationFee || 0;
+    // 2. Calculer le frais selon la classe et le type
+    const className = pendingStudent.serie
+      ? `${pendingStudent.classe} ${pendingStudent.serie}`
+      : pendingStudent.classe;
+    const classFees = enrollmentType === 'inscription'
+      ? (settings.accounting?.classRegistrationFees || {})
+      : (settings.accounting?.classReRegistrationFees || {});
+    const regFee = classFees[className]
+      ?? classFees[pendingStudent.classe]
+      ?? (enrollmentType === 'inscription'
+          ? (settings.accounting?.registrationFee || 0)
+          : (settings.accounting?.reRegistrationFee || 0));
+
     if (regFee > 0) {
         const payment: Payment = {
             id: Date.now().toString(),
@@ -142,7 +161,7 @@ export const StudentForm: React.FC<StudentFormProps> = ({ onSuccess, initialData
             amount: regFee,
             date: new Date().toISOString(),
             method: 'cash',
-            notes: 'Frais d\'inscription',
+            notes: enrollmentType === 'inscription' ? 'Frais d\'inscription' : 'Frais de réinscription',
             recorded_by: session?.user_id,
             recorded_by_name: session?.display_name || 'Inconnu'
         };
@@ -250,70 +269,118 @@ export const StudentForm: React.FC<StudentFormProps> = ({ onSuccess, initialData
         </form>
       </Card>
 
-      {showValidationModal && pendingStudent && (
-          <Modal isOpen={true} onClose={() => setShowValidationModal(false)} title="Validation de l'inscription" maxWidth="max-w-2xl">
-              <div className="p-4 bg-gray-50 dark:bg-gray-800 rounded-lg">
-                  {/* Receipt Content */}
-                  <div ref={receiptRef} className="p-8 bg-white text-black border border-gray-200 rounded-lg shadow-sm" style={{ width: '100%', minHeight: '400px' }}>
-                      <div className="flex justify-between items-start mb-8 border-b pb-4">
-                          <div className="flex items-center gap-4">
-                              {settings.logo && <img src={settings.logo} alt="Logo" className="w-16 h-16 object-contain rounded" />}
-                              <div>
-                                  <h2 className="text-xl font-bold uppercase text-[var(--primary-color)]">{settings.appName || 'École'}</h2>
-                                  <p className="text-sm text-gray-500 font-semibold uppercase tracking-wider">Reçu d'inscription</p>
-                              </div>
-                          </div>
-                          <div className="text-right">
-                              <p className="text-sm font-bold">Reçu N° {Date.now().toString().slice(-6)}</p>
-                              <p className="text-xs text-gray-500">Date: {new Date().toLocaleDateString('fr-FR')}</p>
-                              <p className="text-xs text-gray-500">Heure: {new Date().toLocaleTimeString('fr-FR')}</p>
-                          </div>
-                      </div>
-
-                      <div className="mb-6">
-                          <h3 className="text-lg font-bold border-b border-gray-100 pb-2 mb-3 text-gray-800">Informations de l'Élève</h3>
-                          <div className="grid grid-cols-2 gap-4 text-sm">
-                              <p><strong className="text-gray-600">Nom & Prénom:</strong> <br/>{pendingStudent.nom} {pendingStudent.prenom}</p>
-                              <p><strong className="text-gray-600">Matricule:</strong> <br/>{pendingStudent.matricule}</p>
-                              <p><strong className="text-gray-600">Classe:</strong> <br/>{pendingStudent.classe} {pendingStudent.serie ? `(Série/Spé: ${pendingStudent.serie})` : ''}</p>
-                              <p><strong className="text-gray-600">Année Scolaire:</strong> <br/>{selectedAcademicYear}</p>
-                          </div>
-                      </div>
-
-                      <div className="mb-8">
-                          <h3 className="text-lg font-bold border-b border-gray-100 pb-2 mb-3 text-gray-800">Détail du Paiement</h3>
-                          <div className="flex justify-between items-center py-3 bg-gray-50 px-4 rounded-lg">
-                              <span className="font-semibold text-gray-700">Frais d'inscription</span>
-                              <span className="font-bold text-xl text-green-700">{settings.accounting?.registrationFee || 0} FCFA</span>
-                          </div>
-                          <p className="text-sm text-gray-500 mt-3 flex items-center gap-2">
-                              <i className="fas fa-money-bill-wave text-green-600"></i> 
-                              <strong>Mode de paiement:</strong> Espèces
-                          </p>
-                      </div>
-
-                      <div className="mt-12 pt-6 border-t flex justify-between items-end">
-                          <div>
-                              <p className="text-xs text-gray-400 uppercase tracking-wider mb-1">Enregistré par</p>
-                              <p className="font-bold text-gray-800">{session?.display_name || 'Gestionnaire'}</p>
-                          </div>
-                          <div className="p-2 border rounded-lg shadow-sm">
-                              <QRCodeSVG 
-                                  value={`Reçu N°${Date.now().toString().slice(-6)}\nÉlève: ${pendingStudent.nom} ${pendingStudent.prenom}\nMatricule: ${pendingStudent.matricule}\nFrais: ${settings.accounting?.registrationFee || 0} FCFA\nDate: ${new Date().toLocaleString('fr-FR')}`}
-                                  size={72}
-                                  level="M"
-                              />
-                          </div>
-                      </div>
-                  </div>
-
-                  <div className="mt-6 flex justify-end gap-4">
-                      <Button variant="secondary" onClick={handlePrintReceipt} icon={<i className="fas fa-print"></i>}>Imprimer le reçu</Button>
-                      <Button variant="primary" onClick={handleFinish} icon={<i className="fas fa-check"></i>}>Terminer</Button>
-                  </div>
-              </div>
-          </Modal>
+      {/* --- Modal choix : Inscription ou Réinscription --- */}
+      {showTypeModal && pendingStudent && (
+        <Modal isOpen={true} onClose={() => setShowTypeModal(false)} title="Type d'enregistrement" maxWidth="max-w-md">
+          <div className="p-6 space-y-4">
+            <p className="text-gray-600 dark:text-gray-300 text-center">
+              S'agit-il d'une <strong>nouvelle inscription</strong> ou d'une <strong>réinscription</strong> ?
+            </p>
+            <div className="grid grid-cols-2 gap-4 mt-4">
+              <button
+                onClick={() => handleSelectType('inscription')}
+                className="flex flex-col items-center justify-center gap-3 p-6 rounded-xl border-2 border-purple-200 dark:border-purple-700 bg-purple-50 dark:bg-purple-900/20 hover:bg-purple-100 dark:hover:bg-purple-900/40 hover:border-purple-400 transition-all group"
+              >
+                <div className="w-14 h-14 rounded-full bg-purple-100 dark:bg-purple-800 flex items-center justify-center group-hover:scale-110 transition-transform">
+                  <i className="fas fa-user-plus text-2xl text-purple-600 dark:text-purple-300"></i>
+                </div>
+                <span className="font-bold text-purple-800 dark:text-purple-200 text-sm text-center">Nouvelle<br/>Inscription</span>
+              </button>
+              <button
+                onClick={() => handleSelectType('reinscription')}
+                className="flex flex-col items-center justify-center gap-3 p-6 rounded-xl border-2 border-green-200 dark:border-green-700 bg-green-50 dark:bg-green-900/20 hover:bg-green-100 dark:hover:bg-green-900/40 hover:border-green-400 transition-all group"
+              >
+                <div className="w-14 h-14 rounded-full bg-green-100 dark:bg-green-800 flex items-center justify-center group-hover:scale-110 transition-transform">
+                  <i className="fas fa-redo text-2xl text-green-600 dark:text-green-300"></i>
+                </div>
+                <span className="font-bold text-green-800 dark:text-green-200 text-sm text-center">Réinscription</span>
+              </button>
+            </div>
+          </div>
+        </Modal>
       )}
+
+      {/* --- Modal validation + reçu --- */}
+      {showValidationModal && pendingStudent && (() => {
+          const cn = pendingStudent.serie
+            ? `${pendingStudent.classe} ${pendingStudent.serie}`
+            : pendingStudent.classe;
+          const feeMap = enrollmentType === 'inscription'
+            ? (settings.accounting?.classRegistrationFees || {})
+            : (settings.accounting?.classReRegistrationFees || {});
+          const fee = feeMap[cn]
+            ?? feeMap[pendingStudent.classe]
+            ?? (enrollmentType === 'inscription'
+                ? (settings.accounting?.registrationFee || 0)
+                : (settings.accounting?.reRegistrationFee || 0));
+          const feeLabel = enrollmentType === 'inscription' ? "Frais d'inscription" : "Frais de réinscription";
+          return (
+            <Modal isOpen={true} onClose={() => setShowValidationModal(false)} title="Validation de l'inscription" maxWidth="max-w-2xl">
+                <div className="p-4 bg-gray-50 dark:bg-gray-800 rounded-lg">
+                    {/* Receipt Content */}
+                    <div ref={receiptRef} className="p-8 bg-white text-black border border-gray-200 rounded-lg shadow-sm" style={{ width: '100%', minHeight: '400px' }}>
+                        <div className="flex justify-between items-start mb-8 border-b pb-4">
+                            <div className="flex items-center gap-4">
+                                {settings.logo && <img src={settings.logo} alt="Logo" className="w-16 h-16 object-contain rounded" />}
+                                <div>
+                                    <h2 className="text-xl font-bold uppercase text-[var(--primary-color)]">{settings.appName || 'École'}</h2>
+                                    <p className="text-sm text-gray-500 font-semibold uppercase tracking-wider">
+                                      {enrollmentType === 'inscription' ? "Reçu d'inscription" : "Reçu de réinscription"}
+                                    </p>
+                                </div>
+                            </div>
+                            <div className="text-right">
+                                <p className="text-sm font-bold">Reçu N° {Date.now().toString().slice(-6)}</p>
+                                <p className="text-xs text-gray-500">Date: {new Date().toLocaleDateString('fr-FR')}</p>
+                                <p className="text-xs text-gray-500">Heure: {new Date().toLocaleTimeString('fr-FR')}</p>
+                            </div>
+                        </div>
+
+                        <div className="mb-6">
+                            <h3 className="text-lg font-bold border-b border-gray-100 pb-2 mb-3 text-gray-800">Informations de l'Élève</h3>
+                            <div className="grid grid-cols-2 gap-4 text-sm">
+                                <p><strong className="text-gray-600">Nom &amp; Prénom:</strong> <br/>{pendingStudent.nom} {pendingStudent.prenom}</p>
+                                <p><strong className="text-gray-600">Matricule:</strong> <br/>{pendingStudent.matricule}</p>
+                                <p><strong className="text-gray-600">Classe:</strong> <br/>{pendingStudent.classe} {pendingStudent.serie ? `(Série/Spé: ${pendingStudent.serie})` : ''}</p>
+                                <p><strong className="text-gray-600">Année Scolaire:</strong> <br/>{selectedAcademicYear}</p>
+                            </div>
+                        </div>
+
+                        <div className="mb-8">
+                            <h3 className="text-lg font-bold border-b border-gray-100 pb-2 mb-3 text-gray-800">Détail du Paiement</h3>
+                            <div className="flex justify-between items-center py-3 bg-gray-50 px-4 rounded-lg">
+                                <span className="font-semibold text-gray-700">{feeLabel}</span>
+                                <span className="font-bold text-xl text-green-700">{fee} FCFA</span>
+                            </div>
+                            <p className="text-sm text-gray-500 mt-3 flex items-center gap-2">
+                                <i className="fas fa-money-bill-wave text-green-600"></i> 
+                                <strong>Mode de paiement:</strong> Espèces
+                            </p>
+                        </div>
+
+                        <div className="mt-12 pt-6 border-t flex justify-between items-end">
+                            <div>
+                                <p className="text-xs text-gray-400 uppercase tracking-wider mb-1">Enregistré par</p>
+                                <p className="font-bold text-gray-800">{session?.display_name || 'Gestionnaire'}</p>
+                            </div>
+                            <div className="p-2 border rounded-lg shadow-sm">
+                                <QRCodeSVG 
+                                    value={`Reçu N°${Date.now().toString().slice(-6)}\nÉlève: ${pendingStudent.nom} ${pendingStudent.prenom}\nMatricule: ${pendingStudent.matricule}\n${feeLabel}: ${fee} FCFA\nDate: ${new Date().toLocaleString('fr-FR')}`}
+                                    size={72}
+                                    level="M"
+                                />
+                            </div>
+                        </div>
+                    </div>
+
+                    <div className="mt-6 flex justify-end gap-4">
+                        <Button variant="secondary" onClick={handlePrintReceipt} icon={<i className="fas fa-print"></i>}>Imprimer le reçu</Button>
+                        <Button variant="primary" onClick={handleFinish} icon={<i className="fas fa-check"></i>}>Terminer</Button>
+                    </div>
+                </div>
+            </Modal>
+          );
+      })()}
     </>
   );
 };

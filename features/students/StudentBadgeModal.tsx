@@ -16,6 +16,7 @@ export const StudentBadgeModal: React.FC<StudentBadgeModalProps> = ({ student, o
   const badgeRef = useRef<HTMLDivElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const [scale, setScale] = useState(1);
+  const [isExporting, setIsExporting] = useState(false);
 
   useEffect(() => {
     const updateScale = () => {
@@ -55,30 +56,50 @@ export const StudentBadgeModal: React.FC<StudentBadgeModalProps> = ({ student, o
 
   const handleDownloadPNG = async () => {
     if (!badgeRef.current) return;
-    try {
-      const canvas = await html2canvas(badgeRef.current, { scale: 2, useCORS: true });
-      const imgData = canvas.toDataURL('image/png');
-      const link = document.createElement('a');
-      link.href = imgData;
-      link.download = 'badge_' + (student.matricule || student.id) + '.png';
-      link.click();
-    } catch (err) {
-      console.error('Failed to export PNG', err);
-    }
+    setIsExporting(true);
+    const originalScale = scale;
+    setScale(1);
+    // Wait a tick for re-render with unscaled badge
+    setTimeout(async () => {
+      try {
+        const canvas = await html2canvas(badgeRef.current!, { scale: 2, useCORS: true });
+        const imgData = canvas.toDataURL('image/png');
+        const link = document.createElement('a');
+        link.href = imgData;
+        link.download = 'badge_' + (student.matricule || student.id) + '.png';
+        link.click();
+      } catch (err) {
+        console.error('Failed to export PNG', err);
+      } finally {
+        setScale(originalScale);
+        setIsExporting(false);
+      }
+    }, 150);
   };
 
   const handleDownload = () => {
     if (!badgeRef.current) return;
-    const opt = {
-      margin: 0,
-      filename: 'badge_' + (student.matricule || student.id) + '.pdf',
-      image: { type: 'jpeg', quality: 0.98 },
-      html2canvas: { scale: 2, useCORS: true },
-      jsPDF: { unit: 'mm', format: 'a4', orientation: 'landscape' },
-    };
-    (html2pdf as any)().set(opt).from(badgeRef.current).save();
+    setIsExporting(true);
+    const originalScale = scale;
+    setScale(1);
+    setTimeout(() => {
+      const opt = {
+        margin: 0,
+        filename: 'badge_' + (student.matricule || student.id) + '.pdf',
+        image: { type: 'jpeg', quality: 0.98 },
+        html2canvas: { scale: 2, useCORS: true },
+        jsPDF: { unit: 'mm', format: 'a4', orientation: 'landscape' },
+      };
+      (html2pdf as any)().set(opt).from(badgeRef.current!).save().then(() => {
+        setScale(originalScale);
+        setIsExporting(false);
+      }).catch((err: any) => {
+        console.error('Failed to export PDF', err);
+        setScale(originalScale);
+        setIsExporting(false);
+      });
+    }, 150);
   };
-
   return (
     <Modal isOpen={!!student} onClose={onClose} title="Badge Etudiant" maxWidth="max-w-3xl">
       <div className="overflow-auto max-h-[80vh] flex flex-col items-center pb-4 w-full overflow-x-hidden" ref={containerRef}>

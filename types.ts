@@ -118,8 +118,10 @@ export interface BulletinSettings {
 
 export interface AccountingSettings {
   classFees: Record<string, number>; // Monthly fee per class ID (9 months assumed)
-  registrationFee?: number; // Frais d'inscription globaux
-  reRegistrationFee?: number; // Frais de réinscription globaux
+  registrationFee?: number; // Frais d'inscription globaux (déprécié — garder pour compatibilité)
+  reRegistrationFee?: number; // Frais de réinscription globaux (déprécié — garder pour compatibilité)
+  classRegistrationFees?: Record<string, number>; // Frais d'inscription par classe
+  classReRegistrationFees?: Record<string, number>; // Frais de réinscription par classe
 }
 
 export type UserRole = 'dirigeant' | 'gestionnaire' | 'eleve' | 'professeur' | 'directeur';

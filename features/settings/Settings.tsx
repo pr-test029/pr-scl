@@ -756,6 +756,8 @@ const AccountingSettingsEditor: React.FC<{
     
     const cycle = cycles[selectedCycleId];
     const classFees = settings.accounting?.classFees || {};
+    const classRegistrationFees = settings.accounting?.classRegistrationFees || {};
+    const classReRegistrationFees = settings.accounting?.classReRegistrationFees || {};
 
     const getClassCombinations = (c: Cycle) => {
         if (c.type === 'simple') return c.levels;
@@ -782,6 +784,22 @@ const AccountingSettingsEditor: React.FC<{
         });
     };
 
+    const handleRegFeeChange = (className: string, fee: number) => {
+        const updated = { ...classRegistrationFees, [className]: fee };
+        onUpdateSettings({
+            ...settings,
+            accounting: { ...settings.accounting, classRegistrationFees: updated }
+        });
+    };
+
+    const handleReRegFeeChange = (className: string, fee: number) => {
+        const updated = { ...classReRegistrationFees, [className]: fee };
+        onUpdateSettings({
+            ...settings,
+            accounting: { ...settings.accounting, classReRegistrationFees: updated }
+        });
+    };
+
     const combinations = cycle ? getClassCombinations(cycle) : [];
 
     return (
@@ -789,7 +807,7 @@ const AccountingSettingsEditor: React.FC<{
             <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
                 <div>
                     <h3 className="text-xl font-bold dark:text-white">Frais Scolaires par Classe</h3>
-                    <p className="text-sm text-gray-500 dark:text-gray-400">Définissez les tarifs mensuels pour chaque niveau d'étude.</p>
+                    <p className="text-sm text-gray-500 dark:text-gray-400">Définissez les tarifs mensuels, d'inscription et de réinscription pour chaque classe.</p>
                 </div>
                 <div className="w-full md:w-64">
                     <Select 
@@ -801,52 +819,35 @@ const AccountingSettingsEditor: React.FC<{
                 </div>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 bg-purple-50 dark:bg-purple-900/20 p-6 rounded-xl border border-purple-100 dark:border-purple-800/30 mb-6">
-                <div>
-                    <h4 className="font-bold text-purple-800 dark:text-purple-300 mb-2">Frais d'inscription globaux</h4>
-                    <Input 
-                        type="number" 
-                        placeholder="0" 
-                        value={settings.accounting?.registrationFee || ''} 
-                        onChange={e => onUpdateSettings({...settings, accounting: {...settings.accounting, registrationFee: parseInt(e.target.value) || 0}})}
-                        className="font-mono text-lg"
-                    />
-                </div>
-                <div>
-                    <h4 className="font-bold text-purple-800 dark:text-purple-300 mb-2">Frais de réinscription globaux</h4>
-                    <Input 
-                        type="number" 
-                        placeholder="0" 
-                        value={settings.accounting?.reRegistrationFee || ''} 
-                        onChange={e => onUpdateSettings({...settings, accounting: {...settings.accounting, reRegistrationFee: parseInt(e.target.value) || 0}})}
-                        className="font-mono text-lg"
-                    />
-                </div>
-            </div>
-
             <div className="bg-blue-50 dark:bg-blue-900/20 p-4 rounded-xl border border-blue-100 dark:border-blue-800/30">
                 <p className="text-sm text-blue-700 dark:text-blue-300">
                     <i className="fas fa-info-circle mr-2"></i>
-                    Les calculs annuels sont basés sur une période de <strong>9 mois</strong>. Les changements sont enregistrés automatiquement.
+                    Les calculs annuels sont basés sur une période de <strong>9 mois</strong>. Les frais d'inscription et de réinscription sont définis par classe. Les changements sont enregistrés automatiquement.
                 </p>
             </div>
 
             {cycle ? (
-                <div className="overflow-hidden border rounded-xl dark:border-white/10 shadow-sm">
+                <div className="overflow-x-auto overflow-hidden border rounded-xl dark:border-white/10 shadow-sm">
                     <table className="min-w-full divide-y divide-gray-200 dark:divide-white/10">
                         <thead className="bg-gray-100 dark:bg-white/10">
                             <tr>
-                                <th className="px-6 py-3 text-left text-xs font-bold text-gray-500 dark:text-gray-300 uppercase tracking-wider">Classe</th>
-                                <th className="px-6 py-3 text-left text-xs font-bold text-gray-500 dark:text-gray-300 uppercase tracking-wider">Tarif Mensuel (FCFA)</th>
-                                <th className="px-6 py-3 text-left text-xs font-bold text-gray-500 dark:text-gray-300 uppercase tracking-wider">Total Annuel (9 mois)</th>
+                                <th className="px-4 py-3 text-left text-xs font-bold text-gray-500 dark:text-gray-300 uppercase tracking-wider">Classe</th>
+                                <th className="px-4 py-3 text-left text-xs font-bold text-gray-500 dark:text-gray-300 uppercase tracking-wider">Tarif Mensuel (FCFA)</th>
+                                <th className="px-4 py-3 text-left text-xs font-bold text-gray-500 dark:text-gray-300 uppercase tracking-wider">Total Annuel (9 mois)</th>
+                                <th className="px-4 py-3 text-left text-xs font-bold text-purple-600 dark:text-purple-400 uppercase tracking-wider">
+                                    <i className="fas fa-user-plus mr-1"></i>Inscription (FCFA)
+                                </th>
+                                <th className="px-4 py-3 text-left text-xs font-bold text-green-600 dark:text-green-400 uppercase tracking-wider">
+                                    <i className="fas fa-redo mr-1"></i>Réinscription (FCFA)
+                                </th>
                             </tr>
                         </thead>
                         <tbody className="bg-white dark:bg-transparent divide-y divide-gray-200 dark:divide-white/10">
                             {combinations.map(cls => (
                                 <tr key={cls} className="hover:bg-gray-50 dark:hover:bg-white/5 transition-colors">
-                                    <td className="px-6 py-4 whitespace-nowrap text-sm font-bold text-gray-900 dark:text-white">{cls}</td>
-                                    <td className="px-6 py-4 whitespace-nowrap">
-                                        <div className="w-40">
+                                    <td className="px-4 py-4 whitespace-nowrap text-sm font-bold text-gray-900 dark:text-white">{cls}</td>
+                                    <td className="px-4 py-4 whitespace-nowrap">
+                                        <div className="w-36">
                                             <Input 
                                                 type="number" 
                                                 placeholder="0" 
@@ -856,15 +857,37 @@ const AccountingSettingsEditor: React.FC<{
                                             />
                                         </div>
                                     </td>
-                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600 dark:text-gray-300 font-mono font-bold">
+                                    <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-600 dark:text-gray-300 font-mono font-bold">
                                         {(classFees[cls] || 0) * 9} FCFA
+                                    </td>
+                                    <td className="px-4 py-4 whitespace-nowrap">
+                                        <div className="w-36">
+                                            <Input 
+                                                type="number" 
+                                                placeholder="0" 
+                                                value={classRegistrationFees[cls] || ''} 
+                                                onChange={e => handleRegFeeChange(cls, parseInt(e.target.value) || 0)}
+                                                className="font-mono text-lg"
+                                            />
+                                        </div>
+                                    </td>
+                                    <td className="px-4 py-4 whitespace-nowrap">
+                                        <div className="w-36">
+                                            <Input 
+                                                type="number" 
+                                                placeholder="0" 
+                                                value={classReRegistrationFees[cls] || ''} 
+                                                onChange={e => handleReRegFeeChange(cls, parseInt(e.target.value) || 0)}
+                                                className="font-mono text-lg"
+                                            />
+                                        </div>
                                     </td>
                                 </tr>
                             ))}
                             {combinations.length === 0 && (
                                 <tr>
-                                    <td colSpan={3} className="px-6 py-10 text-center text-gray-500 italic">
-                                        Aucune classe configurée pour ce cycle. Allez dans l'onglet "Cycles & Matières" pour ajouter des niveaux.
+                                    <td colSpan={5} className="px-6 py-10 text-center text-gray-500 italic">
+                                        Aucune classe configurée pour ce cycle. Allez dans l'onglet "Cycles &amp; Matières" pour ajouter des niveaux.
                                     </td>
                                 </tr>
                             )}
@@ -879,6 +902,7 @@ const AccountingSettingsEditor: React.FC<{
         </div>
     );
 };
+
 
 // --- Bulletin Header & Appreciation Rules Editor per Cycle ---
 
