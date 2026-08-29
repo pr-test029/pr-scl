@@ -268,6 +268,7 @@ export const StudentBadgeModal: React.FC<StudentBadgeModalProps> = ({ student, o
               </div>
             </div>
           </div>
+          
 
           {/* ---- Footer ---- */}
           <div
@@ -289,6 +290,8 @@ export const StudentBadgeModal: React.FC<StudentBadgeModalProps> = ({ student, o
           </div>
           </div>
         </div>
+        </div>
+        </div>
 
         {/* ---------- Action buttons (outside badge area) ---------- */}
         <div className="flex gap-3 mt-4 w-full justify-end pr-2">
@@ -303,8 +306,9 @@ export const StudentBadgeModal: React.FC<StudentBadgeModalProps> = ({ student, o
             <i className="fas fa-file-pdf mr-2" />
             Télécharger PDF (A4)
           </Button>
+
+      
         </div>
-      </div>
     </Modal>
   );
 };
