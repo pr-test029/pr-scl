@@ -289,10 +289,10 @@ export const StudentBadgeModal: React.FC<StudentBadgeModalProps> = ({ student, o
             </div>
           </div>
           </div>
-          <div style={{
-            height: '30mm',
-            background: `repeating-linear-gradient(45deg, ${primaryVar} 0%, ${primaryVar} 5px, transparent 5px, transparent 10px)`
-          }} />
+
+
+
+
         </div>
         </div>
         </div>
