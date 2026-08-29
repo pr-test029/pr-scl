@@ -1,5 +1,5 @@
 import React, { useRef, useState, useEffect } from 'react';
-import { QRCodeSVG } from 'qrcode.react';
+import { QRCodeCanvas } from 'qrcode.react';
 import html2pdf from 'html2pdf.js';
 import html2canvas from 'html2canvas';
 import { useSchool } from '../../App';
@@ -261,7 +261,7 @@ export const StudentBadgeModal: React.FC<StudentBadgeModalProps> = ({ student, o
                   background: '#fff',
                 }}
               >
-                <QRCodeSVG value={qrValue} size={110} level="M" />
+                <QRCodeCanvas value={qrValue} size={110} />
               </div>
               <div style={{ fontSize: '10px', color: '#6b7280', marginTop: '6px', fontWeight: 600 }}>
                 Verification d'authenticite
