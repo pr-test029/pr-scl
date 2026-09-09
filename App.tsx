@@ -259,6 +259,8 @@ const App: React.FC = () => {
     if (session) {
       if (session.role === 'eleve' && currentView !== 'student_portal' && currentView !== 'profile') {
         setCurrentView('student_portal');
+      } else if (session.role === 'gestionnaire' && (currentView === 'students' || currentView === 'academic_results')) {
+        setCurrentView('accounting');
       }
     }
   }, [session, currentView]);
@@ -624,7 +626,7 @@ const App: React.FC = () => {
                     <NavItem icon="fa-chart-line" label="Suivi & Éval." active={currentView === 'evaluation'} collapsed={isSidebarCollapsed} onClick={() => setCurrentView('evaluation')} />
                   )}
                   
-                  {(effectiveRole === 'dirigeant' || effectiveRole === 'gestionnaire' || effectiveRole === 'directeur' || effectiveRole === 'admin') && (
+                  {(effectiveRole === 'dirigeant' || effectiveRole === 'directeur' || effectiveRole === 'admin') && (
                     <NavItem icon="fa-list-ol" label="Résultats" active={currentView === 'academic_results'} collapsed={isSidebarCollapsed} onClick={() => setCurrentView('academic_results')} />
                   )}
                   
@@ -730,8 +732,10 @@ const App: React.FC = () => {
 
                   <div className="animate-fade-in" style={{ animationDelay: '0.1s' }}>
                     {currentView === 'dashboard' && (effectiveRole === 'dirigeant' || effectiveRole === 'gestionnaire' || effectiveRole === 'directeur' || effectiveRole === 'admin') && <Dashboard />}
-                    {currentView === 'inscription' && <StudentForm onSuccess={() => setCurrentView('students')} />}
-                    {currentView === 'students' && <StudentList />}
+                    {currentView === 'inscription' && (
+                      <StudentForm onSuccess={() => setCurrentView(effectiveRole === 'gestionnaire' ? 'accounting' : 'students')} />
+                    )}
+                    {currentView === 'students' && effectiveRole !== 'gestionnaire' && <StudentList />}
                     {currentView === 'accounting' && <Accounting />}
                     {currentView === 'settings' && <Settings />}
                     {currentView === 'student_portal' && <StudentPortal />}
@@ -739,7 +743,7 @@ const App: React.FC = () => {
                     {currentView === 'profile' && <StaffProfile />}
                     {currentView === 'admin' && isAdmin && <AdminPanel onBack={() => setCurrentView('dashboard')} userRole={effectiveRole} />}
                     {currentView === 'evaluation' && <Evaluation />}
-                    {currentView === 'academic_results' && <AcademicResults />}
+                    {currentView === 'academic_results' && effectiveRole !== 'gestionnaire' && <AcademicResults />}
                   </div>
                 </div>
               </main>
