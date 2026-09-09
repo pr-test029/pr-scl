@@ -367,6 +367,9 @@ export const fetchUserSession = async (): Promise<UserSession | null> => {
                             matricule: sessionData.matricule,
                             display_name: "Utilisateur"
                         };
+                        // Persist session locally for future refreshes
+                        localStorage.setItem('pr_scl_matricule_session', JSON.stringify(session));
+                        localStorage.setItem('pr_scl_user_uid', user.uid);
                         resolve(session);
                         return;
                     }
@@ -381,7 +384,7 @@ export const fetchUserSession = async (): Promise<UserSession | null> => {
                         currentSchoolId = profileData.school_id;
                         currentSchoolName = schoolName;
 
-                        resolve({
+                        const session = {
                             user_id: user.uid,
                             email: user.email,
                             display_name: user.displayName || profileData.display_name,
@@ -389,7 +392,12 @@ export const fetchUserSession = async (): Promise<UserSession | null> => {
                             school_id: profileData.school_id,
                             school_name: schoolName,
                             role: profileData.role || 'dirigeant'
-                        });
+                        };
+                        // Persist session locally for future refreshes
+                        localStorage.setItem('pr_scl_matricule_session', JSON.stringify(session));
+                        localStorage.setItem('pr_scl_user_uid', user.uid);
+                        resolve(session);
+                        return;
                         return;
                     }
                 }
