@@ -252,175 +252,18 @@ export const StudentPortal: React.FC = () => {
                         ) : (
                             <div className="space-y-8">
                                 {Object.entries(groupedGrades).sort().map(([trimestre, subjects]) => (
-    hasPaidForTrimester(trimestre) ? (
-        <div key={trimestre} className="space-y-4">
-            <div className="flex items-center justify-between gap-4">
-                <div className="flex items-center gap-4">
-                    <span className="px-4 py-1 bg-indigo-600 text-white rounded-full text-xs font-black uppercase">
-                        Trimestre {trimestre}
-                    </span>
-                    <div className="h-px w-24 bg-gray-100 dark:bg-white/10"></div>
-                </div>
-                <div className="flex items-center gap-2">
-                    <span className="text-xs font-bold text-gray-400 uppercase tracking-widest">
-                        Moyenne :
-                    </span>
-                    <span
-                        className={`text-lg font-black px-3 py-1 rounded-lg ${termAverages[trimestre] >= 10 ? 'bg-green-100 text-green-600' : 'bg-red-100 text-red-600'}`}
-                    >
-                        {termAverages[trimestre]}
-                    </span>
-                </div>
-            </div>
-
-            <div className="overflow-x-auto -mx-6 px-6 scrollbar-hide">
-                <table className="w-full text-left min-w-[550px] md:min-w-full">
-                    <thead>
-                        <tr className="text-[10px] font-black text-gray-400 dark:text-gray-500 uppercase tracking-widest border-b border-gray-100 dark:border-white/5">
-                            <th className="pb-3 px-2">Discipline</th>
-                            <th className="pb-3 px-2 text-center">Devoir</th>
-                            <th className="pb-3 px-2 text-center">Compo.</th>
-                            <th className="pb-3 px-2 text-center">Coeff</th>
-                            <th className="pb-3 px-2 text-right">Moyenne</th>
-                        </tr>
-                    </thead>
-                    <tbody className="divide-y divide-gray-50 dark:divide-white/5">
-                        {Object.entries(subjects).map(([subject, data], idx) => {
-                            const d = data.devoir?.valeur;
-                            const c = data.composition?.valeur;
-                            let subAvg = 0;
-                            if (d !== undefined && c !== undefined) subAvg = (d + c) / 2;
-                            else if (d !== undefined) subAvg = d;
-                            else if (c !== undefined) subAvg = c;
-                            return (
-                                <tr
-                                    key={idx}
-                                    className="group hover:bg-gray-50 dark:hover:bg-white/5 transition-colors"
-                                >
-                                    <td className="py-4 px-2 font-bold text-gray-800 dark:text-gray-100 text-sm md:text-base whitespace-nowrap">
-                                        {subject}
-                                    </td>
-                                    <td className="py-4 px-2 text-center">
-                                        <div
-                                            className={`inline-flex items-center justify-center w-10 h-8 md:w-12 md:h-9 rounded-lg text-sm font-black ${d !== undefined ? (d >= 10 ? 'bg-green-50 text-green-600 dark:bg-green-900/20' : 'bg-red-50 text-red-600 dark:bg-red-900/20') : 'bg-gray-50 text-gray-300 dark:bg-white/5'}`}
-                                        >
-                                            {d !== undefined ? d : '--'}
-                                        </div>
-                                    </td>
-                                    <td className="py-4 px-2 text-center">
-                                        <div
-                                            className={`inline-flex items-center justify-center w-10 h-8 md:w-12 md:h-9 rounded-lg text-sm font-black ${c !== undefined ? (c >= 10 ? 'bg-green-50 text-green-600 dark:bg-green-900/20' : 'bg-red-50 text-red-600 dark:bg-red-900/20') : 'bg-gray-50 text-gray-300 dark:bg-white/5'}`}
-                                        >
-                                            {c !== undefined ? c : '--'}
-                                        </div>
-                                    </td>
-                                    <td className="py-4 px-2 text-center text-xs md:text-sm font-bold text-gray-400">
-                                        {data.coefficient}
-                                    </td>
-                                    <td className="py-4 px-2 text-right">
-                                        <span
-                                            className={`text-sm md:text-base font-black ${subAvg >= 10 ? 'text-green-600' : 'text-red-600'}`}
-                                        >
-                                            {subAvg.toFixed(2)}
-                                        </span>
-                                    </td>
-                                </tr>
-                            );
-                        })}
-                    </tbody>
-                </table>
-            </div>
-
-            {/* Mobile Summary (Averages) */}
-            <div className="md:hidden mt-4 pt-4 border-t border-gray-100 dark:border-white/5 flex justify-between items-center bg-gray-50/50 dark:bg-white/5 p-4 rounded-2xl">
-                <div className="flex flex-col">
-                    <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">
-                        Trimestre {trimestre}
-                    </span>
-                    <span className="text-sm font-black text-gray-800 dark:text-white">
-                        Rapport Global
-                    </span>
-                </div>
-                <div className="flex items-center gap-3">
-                    <span className="text-xs font-bold text-gray-500">Moyenne:</span>
-                    <span
-                        className={`text-xl font-black px-4 py-2 rounded-xl shadow-lg ${termAverages[trimestre] >= 10 ? 'bg-green-500 text-white' : 'bg-red-500 text-white'}`}
-                    >
-                        {termAverages[trimestre]}
-                    </span>
-                </div>
-            </div>
-        </div>
-    ) : (
-        <div key={trimestre} className="space-y-4">
-            <p className="text-sm text-red-600">
-                Vous devez régler les frais du trimestre {trimestre} pour consulter votre bulletin.
-            </p>
-        </div>
-    
-)}}
-    
-        
-
-            <div className="overflow-x-auto -mx-6 px-6 scrollbar-hide">
-                <table className="w-full text-left min-w-[550px] md:min-w-full">
-                    <thead>
-                        <tr className="text-[10px] font-black text-gray-400 dark:text-gray-500 uppercase tracking-widest border-b border-gray-100 dark:border-white/5">
-                            <th className="pb-3 px-2">Discipline</th>
-                            <th className="pb-3 px-2 text-center">Devoir</th>
-                            <th className="pb-3 px-2 text-center">Compo.</th>
-                            <th className="pb-3 px-2 text-center">Coeff</th>
-                            <th className="pb-3 px-2 text-right">Moyenne</th>
-                        </tr>
-                    </thead>
-                    <tbody className="divide-y divide-gray-50 dark:divide-white/5">
-                        {Object.entries(subjects).map(([subject, data], idx) => {
-                            const d = data.devoir?.valeur;
-                            const c = data.composition?.valeur;
-                            let subAvg = 0;
-                            if (d !== undefined && c !== undefined) subAvg = (d + c) / 2;
-                            else if (d !== undefined) subAvg = d;
-                            else if (c !== undefined) subAvg = c;
-                            return (
-                                <tr key={idx} className="group hover:bg-gray-50 dark:hover:bg-white/5 transition-colors">
-                                    <td className="py-4 px-2 font-bold text-gray-800 dark:text-gray-100 text-sm md:text-base whitespace-nowrap">{subject}</td>
-                                    <td className="py-4 px-2 text-center">
-                                        <div className={`inline-flex items-center justify-center w-10 h-8 md:w-12 md:h-9 rounded-lg text-sm font-black ${d !== undefined ? (d >= 10 ? 'bg-green-50 text-green-600 dark:bg-green-900/20' : 'bg-red-50 text-red-600 dark:bg-red-900/20') : 'bg-gray-50 text-gray-300 dark:bg-white/5'}`}>{d !== undefined ? d : '--'}</div>
-                                    </td>
-                                    <td className="py-4 px-2 text-center">
-                                        <div className={`inline-flex items-center justify-center w-10 h-8 md:w-12 md:h-9 rounded-lg text-sm font-black ${c !== undefined ? (c >= 10 ? 'bg-green-50 text-green-600 dark:bg-green-900/20' : 'bg-red-50 text-red-600 dark:bg-red-900/20') : 'bg-gray-50 text-gray-300 dark:bg-white/5'}`}>{c !== undefined ? c : '--'}</div>
-                                    </td>
-                                    <td className="py-4 px-2 text-center text-xs md:text-sm font-bold text-gray-400">{data.coefficient}</td>
-                                    <td className="py-4 px-2 text-right">
-                                        <span className={`text-sm md:text-base font-black ${subAvg >= 10 ? 'text-green-600' : 'text-red-600'}`}>{subAvg.toFixed(2)}</span>
-                                    </td>
-                                </tr>
-                            );
-                        })}
-                    </tbody>
-                </table>
-                <div className="md:hidden mt-4 pt-4 border-t border-gray-100 dark:border-white/5 flex justify-between items-center bg-gray-50/50 dark:bg-white/5 p-4 rounded-2xl">
                                     hasPaidForTrimester(trimestre) ? (
                                         <div key={trimestre} className="space-y-4">
                                             <div className="flex items-center justify-between gap-4">
                                                 <div className="flex items-center gap-4">
-                                                    <span className="px-4 py-1 bg-indigo-600 text-white rounded-full text-xs font-black uppercase">
-                                                        Trimestre {trimestre}
-                                                    </span>
+                                                    <span className="px-4 py-1 bg-indigo-600 text-white rounded-full text-xs font-black uppercase">Trimestre {trimestre}</span>
                                                     <div className="h-px w-24 bg-gray-100 dark:bg-white/10"></div>
                                                 </div>
                                                 <div className="flex items-center gap-2">
-                                                    <span className="text-xs font-bold text-gray-400 uppercase tracking-widest">
-                                                        Moyenne :
-                                                    </span>
-                                                    <span
-                                                        className={`text-lg font-black px-3 py-1 rounded-lg ${termAverages[trimestre] >= 10 ? 'bg-green-100 text-green-600' : 'bg-red-100 text-red-600'}`}
-                                                    >
-                                                        {termAverages[trimestre]}
-                                                    </span>
+                                                    <span className="text-xs font-bold text-gray-400 uppercase tracking-widest">Moyenne :</span>
+                                                    <span className={`text-lg font-black px-3 py-1 rounded-lg ${termAverages[trimestre] >= 10 ? 'bg-green-100 text-green-600' : 'bg-red-100 text-red-600'}`}>{termAverages[trimestre]}</span>
                                                 </div>
                                             </div>
-
                                             <div className="overflow-x-auto -mx-6 px-6 scrollbar-hide">
                                                 <table className="w-full text-left min-w-[550px] md:min-w-full">
                                                     <thead>
@@ -441,76 +284,46 @@ export const StudentPortal: React.FC = () => {
                                                             else if (d !== undefined) subAvg = d;
                                                             else if (c !== undefined) subAvg = c;
                                                             return (
-                                                                <tr
-                                                                    key={idx}
-                                                                    className="group hover:bg-gray-50 dark:hover:bg-white/5 transition-colors"
-                                                                >
-                                                                    <td className="py-4 px-2 font-bold text-gray-800 dark:text-gray-100 text-sm md:text-base whitespace-nowrap">
-                                                                        {subject}
+                                                                <tr key={idx} className="group hover:bg-gray-50 dark:hover:bg-white/5 transition-colors">
+                                                                    <td className="py-4 px-2 font-bold text-gray-800 dark:text-gray-100 text-sm md:text-base whitespace-nowrap">{subject}</td>
+                                                                    <td className="py-4 px-2 text-center">
+                                                                        <div className={`inline-flex items-center justify-center w-10 h-8 md:w-12 md:h-9 rounded-lg text-sm font-black ${d !== undefined ? (d >= 10 ? 'bg-green-50 text-green-600 dark:bg-green-900/20' : 'bg-red-50 text-red-600 dark:bg-red-900/20') : 'bg-gray-50 text-gray-300 dark:bg-white/5'}`}>{d !== undefined ? d : '--'}</div>
                                                                     </td>
                                                                     <td className="py-4 px-2 text-center">
-                                                                        <div
-                                                                            className={`inline-flex items-center justify-center w-10 h-8 md:w-12 md:h-9 rounded-lg text-sm font-black ${d !== undefined ? (d >= 10 ? 'bg-green-50 text-green-600 dark:bg-green-900/20' : 'bg-red-50 text-red-600 dark:bg-red-900/20') : 'bg-gray-50 text-gray-300 dark:bg-white/5'}`}
-                                                                        >
-                                                                            {d !== undefined ? d : '--'}
-                                                                        </div>
+                                                                        <div className={`inline-flex items-center justify-center w-10 h-8 md:w-12 md:h-9 rounded-lg text-sm font-black ${c !== undefined ? (c >= 10 ? 'bg-green-50 text-green-600 dark:bg-green-900/20' : 'bg-red-50 text-red-600 dark:bg-red-900/20') : 'bg-gray-50 text-gray-300 dark:bg-white/5'}`}>{c !== undefined ? c : '--'}</div>
                                                                     </td>
-                                                                    <td className="py-4 px-2 text-center">
-                                                                        <div
-                                                                            className={`inline-flex items-center justify-center w-10 h-8 md:w-12 md:h-9 rounded-lg text-sm font-black ${c !== undefined ? (c >= 10 ? 'bg-green-50 text-green-600 dark:bg-green-900/20' : 'bg-red-50 text-red-600 dark:bg-red-900/20') : 'bg-gray-50 text-gray-300 dark:bg-white/5'}`}
-                                                                        >
-                                                                            {c !== undefined ? c : '--'}
-                                                                        </div>
-                                                                    </td>
-                                                                    <td className="py-4 px-2 text-center text-xs md:text-sm font-bold text-gray-400">
-                                                                        {data.coefficient}
-                                                                    </td>
+                                                                    <td className="py-4 px-2 text-center text-xs md:text-sm font-bold text-gray-400">{data.coefficient}</td>
                                                                     <td className="py-4 px-2 text-right">
-                                                                        <span
-                                                                            className={`text-sm md:text-base font-black ${subAvg >= 10 ? 'text-green-600' : 'text-red-600'}`}
-                                                                        >
-                                                                            {subAvg.toFixed(2)}
-                                                                        </span>
+                                                                        <span className={`text-sm md:text-base font-black ${subAvg >= 10 ? 'text-green-600' : 'text-red-600'}`}>{subAvg.toFixed(2)}</span>
                                                                     </td>
                                                                 </tr>
                                                             );
                                                         })}
                                                     </tbody>
                                                 </table>
-                                            </div>
-
-                                            {/* Mobile Summary (Averages) */}
-                                            <div className="md:hidden mt-4 pt-4 border-t border-gray-100 dark:border-white/5 flex justify-between items-center bg-gray-50/50 dark:bg-white/5 p-4 rounded-2xl">
-                                                <div className="flex flex-col">
-                                                    <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">
-                                                        Trimestre {trimestre}
-                                                    </span>
-                                                    <span className="text-sm font-black text-gray-800 dark:text-white">
-                                                        Rapport Global
-                                                    </span>
-                                                </div>
-                                                <div className="flex items-center gap-3">
-                                                    <span className="text-xs font-bold text-gray-500">Moyenne:</span>
-                                                    <span
-                                                        className={`text-xl font-black px-4 py-2 rounded-xl shadow-lg ${termAverages[trimestre] >= 10 ? 'bg-green-500 text-white' : 'bg-red-500 text-white'}`}
-                                                    >
-                                                        {termAverages[trimestre]}
-                                                    </span>
+                                                <div className="md:hidden mt-4 pt-4 border-t border-gray-100 dark:border-white/5 flex justify-between items-center bg-gray-50/50 dark:bg-white/5 p-4 rounded-2xl">
+                                                    <div className="flex flex-col">
+                                                        <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Trimestre {trimestre}</span>
+                                                        <span className="text-sm font-black text-gray-800 dark:text-white">Rapport Global</span>
+                                                    </div>
+                                                    <div className="flex items-center gap-3">
+                                                        <span className="text-xs font-bold text-gray-500">Moyenne:</span>
+                                                        <span className={`text-xl font-black px-4 py-2 rounded-xl shadow-lg ${termAverages[trimestre] >= 10 ? 'bg-green-500 text-white' : 'bg-red-500 text-white'}`}>{termAverages[trimestre]}</span>
+                                                    </div>
                                                 </div>
                                             </div>
                                         </div>
                                     ) : (
                                         <div key={trimestre} className="space-y-4">
-                                            <p className="text-sm text-red-600">
-                                                Vous devez régler les frais du trimestre {trimestre} pour consulter votre bulletin.
-                                            </p>
+                                            <p className="text-sm text-red-600">Vous devez régler les frais du trimestre {trimestre} pour consulter votre bulletin.</p>
                                         </div>
-                                    
-                                )}
+                                    )
+                                ))}
                             </div>
-
+                        )}
                     </Card>
                 </div>
+            </div>
 
             {/* Infos supplémentaires */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
@@ -536,7 +349,7 @@ export const StudentPortal: React.FC = () => {
                                         }`}
                                         style={{ backgroundColor: THEME_HEX_COLORS[c].primary }}
                                     />
-                                )}
+                                ))}
                             </div>
                         </div>
                     </div>
