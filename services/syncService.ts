@@ -59,18 +59,7 @@ export const flushSyncQueue = async (): Promise<SyncResult> => {
       const docRef = doc(db, mutation.collectionName, mutation.docId);
 
       if (mutation.type === 'CREATE' || mutation.type === 'UPDATE') {
-        // Simple conflict resolution: check existing server timestamp if present
-        const remoteSnap = await getDoc(docRef);
-        if (remoteSnap.exists()) {
-          const remoteData = remoteSnap.data();
-          const remoteUpdatedAt = remoteData.updated_at?.toMillis?.() || remoteData.updated_at || 0;
-          if (remoteUpdatedAt > mutation.timestamp) {
-            console.warn(`[SyncService] Conflict resolved for ${mutation.docId}: Remote data is newer.`);
-            await removeMutation(mutation.id);
-            synced++;
-            continue;
-          }
-        }
+
 
         const payload = {
           ...mutation.data,

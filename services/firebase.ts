@@ -483,9 +483,16 @@ export const subscribeToStudents = (schoolId: string, academicYear: string, call
     constraints.push(where("academic_year", "==", academicYear));
   }
   const q = query(collection(db, "students"), ...constraints);
-  return onSnapshot(q, (snapshot) => {
+  return onSnapshot(q, async (snapshot) => {
     const students = snapshot.docs.map(doc => doc.data() as Student);
-    cacheData(cacheKey, students);
+    if (students.length === 0 && !navigator.onLine) {
+      const cached = await getCachedData<Student[]>(cacheKey);
+      if (cached && cached.length > 0) {
+        callback(cached);
+        return;
+      }
+    }
+    await cacheData(cacheKey, students);
     callback(students);
   }, async (error) => {
     console.warn("subscribeToStudents network error, falling back to cache:", error);
@@ -507,45 +514,47 @@ export const addStudentDB = async (student: Student) => {
         id: student.id
     });
 
-    if (!navigator.onLine) {
-        await enqueueMutation({
-            type: 'CREATE',
-            collectionName: 'students',
-            docId,
-            data: dataToSave,
-            schoolId
-        });
-        return;
-    }
+    // Mettre à jour le cache local immédiatement
+    const cacheKey = `students_${schoolId}_${student.academic_year}`;
+    const cached = (await getCachedData<Student[]>(cacheKey)) || [];
+    const idx = cached.findIndex(s => s.id === student.id);
+    if (idx >= 0) cached[idx] = dataToSave as Student;
+    else cached.push(dataToSave as Student);
+    await cacheData(cacheKey, cached);
 
-    try {
-        await setDoc(doc(db, "students", docId), dataToSave);
-    } catch (error: any) {
-        if (!navigator.onLine || error.code === 'unavailable' || error.message?.includes('network')) {
-            await enqueueMutation({
-                type: 'CREATE',
-                collectionName: 'students',
-                docId,
-                data: dataToSave,
-                schoolId
-            });
-            return;
-        }
+    // Mettre en file d'attente pour le suivi visuel et la garantie de synchro
+    await enqueueMutation({
+        type: 'CREATE',
+        collectionName: 'students',
+        docId,
+        data: dataToSave,
+        schoolId
+    });
 
+    // Toujours écrire dans Firestore pour alimenter sa persistance locale IndexedDB
+    const firestoreWrite = setDoc(doc(db, "students", docId), dataToSave).catch(async (error: any) => {
         if (error.code === 'invalid-argument' || error.message?.includes('too large') || error.code === 'resource-exhausted') {
-            console.warn("Données d'élève trop volumineuses (probablement la photo), tentative d'enregistrement sans la photo...");
+            console.warn("Données d'élève trop volumineuses, tentative sans la photo...");
             const fallbackData = { ...dataToSave };
             delete fallbackData.photo;
             try {
                 await setDoc(doc(db, "students", docId), cleanData(fallbackData));
-                alert("Attention : La photo était trop volumineuse et n'a pas été enregistrée. L'élève a tout de même été enregistré sans sa photo.");
-            } catch (fallbackError) {
-                console.error("Échec de l'enregistrement même sans photo:", fallbackError);
-                throw fallbackError;
+            } catch (fbErr) {
+                console.error("Échec persistance sans photo:", fbErr);
             }
         } else {
-            console.error("addStudentDB Error:", error);
-            throw error;
+            console.warn("[addStudentDB] Firestore async local/remote queue:", error?.message || error);
+        }
+    });
+
+    if (navigator.onLine) {
+        try {
+            await Promise.race([
+                firestoreWrite,
+                new Promise(resolve => setTimeout(resolve, 2500))
+            ]);
+        } catch {
+            // Pas d'interruption si le réseau ralentit
         }
     }
 };
@@ -556,43 +565,45 @@ export const updateStudentDB = async (student: Student) => {
     const docId = `${schoolId}_${student.academic_year}_${student.id}`;
     const dataToSave = cleanData(student);
 
-    if (!navigator.onLine) {
-        await enqueueMutation({
-            type: 'UPDATE',
-            collectionName: 'students',
-            docId,
-            data: dataToSave,
-            schoolId
-        });
-        return;
-    }
+    // Mettre à jour le cache local
+    const cacheKey = `students_${schoolId}_${student.academic_year}`;
+    const cached = (await getCachedData<Student[]>(cacheKey)) || [];
+    const idx = cached.findIndex(s => s.id === student.id);
+    if (idx >= 0) cached[idx] = dataToSave as Student;
+    else cached.push(dataToSave as Student);
+    await cacheData(cacheKey, cached);
 
-    try {
-        await updateDoc(doc(db, "students", docId), dataToSave);
-    } catch (error: any) {
-        if (!navigator.onLine || error.code === 'unavailable' || error.message?.includes('network')) {
-            await enqueueMutation({
-                type: 'UPDATE',
-                collectionName: 'students',
-                docId,
-                data: dataToSave,
-                schoolId
-            });
-            return;
-        }
+    await enqueueMutation({
+        type: 'UPDATE',
+        collectionName: 'students',
+        docId,
+        data: dataToSave,
+        schoolId
+    });
 
+    const firestoreWrite = setDoc(doc(db, "students", docId), dataToSave, { merge: true }).catch(async (error: any) => {
         if (error.code === 'invalid-argument' || error.message?.includes('too large') || error.code === 'resource-exhausted') {
             console.warn("Mise à jour trop volumineuse, tentative sans la photo...");
             const fallbackData = { ...student };
             delete fallbackData.photo;
             try {
-                await updateDoc(doc(db, "students", docId), cleanData(fallbackData));
-                alert("Attention : La nouvelle photo était trop volumineuse. Les autres informations ont été mises à jour, mais la photo n'a pas été modifiée.");
-            } catch (fallbackError) {
-                throw fallbackError;
+                await setDoc(doc(db, "students", docId), cleanData(fallbackData), { merge: true });
+            } catch (fbErr) {
+                console.error("Échec persistance sans photo:", fbErr);
             }
         } else {
-            throw error;
+            console.warn("[updateStudentDB] Firestore async local/remote queue:", error?.message || error);
+        }
+    });
+
+    if (navigator.onLine) {
+        try {
+            await Promise.race([
+                firestoreWrite,
+                new Promise(resolve => setTimeout(resolve, 2500))
+            ]);
+        } catch {
+            // Continue
         }
     }
 };
@@ -602,41 +613,32 @@ export const deleteStudentDB = async (id: string, academicYear: string) => {
     if (!schoolId) return;
     const docId = `${schoolId}_${academicYear}_${id}`;
 
-    if (!navigator.onLine) {
-        await enqueueMutation({
-            type: 'DELETE',
-            collectionName: 'students',
-            docId,
-            schoolId
-        });
-        const cacheKey = `students_${schoolId}_${academicYear}`;
-        const cached = (await getCachedData<Student[]>(cacheKey)) || [];
-        const updated = cached.filter(s => s.id !== id);
-        await cacheData(cacheKey, updated);
-        return;
-    }
+    // Supprimer immédiatement du cache local
+    const cacheKey = `students_${schoolId}_${academicYear}`;
+    const cached = (await getCachedData<Student[]>(cacheKey)) || [];
+    const updated = cached.filter(s => s.id !== id);
+    await cacheData(cacheKey, updated);
 
-    try {
-        await deleteDoc(doc(db, "students", docId));
-        const cacheKey = `students_${schoolId}_${academicYear}`;
-        const cached = (await getCachedData<Student[]>(cacheKey)) || [];
-        const updated = cached.filter(s => s.id !== id);
-        await cacheData(cacheKey, updated);
-    } catch (error: any) {
-        if (!navigator.onLine || error.code === 'unavailable' || error.message?.includes('network')) {
-            await enqueueMutation({
-                type: 'DELETE',
-                collectionName: 'students',
-                docId,
-                schoolId
-            });
-            const cacheKey = `students_${schoolId}_${academicYear}`;
-            const cached = (await getCachedData<Student[]>(cacheKey)) || [];
-            const updated = cached.filter(s => s.id !== id);
-            await cacheData(cacheKey, updated);
-        } else {
-            console.error("deleteStudentDB Error:", error);
-            throw error;
+    await enqueueMutation({
+        type: 'DELETE',
+        collectionName: 'students',
+        docId,
+        schoolId
+    });
+
+    // Supprimer dans Firestore (IndexedDB en local + serveur si en ligne)
+    const firestoreDelete = deleteDoc(doc(db, "students", docId)).catch(err => {
+        console.warn("[deleteStudentDB] Firestore async delete:", err?.message || err);
+    });
+
+    if (navigator.onLine) {
+        try {
+            await Promise.race([
+                firestoreDelete,
+                new Promise(resolve => setTimeout(resolve, 2500))
+            ]);
+        } catch {
+            // Continue
         }
     }
 };
@@ -675,9 +677,16 @@ export const subscribeToGrades = (schoolId: string, academicYear: string, callba
     constraints.push(where("academic_year", "==", academicYear));
   }
   const q = query(collection(db, "grades"), ...constraints);
-  return onSnapshot(q, (snapshot) => {
+  return onSnapshot(q, async (snapshot) => {
     const grades = snapshot.docs.map(doc => doc.data() as Grade);
-    cacheData(cacheKey, grades);
+    if (grades.length === 0 && !navigator.onLine) {
+      const cached = await getCachedData<Grade[]>(cacheKey);
+      if (cached && cached.length > 0) {
+        callback(cached);
+        return;
+      }
+    }
+    await cacheData(cacheKey, grades);
     callback(grades);
   }, async (error) => {
     console.warn("subscribeToGrades network error, falling back to cache:", error);
@@ -699,31 +708,34 @@ export const addGradeDB = async (grade: Grade) => {
         id: grade.id
     });
 
-    if (!navigator.onLine) {
-        await enqueueMutation({
-            type: 'CREATE',
-            collectionName: 'grades',
-            docId,
-            data: dataToSave,
-            schoolId
-        });
-        return;
-    }
+    // Mettre à jour le cache local immédiatement
+    const cacheKey = `grades_${schoolId}_${grade.academic_year}`;
+    const cached = (await getCachedData<Grade[]>(cacheKey)) || [];
+    const idx = cached.findIndex(g => g.id === grade.id);
+    if (idx >= 0) cached[idx] = dataToSave as Grade;
+    else cached.push(dataToSave as Grade);
+    await cacheData(cacheKey, cached);
 
-    try {
-        await setDoc(doc(db, "grades", docId), dataToSave);
-    } catch (error: any) {
-        if (!navigator.onLine || error.code === 'unavailable' || error.message?.includes('network')) {
-            await enqueueMutation({
-                type: 'CREATE',
-                collectionName: 'grades',
-                docId,
-                data: dataToSave,
-                schoolId
-            });
-        } else {
-            console.error("addGradeDB Error:", error);
-            throw error;
+    await enqueueMutation({
+        type: 'CREATE',
+        collectionName: 'grades',
+        docId,
+        data: dataToSave,
+        schoolId
+    });
+
+    const firestoreWrite = setDoc(doc(db, "grades", docId), dataToSave).catch(err => {
+        console.warn("[addGradeDB] Firestore async write:", err?.message || err);
+    });
+
+    if (navigator.onLine) {
+        try {
+            await Promise.race([
+                firestoreWrite,
+                new Promise(resolve => setTimeout(resolve, 2500))
+            ]);
+        } catch {
+            // Continue
         }
     }
 };
@@ -734,30 +746,33 @@ export const updateGradeDB = async (grade: Grade) => {
     const docId = `${schoolId}_${grade.academic_year}_${grade.id}`;
     const dataToSave = cleanData(grade);
 
-    if (!navigator.onLine) {
-        await enqueueMutation({
-            type: 'UPDATE',
-            collectionName: 'grades',
-            docId,
-            data: dataToSave,
-            schoolId
-        });
-        return;
-    }
+    const cacheKey = `grades_${schoolId}_${grade.academic_year}`;
+    const cached = (await getCachedData<Grade[]>(cacheKey)) || [];
+    const idx = cached.findIndex(g => g.id === grade.id);
+    if (idx >= 0) cached[idx] = dataToSave as Grade;
+    else cached.push(dataToSave as Grade);
+    await cacheData(cacheKey, cached);
 
-    try {
-        await updateDoc(doc(db, "grades", docId), dataToSave);
-    } catch (error: any) {
-        if (!navigator.onLine || error.code === 'unavailable' || error.message?.includes('network')) {
-            await enqueueMutation({
-                type: 'UPDATE',
-                collectionName: 'grades',
-                docId,
-                data: dataToSave,
-                schoolId
-            });
-        } else {
-            throw error;
+    await enqueueMutation({
+        type: 'UPDATE',
+        collectionName: 'grades',
+        docId,
+        data: dataToSave,
+        schoolId
+    });
+
+    const firestoreWrite = setDoc(doc(db, "grades", docId), dataToSave, { merge: true }).catch(err => {
+        console.warn("[updateGradeDB] Firestore async update:", err?.message || err);
+    });
+
+    if (navigator.onLine) {
+        try {
+            await Promise.race([
+                firestoreWrite,
+                new Promise(resolve => setTimeout(resolve, 2500))
+            ]);
+        } catch {
+            // Continue
         }
     }
 };
@@ -767,41 +782,30 @@ export const deleteGradeDB = async (id: string, academicYear: string) => {
     if (!schoolId) return;
     const docId = `${schoolId}_${academicYear}_${id}`;
 
-    if (!navigator.onLine) {
-        await enqueueMutation({
-            type: 'DELETE',
-            collectionName: 'grades',
-            docId,
-            schoolId
-        });
-        const cacheKey = `grades_${schoolId}_${academicYear}`;
-        const cached = (await getCachedData<Grade[]>(cacheKey)) || [];
-        const updated = cached.filter(g => g.id !== id);
-        await cacheData(cacheKey, updated);
-        return;
-    }
+    const cacheKey = `grades_${schoolId}_${academicYear}`;
+    const cached = (await getCachedData<Grade[]>(cacheKey)) || [];
+    const updated = cached.filter(g => g.id !== id);
+    await cacheData(cacheKey, updated);
 
-    try {
-        await deleteDoc(doc(db, "grades", docId));
-        const cacheKey = `grades_${schoolId}_${academicYear}`;
-        const cached = (await getCachedData<Grade[]>(cacheKey)) || [];
-        const updated = cached.filter(g => g.id !== id);
-        await cacheData(cacheKey, updated);
-    } catch (error: any) {
-        if (!navigator.onLine || error.code === 'unavailable' || error.message?.includes('network')) {
-            await enqueueMutation({
-                type: 'DELETE',
-                collectionName: 'grades',
-                docId,
-                schoolId
-            });
-            const cacheKey = `grades_${schoolId}_${academicYear}`;
-            const cached = (await getCachedData<Grade[]>(cacheKey)) || [];
-            const updated = cached.filter(g => g.id !== id);
-            await cacheData(cacheKey, updated);
-        } else {
-            console.error("deleteGradeDB Error:", error);
-            throw error;
+    await enqueueMutation({
+        type: 'DELETE',
+        collectionName: 'grades',
+        docId,
+        schoolId
+    });
+
+    const firestoreDelete = deleteDoc(doc(db, "grades", docId)).catch(err => {
+        console.warn("[deleteGradeDB] Firestore async delete:", err?.message || err);
+    });
+
+    if (navigator.onLine) {
+        try {
+            await Promise.race([
+                firestoreDelete,
+                new Promise(resolve => setTimeout(resolve, 2500))
+            ]);
+        } catch {
+            // Continue
         }
     }
 };
@@ -834,34 +838,31 @@ const saveConfig = async (key: string, data: any) => {
     const cacheKey = `config_${schoolId}_${key}`;
     const docId = `${schoolId}_${key}`;
     const cleaned = cleanData(data);
-    cacheData(cacheKey, cleaned);
+    await cacheData(cacheKey, cleaned);
 
-    if (!navigator.onLine) {
-        await enqueueMutation({
-            type: 'UPDATE',
-            collectionName: 'app_config',
-            docId,
-            data: { school_id: schoolId, key, data: cleaned },
-            schoolId
-        });
-        return;
-    }
+    const configData = { school_id: schoolId, key, data: cleaned };
 
-    try {
-        const docRef = doc(db, "app_config", docId);
-        await setDoc(docRef, { school_id: schoolId, key, data: cleaned });
-    } catch (error: any) {
-        if (!navigator.onLine || error.code === 'unavailable' || error.message?.includes('network')) {
-            await enqueueMutation({
-                type: 'UPDATE',
-                collectionName: 'app_config',
-                docId,
-                data: { school_id: schoolId, key, data: cleaned },
-                schoolId
-            });
-        } else {
-            console.error(`saveConfig Error (${key}):`, error);
-            throw error;
+    await enqueueMutation({
+        type: 'UPDATE',
+        collectionName: 'app_config',
+        docId,
+        data: configData,
+        schoolId
+    });
+
+    const docRef = doc(db, "app_config", docId);
+    const firestoreWrite = setDoc(docRef, configData, { merge: true }).catch(err => {
+        console.warn(`[saveConfig] Firestore async write (${key}):`, err?.message || err);
+    });
+
+    if (navigator.onLine) {
+        try {
+            await Promise.race([
+                firestoreWrite,
+                new Promise(resolve => setTimeout(resolve, 2500))
+            ]);
+        } catch {
+            // Continue
         }
     }
 };
@@ -899,13 +900,19 @@ export const subscribeToConfig = <T>(schoolId: string, key: string, defaultValue
     });
 
     const docRef = doc(db, "app_config", `${schoolId}_${key}`);
-    return onSnapshot(docRef, (snap) => {
+    return onSnapshot(docRef, async (snap) => {
         if (snap.exists()) {
             const data = snap.data().data as T;
-            cacheData(cacheKey, data);
+            await cacheData(cacheKey, data);
             callback(data);
         } else {
-            callback(defaultValue);
+            // En mode hors-ligne ou document non trouvé, ne pas écraser avec defaultValue si le cache existe
+            const cached = await getCachedData<T>(cacheKey);
+            if (cached !== null) {
+                callback(cached);
+            } else {
+                callback(defaultValue);
+            }
         }
     }, async (error) => {
         console.warn(`subscribeToConfig Error (${key}), falling back to cache:`, error);
@@ -1002,9 +1009,16 @@ export const subscribeToPayments = (schoolId: string, academicYear: string, call
     constraints.push(where("academic_year", "==", academicYear));
   }
   const q = query(collection(db, "payments"), ...constraints);
-  return onSnapshot(q, (snapshot) => {
+  return onSnapshot(q, async (snapshot) => {
     const payments = snapshot.docs.map(doc => doc.data() as Payment);
-    cacheData(cacheKey, payments);
+    if (payments.length === 0 && !navigator.onLine) {
+      const cached = await getCachedData<Payment[]>(cacheKey);
+      if (cached && cached.length > 0) {
+        callback(cached);
+        return;
+      }
+    }
+    await cacheData(cacheKey, payments);
     callback(payments);
   }, async (error) => {
     console.warn("subscribeToPayments network error, falling back to cache:", error);
@@ -1023,59 +1037,58 @@ export const addPaymentDB = async (payment: Payment) => {
         id: payment.id
     });
 
-    if (!navigator.onLine) {
-        await enqueueMutation({
-            type: 'CREATE',
-            collectionName: 'payments',
-            docId,
-            data: dataToSave,
-            schoolId
-        });
-        const cacheKey = `payments_${schoolId}_${payment.academic_year}`;
-        const cached = (await getCachedData<Payment[]>(cacheKey)) || [];
-        cached.push(dataToSave as Payment);
-        await cacheData(cacheKey, cached);
-        return;
-    }
+    // Mettre à jour le cache local des paiements
+    const cacheKey = `payments_${schoolId}_${payment.academic_year}`;
+    const cached = (await getCachedData<Payment[]>(cacheKey)) || [];
+    cached.push(dataToSave as Payment);
+    await cacheData(cacheKey, cached);
 
-    try {
-        await setDoc(doc(db, "payments", docId), dataToSave);
-        
-        // Update student totalPaid
+    // Mettre à jour le totalPaid dans le cache des élèves
+    const studentsCacheKey = `students_${schoolId}_${payment.academic_year}`;
+    getCachedData<Student[]>(studentsCacheKey).then(students => {
+        if (students) {
+            const sIdx = students.findIndex(s => s.id === payment.studentId);
+            if (sIdx >= 0) {
+                students[sIdx].totalPaid = (students[sIdx].totalPaid || 0) + payment.amount;
+                cacheData(studentsCacheKey, students);
+            }
+        }
+    });
+
+    await enqueueMutation({
+        type: 'CREATE',
+        collectionName: 'payments',
+        docId,
+        data: dataToSave,
+        schoolId
+    });
+
+    const firestoreWrite = setDoc(doc(db, "payments", docId), dataToSave).then(async () => {
+        // Mettre à jour le document élève
         const studentDocId = `${schoolId}_${payment.academic_year}_${payment.studentId}`;
-        const studentDoc = await getDoc(doc(db, "students", studentDocId));
-        if (studentDoc.exists()) {
-            const currentTotal = studentDoc.data().totalPaid || 0;
-            await updateDoc(doc(db, "students", studentDocId), {
-                totalPaid: currentTotal + payment.amount
-            });
-        } else {
-            // Fallback for legacy student doc ID format without academic year
-            const legacyStudentDocId = `${schoolId}_${payment.studentId}`;
-            const legacyDoc = await getDoc(doc(db, "students", legacyStudentDocId));
-            if (legacyDoc.exists()) {
-                const currentTotal = legacyDoc.data().totalPaid || 0;
-                await updateDoc(doc(db, "students", legacyStudentDocId), {
+        try {
+            const studentDoc = await getDoc(doc(db, "students", studentDocId));
+            if (studentDoc.exists()) {
+                const currentTotal = studentDoc.data().totalPaid || 0;
+                await updateDoc(doc(db, "students", studentDocId), {
                     totalPaid: currentTotal + payment.amount
                 });
             }
+        } catch (e) {
+            console.warn("[addPaymentDB] Student totalPaid update deferred:", e);
         }
-    } catch (error: any) {
-        if (!navigator.onLine || error.code === 'unavailable' || error.message?.includes('network')) {
-            await enqueueMutation({
-                type: 'CREATE',
-                collectionName: 'payments',
-                docId,
-                data: dataToSave,
-                schoolId
-            });
-            const cacheKey = `payments_${schoolId}_${payment.academic_year}`;
-            const cached = (await getCachedData<Payment[]>(cacheKey)) || [];
-            cached.push(dataToSave as Payment);
-            await cacheData(cacheKey, cached);
-        } else {
-            console.error("addPaymentDB Error:", error);
-            throw error;
+    }).catch(err => {
+        console.warn("[addPaymentDB] Firestore async write:", err?.message || err);
+    });
+
+    if (navigator.onLine) {
+        try {
+            await Promise.race([
+                firestoreWrite,
+                new Promise(resolve => setTimeout(resolve, 2500))
+            ]);
+        } catch {
+            // Continue
         }
     }
 };
@@ -1263,9 +1276,16 @@ export const subscribeToExpenses = (schoolId: string, academicYear: string, call
     });
 
     const q = query(collection(db, "expenses"), where("school_id", "==", schoolId), where("academic_year", "==", academicYear));
-    return onSnapshot(q, (snapshot) => {
+    return onSnapshot(q, async (snapshot) => {
         const expenses = snapshot.docs.map(doc => doc.data() as Expense);
-        cacheData(cacheKey, expenses);
+        if (expenses.length === 0 && !navigator.onLine) {
+            const cached = await getCachedData<Expense[]>(cacheKey);
+            if (cached && cached.length > 0) {
+                callback(cached);
+                return;
+            }
+        }
+        await cacheData(cacheKey, expenses);
         callback(expenses);
     }, async (error) => {
         console.warn("subscribeToExpenses network error, falling back to cache:", error);
@@ -1284,39 +1304,31 @@ export const addExpenseDB = async (expense: Expense) => {
         id: expense.id
     });
 
-    if (!navigator.onLine) {
-        await enqueueMutation({
-            type: 'CREATE',
-            collectionName: 'expenses',
-            docId,
-            data: dataToSave,
-            schoolId
-        });
-        const cacheKey = `expenses_${schoolId}_${expense.academic_year}`;
-        const cached = (await getCachedData<Expense[]>(cacheKey)) || [];
-        cached.push(dataToSave as Expense);
-        await cacheData(cacheKey, cached);
-        return;
-    }
+    const cacheKey = `expenses_${schoolId}_${expense.academic_year}`;
+    const cached = (await getCachedData<Expense[]>(cacheKey)) || [];
+    cached.push(dataToSave as Expense);
+    await cacheData(cacheKey, cached);
 
-    try {
-        await setDoc(doc(db, "expenses", docId), dataToSave);
-    } catch (error: any) {
-        if (!navigator.onLine || error.code === 'unavailable' || error.message?.includes('network')) {
-            await enqueueMutation({
-                type: 'CREATE',
-                collectionName: 'expenses',
-                docId,
-                data: dataToSave,
-                schoolId
-            });
-            const cacheKey = `expenses_${schoolId}_${expense.academic_year}`;
-            const cached = (await getCachedData<Expense[]>(cacheKey)) || [];
-            cached.push(dataToSave as Expense);
-            await cacheData(cacheKey, cached);
-        } else {
-            console.error("addExpenseDB Error:", error);
-            throw error;
+    await enqueueMutation({
+        type: 'CREATE',
+        collectionName: 'expenses',
+        docId,
+        data: dataToSave,
+        schoolId
+    });
+
+    const firestoreWrite = setDoc(doc(db, "expenses", docId), dataToSave).catch(err => {
+        console.warn("[addExpenseDB] Firestore async write:", err?.message || err);
+    });
+
+    if (navigator.onLine) {
+        try {
+            await Promise.race([
+                firestoreWrite,
+                new Promise(resolve => setTimeout(resolve, 2500))
+            ]);
+        } catch {
+            // Continue
         }
     }
 };
@@ -1331,36 +1343,33 @@ export const updateExpenseDB = async (expense: Expense) => {
         id: expense.id
     });
 
-    if (!navigator.onLine) {
-        await enqueueMutation({
-            type: 'UPDATE',
-            collectionName: 'expenses',
-            docId,
-            data: dataToSave,
-            schoolId
-        });
-        const cacheKey = `expenses_${schoolId}_${expense.academic_year}`;
-        const cached = (await getCachedData<Expense[]>(cacheKey)) || [];
-        const idx = cached.findIndex(e => e.id === expense.id);
-        if (idx >= 0) cached[idx] = dataToSave as Expense;
-        await cacheData(cacheKey, cached);
-        return;
-    }
+    const cacheKey = `expenses_${schoolId}_${expense.academic_year}`;
+    const cached = (await getCachedData<Expense[]>(cacheKey)) || [];
+    const idx = cached.findIndex(e => e.id === expense.id);
+    if (idx >= 0) cached[idx] = dataToSave as Expense;
+    else cached.push(dataToSave as Expense);
+    await cacheData(cacheKey, cached);
 
-    try {
-        await updateDoc(doc(db, "expenses", docId), dataToSave);
-    } catch (error: any) {
-        if (!navigator.onLine || error.code === 'unavailable' || error.message?.includes('network')) {
-            await enqueueMutation({
-                type: 'UPDATE',
-                collectionName: 'expenses',
-                docId,
-                data: dataToSave,
-                schoolId
-            });
-        } else {
-            console.error("updateExpenseDB Error:", error);
-            throw error;
+    await enqueueMutation({
+        type: 'UPDATE',
+        collectionName: 'expenses',
+        docId,
+        data: dataToSave,
+        schoolId
+    });
+
+    const firestoreWrite = setDoc(doc(db, "expenses", docId), dataToSave, { merge: true }).catch(err => {
+        console.warn("[updateExpenseDB] Firestore async update:", err?.message || err);
+    });
+
+    if (navigator.onLine) {
+        try {
+            await Promise.race([
+                firestoreWrite,
+                new Promise(resolve => setTimeout(resolve, 2500))
+            ]);
+        } catch {
+            // Continue
         }
     }
 };
@@ -1370,33 +1379,30 @@ export const deleteExpenseDB = async (id: string, academicYear: string) => {
     if (!schoolId) return;
     const docId = `${schoolId}_${academicYear}_${id}`;
 
-    if (!navigator.onLine) {
-        await enqueueMutation({
-            type: 'DELETE',
-            collectionName: 'expenses',
-            docId,
-            schoolId
-        });
-        const cacheKey = `expenses_${schoolId}_${academicYear}`;
-        const cached = (await getCachedData<Expense[]>(cacheKey)) || [];
-        const updated = cached.filter(e => e.id !== id);
-        await cacheData(cacheKey, updated);
-        return;
-    }
+    const cacheKey = `expenses_${schoolId}_${academicYear}`;
+    const cached = (await getCachedData<Expense[]>(cacheKey)) || [];
+    const updated = cached.filter(e => e.id !== id);
+    await cacheData(cacheKey, updated);
 
-    try {
-        await deleteDoc(doc(db, "expenses", docId));
-    } catch (error: any) {
-        if (!navigator.onLine || error.code === 'unavailable' || error.message?.includes('network')) {
-            await enqueueMutation({
-                type: 'DELETE',
-                collectionName: 'expenses',
-                docId,
-                schoolId
-            });
-        } else {
-            console.error("deleteExpenseDB Error:", error);
-            throw error;
+    await enqueueMutation({
+        type: 'DELETE',
+        collectionName: 'expenses',
+        docId,
+        schoolId
+    });
+
+    const firestoreDelete = deleteDoc(doc(db, "expenses", docId)).catch(err => {
+        console.warn("[deleteExpenseDB] Firestore async delete:", err?.message || err);
+    });
+
+    if (navigator.onLine) {
+        try {
+            await Promise.race([
+                firestoreDelete,
+                new Promise(resolve => setTimeout(resolve, 2500))
+            ]);
+        } catch {
+            // Continue
         }
     }
 };
