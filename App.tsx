@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect, useContext, createContext } from 'react';
+import React, { useState, useEffect, useContext, createContext, useRef } from 'react';
 import { doc, getDoc } from 'firebase/firestore';
 import {
   Student, Grade, Cycle, Subject, AppSettings, View, SchoolContextType, UserSession, School, Payment, Expense
@@ -257,6 +257,9 @@ const App: React.FC = () => {
   // Sécurité : Redirection forcée et protection des vues
   useEffect(() => {
     if (session) {
+      // Force role selection view on every page refresh
+      setCurrentView('role_selection');
+      // Existing redirection logic remains for safety
       if (session.role === 'eleve' && currentView !== 'student_portal' && currentView !== 'profile') {
         setCurrentView('student_portal');
       } else if (session.role === 'gestionnaire' && (currentView === 'students' || currentView === 'academic_results')) {
