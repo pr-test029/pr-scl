@@ -87,16 +87,11 @@ const App: React.FC = () => {
     };
   }, []);
 
-  // Check auth on load
+  // Au rechargement de la page : toujours rediriger impérativement vers la sélection de rôle
   useEffect(() => {
-    const checkSession = async () => {
-      const userSession = await api.fetchUserSession();
-      if (userSession) {
-        setSession(userSession);
-      }
-      setLoading(false);
-    };
-    checkSession();
+    localStorage.removeItem('pr_scl_matricule_session');
+    setSession(null);
+    setLoading(false);
   }, []);
 
   useEffect(() => {
@@ -228,11 +223,6 @@ const App: React.FC = () => {
             subscription_expires_at: schoolData.subscription_expires_at?.toDate() || null,
             subscription_status: schoolData.subscription_status || "free"
           } as School);
-          // Refresh session to ensure role is up‑to‑date (especially after Dirigeant login)
-          const freshSession = await api.fetchUserSession();
-          if (freshSession) {
-            setSession(freshSession);
-          }
         }
       }
     }
@@ -254,19 +244,19 @@ const App: React.FC = () => {
     }
   };
 
-  // Sécurité : Redirection forcée et protection des vues
+  // Sécurité : Protection stricte des vues selon le rôle de l'utilisateur
   useEffect(() => {
     if (session) {
-      // Force role selection view on every page refresh
-      setCurrentView('role_selection');
-      // Existing redirection logic remains for safety
-      if (session.role === 'eleve' && currentView !== 'student_portal' && currentView !== 'profile') {
+      if (effectiveRole === 'eleve' && currentView !== 'student_portal' && currentView !== 'profile') {
         setCurrentView('student_portal');
-      } else if (session.role === 'gestionnaire' && (currentView === 'students' || currentView === 'academic_results')) {
-        setCurrentView('accounting');
+      } else if (effectiveRole === 'gestionnaire') {
+        // Le gestionnaire n'a accès qu'à Inscription, Comptabilité et Mon Profil
+        if (currentView !== 'inscription' && currentView !== 'accounting' && currentView !== 'profile') {
+          setCurrentView('accounting');
+        }
       }
     }
-  }, [session, currentView]);
+  }, [session, effectiveRole, currentView]);
 
   const handleLogout = async () => {
     // Déconnexion complète : on oublie aussi l'école pour éviter les vérifs auto
@@ -617,7 +607,7 @@ const App: React.FC = () => {
                     <NavItem icon="fa-user-plus" label="Inscription" active={currentView === 'inscription'} collapsed={isSidebarCollapsed} onClick={() => setCurrentView('inscription')} />
                   )}
                   
-                  {['dirigeant', 'professeur', 'directeur', 'admin'].includes(effectiveRole || '') && (
+                  {['dirigeant', 'professeur', 'directeur', 'admin'].includes(effectiveRole || '') && effectiveRole !== 'gestionnaire' && (
                     <NavItem icon="fa-users" label="Liste des élèves" active={currentView === 'students'} collapsed={isSidebarCollapsed} onClick={() => setCurrentView('students')} />
                   )}
                   
@@ -625,11 +615,11 @@ const App: React.FC = () => {
                     <NavItem icon="fa-wallet" label="Comptabilité" active={currentView === 'accounting'} collapsed={isSidebarCollapsed} onClick={() => setCurrentView('accounting')} />
                   )}
 
-                  {(effectiveRole === 'dirigeant' || effectiveRole === 'gestionnaire' || effectiveRole === 'directeur' || effectiveRole === 'admin') && (
+                  {(effectiveRole === 'dirigeant' || effectiveRole === 'directeur' || effectiveRole === 'admin') && (
                     <NavItem icon="fa-chart-line" label="Suivi & Éval." active={currentView === 'evaluation'} collapsed={isSidebarCollapsed} onClick={() => setCurrentView('evaluation')} />
                   )}
                   
-                  {(effectiveRole === 'dirigeant' || effectiveRole === 'directeur' || effectiveRole === 'admin') && (
+                  {(effectiveRole === 'dirigeant' || effectiveRole === 'directeur' || effectiveRole === 'admin') && effectiveRole !== 'gestionnaire' && (
                     <NavItem icon="fa-list-ol" label="Résultats" active={currentView === 'academic_results'} collapsed={isSidebarCollapsed} onClick={() => setCurrentView('academic_results')} />
                   )}
                   
@@ -650,16 +640,26 @@ const App: React.FC = () => {
                   )}
                 </div>
 
-                <div className={`p-6 border-t border-white/10 transition-all duration-300 ${isSidebarCollapsed ? 'opacity-0 h-0 p-0 overflow-hidden' : 'opacity-100'}`}>
-                  <div className="flex items-center gap-3 p-3 bg-white/5 rounded-2xl border border-white/10">
+                <div className={`p-4 border-t border-white/10 transition-all duration-300 ${isSidebarCollapsed ? 'opacity-0 h-0 p-0 overflow-hidden' : 'opacity-100'}`}>
+                  <div className="flex items-center gap-3 p-3 bg-white/5 rounded-2xl border border-white/10 mb-2">
                     <div className="w-10 h-10 rounded-xl bg-white/10 flex items-center justify-center font-bold text-lg shadow-lg">
                         {session?.display_name?.[0]}
                     </div>
-                    <div className="overflow-hidden">
+                    <div className="overflow-hidden flex-1">
                         <p className="font-bold text-sm truncate">{session?.display_name}</p>
                         <p className="text-[10px] text-white/50 uppercase tracking-widest">{effectiveRole}</p>
                     </div>
                   </div>
+                  <button
+                    onClick={() => {
+                      localStorage.removeItem('pr_scl_matricule_session');
+                      setSession(null);
+                    }}
+                    className="w-full flex items-center justify-center gap-2 py-2 px-3 text-xs font-semibold rounded-xl bg-white/10 hover:bg-white/20 text-white transition-colors"
+                    title="Revenir au choix de rôle"
+                  >
+                    <i className="fas fa-users-cog"></i> Changer de rôle
+                  </button>
                 </div>
               </nav>
 
@@ -734,9 +734,9 @@ const App: React.FC = () => {
                   )}
 
                   <div className="animate-fade-in" style={{ animationDelay: '0.1s' }}>
-                    {currentView === 'dashboard' && (effectiveRole === 'dirigeant' || effectiveRole === 'gestionnaire' || effectiveRole === 'directeur' || effectiveRole === 'admin') && <Dashboard />}
+                    {currentView === 'dashboard' && (effectiveRole === 'dirigeant' || effectiveRole === 'directeur' || effectiveRole === 'admin') && <Dashboard />}
                     {currentView === 'inscription' && (
-                      <StudentForm onSuccess={() => setCurrentView(effectiveRole === 'gestionnaire' ? 'accounting' : 'students')} />
+                      <StudentForm onSuccess={() => setCurrentView('accounting')} />
                     )}
                     {currentView === 'students' && effectiveRole !== 'gestionnaire' && <StudentList />}
                     {currentView === 'accounting' && <Accounting />}
@@ -745,7 +745,7 @@ const App: React.FC = () => {
                     {currentView === 'personnel' && <PersonnelManagement />}
                     {currentView === 'profile' && <StaffProfile />}
                     {currentView === 'admin' && isAdmin && <AdminPanel onBack={() => setCurrentView('dashboard')} userRole={effectiveRole} />}
-                    {currentView === 'evaluation' && <Evaluation />}
+                    {currentView === 'evaluation' && effectiveRole !== 'gestionnaire' && <Evaluation />}
                     {currentView === 'academic_results' && effectiveRole !== 'gestionnaire' && <AcademicResults />}
                   </div>
                 </div>
