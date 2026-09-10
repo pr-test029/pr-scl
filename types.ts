@@ -20,6 +20,10 @@ export interface Student {
   notes_info?: string;
   dateInscription: string;
   totalPaid: number; // Montant total payé à ce jour
+  tuteurNom?: string; // Nom et prénom du tuteur/parent
+  tuteurTelephone?: string; // Téléphone du tuteur
+  tuteurEmail?: string; // Email du tuteur
+  tuteurRelation?: string; // Relation avec l'élève (Père, Mère, Tuteur légal, etc.)
 }
 
 export interface Payment {

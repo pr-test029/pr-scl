@@ -311,6 +311,15 @@ export const StudentDetails: React.FC<StudentDetailsProps> = ({ student, onBack 
                             <InfoRow label="Classe" value={student.classe} />
                             <InfoRow label="Cycle" value={student.cycle} />
                             <InfoRow label="Genre" value={student.genre} />
+                            {student.tuteurNom && (
+                                <InfoRow label="Tuteur" value={`${student.tuteurNom} (${student.tuteurRelation || 'Parent'})`} />
+                            )}
+                            {student.tuteurTelephone && (
+                                <InfoRow label="Tél. Tuteur" value={student.tuteurTelephone} />
+                            )}
+                            {student.tuteurEmail && (
+                                <InfoRow label="Email Tuteur" value={student.tuteurEmail} />
+                            )}
                         </div>
                     </div>
                 </Card>

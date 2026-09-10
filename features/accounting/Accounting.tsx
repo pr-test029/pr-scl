@@ -82,10 +82,14 @@ export const Accounting: React.FC = () => {
         });
 
         payments.forEach(p => {
-            if (p.notes?.toLowerCase().includes("frais d'inscription") || p.notes?.toLowerCase().includes("inscription")) {
-                totalInscriptions += p.amount;
-            } else if (p.notes?.toLowerCase().includes("réinscription")) {
-                totalReInscriptions += p.amount;
+            const note = (p.notes || '').toLowerCase();
+            const isReEnroll = note.includes("réinscription") || note.includes("reinscription");
+            const isEnroll = !isReEnroll && (note.includes("frais d'inscription") || note.includes("inscription"));
+
+            if (isReEnroll) {
+                totalReInscriptions += (p.amount || 0);
+            } else if (isEnroll) {
+                totalInscriptions += (p.amount || 0);
             }
         });
 

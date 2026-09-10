@@ -391,8 +391,8 @@ const App: React.FC = () => {
       if (effectiveRole === 'eleve' && currentView !== 'student_portal' && currentView !== 'profile') {
         setCurrentView('student_portal');
       } else if (effectiveRole === 'gestionnaire') {
-        // Le gestionnaire n'a accès qu'à Inscription, Comptabilité et Mon Profil
-        if (currentView !== 'inscription' && currentView !== 'accounting' && currentView !== 'profile') {
+        // Le gestionnaire a accès à Inscription, Comptabilité, Suivi & Évaluation et Mon Profil
+        if (currentView !== 'inscription' && currentView !== 'accounting' && currentView !== 'evaluation' && currentView !== 'profile') {
           setCurrentView('accounting');
         }
       }
@@ -615,7 +615,7 @@ const App: React.FC = () => {
                     <NavItem icon="fa-wallet" label="Comptabilité" active={currentView === 'accounting'} collapsed={isSidebarCollapsed} onClick={() => setCurrentView('accounting')} />
                   )}
 
-                  {(effectiveRole === 'dirigeant' || effectiveRole === 'directeur' || effectiveRole === 'admin') && (
+                  {(effectiveRole === 'dirigeant' || effectiveRole === 'gestionnaire' || effectiveRole === 'directeur' || effectiveRole === 'admin') && (
                     <NavItem icon="fa-chart-line" label="Suivi & Éval." active={currentView === 'evaluation'} collapsed={isSidebarCollapsed} onClick={() => setCurrentView('evaluation')} />
                   )}
                   
@@ -745,7 +745,7 @@ const App: React.FC = () => {
                     {currentView === 'personnel' && <PersonnelManagement />}
                     {currentView === 'profile' && <StaffProfile />}
                     {currentView === 'admin' && isAdmin && <AdminPanel onBack={() => setCurrentView('dashboard')} userRole={effectiveRole} />}
-                    {currentView === 'evaluation' && effectiveRole !== 'gestionnaire' && <Evaluation />}
+                    {currentView === 'evaluation' && <Evaluation />}
                     {currentView === 'academic_results' && effectiveRole !== 'gestionnaire' && <AcademicResults />}
                   </div>
                 </div>

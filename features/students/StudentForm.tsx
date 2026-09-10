@@ -245,6 +245,54 @@ export const StudentForm: React.FC<StudentFormProps> = ({ onSuccess, initialData
             )}
           </div>
 
+          {/* Section Informations Parentales / Tuteur */}
+          <div className="pt-4 border-t border-gray-200 dark:border-white/10">
+            <h4 className="text-sm font-black uppercase text-gray-400 tracking-wider mb-4 flex items-center gap-2">
+              <i className="fas fa-user-shield text-blue-600"></i> Informations Parentales / Tuteur
+            </h4>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <Input 
+                name="tuteurNom" 
+                label="Nom et Prénom du Tuteur" 
+                placeholder="Ex: Jean Dupont" 
+                value={formData.tuteurNom || ''} 
+                onChange={handleChange} 
+              />
+              <Select 
+                name="tuteurRelation" 
+                label="Relation avec l'élève" 
+                options={[
+                  { value: '', label: 'Sélectionnez la relation...' },
+                  { value: 'Père', label: 'Père' },
+                  { value: 'Mère', label: 'Mère' },
+                  { value: 'Tuteur légal', label: 'Tuteur légal' },
+                  { value: 'Grand-parent', label: 'Grand-parent' },
+                  { value: 'Oncle / Tante', label: 'Oncle / Tante' },
+                  { value: 'Frère / Sœur', label: 'Frère / Sœur' },
+                  { value: 'Autre', label: 'Autre' }
+                ]} 
+                value={formData.tuteurRelation || ''} 
+                onChange={handleChange} 
+              />
+              <Input 
+                type="tel" 
+                name="tuteurTelephone" 
+                label="Numéro de téléphone du tuteur" 
+                placeholder="Ex: +242 06 123 45 67" 
+                value={formData.tuteurTelephone || ''} 
+                onChange={handleChange} 
+              />
+              <Input 
+                type="email" 
+                name="tuteurEmail" 
+                label="Email du tuteur" 
+                placeholder="tuteur@exemple.com" 
+                value={formData.tuteurEmail || ''} 
+                onChange={handleChange} 
+              />
+            </div>
+          </div>
+
           <div className="flex flex-col items-center justify-center border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg p-6 bg-gray-50 dark:bg-gray-700/50 transition-colors">
             {selectedFile ? (
               <div className="text-center">
@@ -343,6 +391,9 @@ export const StudentForm: React.FC<StudentFormProps> = ({ onSuccess, initialData
                                 <p><strong className="text-gray-600">Matricule:</strong> <br/>{pendingStudent.matricule}</p>
                                 <p><strong className="text-gray-600">Classe:</strong> <br/>{pendingStudent.classe} {pendingStudent.serie ? `(Série/Spé: ${pendingStudent.serie})` : ''}</p>
                                 <p><strong className="text-gray-600">Année Scolaire:</strong> <br/>{selectedAcademicYear}</p>
+                                {pendingStudent.tuteurNom && (
+                                  <p className="col-span-2"><strong className="text-gray-600">Tuteur ({pendingStudent.tuteurRelation || 'Parent'}):</strong> <br/>{pendingStudent.tuteurNom} {pendingStudent.tuteurTelephone ? `— Tél: ${pendingStudent.tuteurTelephone}` : ''}</p>
+                                )}
                             </div>
                         </div>
 
