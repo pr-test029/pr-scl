@@ -244,20 +244,6 @@ const App: React.FC = () => {
     }
   };
 
-  // Sécurité : Protection stricte des vues selon le rôle de l'utilisateur
-  useEffect(() => {
-    if (session) {
-      if (effectiveRole === 'eleve' && currentView !== 'student_portal' && currentView !== 'profile') {
-        setCurrentView('student_portal');
-      } else if (effectiveRole === 'gestionnaire') {
-        // Le gestionnaire n'a accès qu'à Inscription, Comptabilité et Mon Profil
-        if (currentView !== 'inscription' && currentView !== 'accounting' && currentView !== 'profile') {
-          setCurrentView('accounting');
-        }
-      }
-    }
-  }, [session, effectiveRole, currentView]);
-
   const handleLogout = async () => {
     // Déconnexion complète : on oublie aussi l'école pour éviter les vérifs auto
     localStorage.removeItem('pr_scl_school_id');
@@ -398,6 +384,20 @@ const App: React.FC = () => {
   const isAdmin = effectiveRole === 'admin' || session?.email === 'powerfulreach029@gmail.com';
   const isDirecteur = effectiveRole === 'directeur';
   const isDirigeant = effectiveRole === 'dirigeant';
+
+  // Sécurité : Protection stricte des vues selon le rôle effectif de l'utilisateur
+  useEffect(() => {
+    if (session) {
+      if (effectiveRole === 'eleve' && currentView !== 'student_portal' && currentView !== 'profile') {
+        setCurrentView('student_portal');
+      } else if (effectiveRole === 'gestionnaire') {
+        // Le gestionnaire n'a accès qu'à Inscription, Comptabilité et Mon Profil
+        if (currentView !== 'inscription' && currentView !== 'accounting' && currentView !== 'profile') {
+          setCurrentView('accounting');
+        }
+      }
+    }
+  }, [session, effectiveRole, currentView]);
 
   // Filtrage des données si l'utilisateur est directeur
   const directorCycles = effectiveRole === 'directeur' ? session?.assignedCycles || [] : [];
