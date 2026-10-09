@@ -1174,6 +1174,30 @@ export const subscribeToSchools = (callback: (schools: School[]) => void): (() =
     });
 };
 
+// Écouter les changements d'une école spécifique en temps réel (pour l'activation d'abonnement)
+export const subscribeToSchool = (schoolId: string, callback: (school: School | null) => void): (() => void) => {
+    return onSnapshot(doc(db, "schools", schoolId), (snapshot) => {
+        if (!snapshot.exists()) {
+            callback(null);
+            return;
+        }
+        const data = snapshot.data();
+        callback({
+            id: snapshot.id,
+            name: data.name,
+            owner_id: data.owner_id,
+            owner_email: data.owner_email || 'N/A',
+            created_at: data.created_at?.toDate() || null,
+            subscription_plan: data.subscription_plan || 'free',
+            subscription_expires_at: data.subscription_expires_at?.toDate() || null,
+            subscription_status: data.subscription_status || 'free'
+        } as School);
+    }, (error) => {
+        console.error("subscribeToSchool Error:", error);
+    });
+};
+
+
 // Définir ou renouveler l'abonnement d'une école
 export const setSubscription = async (
     schoolId: string,
