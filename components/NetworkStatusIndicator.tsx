@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { flushSyncQueue, subscribeToPendingCount } from '../services/syncService';
+import { getValidOfflineSession } from '../services/offlineStore';
 
 export const NetworkStatusIndicator: React.FC = () => {
   const [isOnline, setIsOnline] = useState(navigator.onLine);
@@ -68,13 +69,27 @@ export const NetworkStatusIndicator: React.FC = () => {
         </span>
 
         {!isOnline ? (
-          <span className="font-medium text-amber-200">
-            <i className="fas fa-wifi-slash mr-1.5 text-rose-400"></i> Mode Hors-Ligne
+          <span className="font-medium text-amber-200 flex items-center gap-2 flex-wrap">
+            <span>
+              <i className="fas fa-wifi-slash mr-1.5 text-rose-400"></i> Mode Hors-Ligne
+            </span>
             {pendingCount > 0 && (
-              <span className="ml-1 bg-amber-500/20 text-amber-300 px-2 py-0.5 rounded-full border border-amber-500/30">
+              <span className="bg-amber-500/20 text-amber-300 px-2 py-0.5 rounded-full border border-amber-500/30">
                 {pendingCount} action(s) en attente
               </span>
             )}
+            {(() => {
+              const sessionInfo = getValidOfflineSession();
+              if (sessionInfo) {
+                return (
+                  <span className="bg-emerald-500/20 text-emerald-300 px-2 py-0.5 rounded-full border border-emerald-500/30">
+                    <i className="fas fa-clock mr-1"></i>
+                    Session valide ({sessionInfo.daysRemaining}j restant{sessionInfo.daysRemaining > 1 ? 's' : ''}/15)
+                  </span>
+                );
+              }
+              return null;
+            })()}
           </span>
         ) : isSyncing ? (
           <span className="font-medium text-blue-300 animate-pulse">

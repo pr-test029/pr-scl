@@ -1,5 +1,7 @@
 {
-  "projects": {},
+  "projects": {
+    "default": "pr-scl-cluster-2026"
+  },
   "targets": {},
   "etags": {}
 }

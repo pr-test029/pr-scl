@@ -5,12 +5,14 @@ import { UserSession, UserRole } from '../../types';
 import * as api from '../../services/firebase';
 import { getSchoolManagerPassword } from '../../services/firebase';
 import { SubscriptionPayment } from '../subscription/SubscriptionPayment';
+import { OfflineCodeVerificationForm } from '../../components/OfflineCodeVerificationForm';
+import { syncSchoolCredentialsOffline } from '../../services/offlineAuthService';
 
 interface LoginScreenProps {
     onLoginSuccess: (session: UserSession) => void;
 }
 
-type AuthStep = 'school_login' | 'role_selection' | 'identity_verification' | 'manager_password';
+type AuthStep = 'school_login' | 'role_selection' | 'identity_verification' | 'manager_password' | 'offline_code_verification';
 
 export const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess }) => {
     const [step, setStep] = useState<AuthStep>('school_login');
@@ -46,6 +48,14 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess }) => {
             
             if (currentSchoolId && currentSchoolName) {
                 setLoading(true);
+                // Si on est hors ligne, on autorise directement l'accès à la sélection des rôles pour cette école
+                if (!navigator.onLine) {
+                    setSchoolInfo({ id: currentSchoolId, name: currentSchoolName });
+                    setStep('role_selection');
+                    setLoading(false);
+                    return;
+                }
+
                 try {
                     const currentUser = api.auth.currentUser;
                     const { isExpired } = await api.checkSchoolSubscription(currentSchoolId, currentUser?.email);
@@ -56,9 +66,16 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess }) => {
                     } else {
                         setSchoolInfo({ id: currentSchoolId, name: currentSchoolName });
                         setStep('role_selection');
+                        // Synchroniser les identifiants en arrière-plan pour usage hors ligne
+                        syncSchoolCredentialsOffline(currentSchoolId).catch(err =>
+                            console.warn('[OfflineAuth] Échec de la synchronisation préliminaire:', err)
+                        );
                     }
                 } catch (e) {
                     console.error("Auto-check subscription failed", e);
+                    // Fallback hors-ligne en cas d'erreur réseau
+                    setSchoolInfo({ id: currentSchoolId, name: currentSchoolName });
+                    setStep('role_selection');
                 } finally {
                     setLoading(false);
                 }
@@ -68,11 +85,11 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess }) => {
     }, []);
 
     useEffect(() => {
-        if (schoolInfo?.id) {
+        if (schoolInfo?.id && navigator.onLine) {
             api.fetchSettingsBySchoolId(schoolInfo.id).then(settings => {
                 if (settings.logo) setSchoolLogo(settings.logo);
                 else setSchoolLogo('');
-            });
+            }).catch(() => {});
         }
     }, [schoolInfo?.id]);
 
@@ -104,6 +121,11 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess }) => {
                     localStorage.setItem('pr_scl_school_id', session.school_id);
                     localStorage.setItem('pr_scl_school_name', session.school_name);
                     setStep('role_selection');
+
+                    // Synchroniser et hacher immédiatement les identifiants pour utilisation hors ligne
+                    syncSchoolCredentialsOffline(session.school_id).catch(err =>
+                        console.warn('[OfflineAuth] Échec de la synchronisation après connexion école:', err)
+                    );
                 }
             }
         } catch (err: any) {
@@ -117,6 +139,13 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess }) => {
     const handleRoleSelect = async (selectedRole: UserRole) => {
         setRole(selectedRole);
         setError('');
+
+        // Branchement Mode Hors-Ligne : formulaire de vérification de code avec hash sécurisé
+        if (!navigator.onLine) {
+            setStep('offline_code_verification');
+            return;
+        }
+
         if (selectedRole === 'dirigeant') {
             const user = api.auth.currentUser;
             if (!user || user.isAnonymous) {
@@ -468,6 +497,23 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess }) => {
                     </div>
                 </div>
             </div>
+        );
+    }
+    if (step === 'offline_code_verification' && role && schoolInfo) {
+        return (
+            <OfflineCodeVerificationForm
+                schoolId={schoolInfo.id}
+                schoolName={schoolInfo.name}
+                role={role}
+                onSuccess={(session, daysRemaining) => {
+                    console.log(`[OfflineAuth] Connexion hors ligne réussie avec ${daysRemaining} jour(s) restant(s).`);
+                    onLoginSuccess(session);
+                }}
+                onCancel={() => {
+                    setStep('role_selection');
+                    setError('');
+                }}
+            />
         );
     }
     if (step === 'manager_password') {

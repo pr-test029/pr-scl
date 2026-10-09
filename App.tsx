@@ -34,6 +34,7 @@ import { NetworkStatusIndicator } from './components/NetworkStatusIndicator';
 import { PWAInstallPrompt } from './components/PWAInstallPrompt';
 import { registerBackgroundSync } from './services/syncService';
 import { updateDynamicAppManifest } from './services/dynamicManifest';
+import { clearOfflineSession, getValidOfflineSession } from './services/offlineStore';
 
 // Context creation
 const SchoolContext = createContext<SchoolContextType | undefined>(undefined);
@@ -248,6 +249,7 @@ const App: React.FC = () => {
     // Déconnexion complète : on oublie aussi l'école pour éviter les vérifs auto
     localStorage.removeItem('pr_scl_school_id');
     localStorage.removeItem('pr_scl_school_name');
+    clearOfflineSession();
     await api.signOut();
     setSession(null);
     setCurrentView('dashboard');

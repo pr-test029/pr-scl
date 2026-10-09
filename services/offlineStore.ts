@@ -12,6 +12,20 @@ export interface PendingMutation {
   attempts?: number;
 }
 
+export interface OfflineCredential {
+  id: string; // ex: schoolId_matricule ou schoolId_dirigeant
+  schoolId: string;
+  role: string; // 'dirigeant' | 'directeur' | 'gestionnaire' | 'professeur' | 'eleve'
+  codeHash: string; // Hash SHA-256 avec salt
+  salt: string; // Salt aléatoire
+  displayName: string;
+  email?: string;
+  photoUrl?: string;
+  matricule?: string;
+  assignedCycles?: string[];
+  syncedAt: number; // Date de synchronisation
+}
+
 interface PRSGSDB extends DBSchema {
   app_cache: {
     key: string;
@@ -29,17 +43,26 @@ interface PRSGSDB extends DBSchema {
       'by-school': string;
     };
   };
+  offline_credentials: {
+    key: string; // id
+    value: OfflineCredential;
+    indexes: {
+      'by-school': string;
+      'by-role': string;
+      'by-school-role': [string, string];
+    };
+  };
 }
 
 const DB_NAME = 'pr_sgs_offline_db';
-const DB_VERSION = 1;
+const DB_VERSION = 2;
 
 let dbPromise: Promise<IDBPDatabase<PRSGSDB>> | null = null;
 
 const getDB = () => {
   if (!dbPromise) {
     dbPromise = openDB<PRSGSDB>(DB_NAME, DB_VERSION, {
-      upgrade(db) {
+      upgrade(db, oldVersion) {
         if (!db.objectStoreNames.contains('app_cache')) {
           db.createObjectStore('app_cache', { keyPath: 'key' });
         }
@@ -50,6 +73,14 @@ const getDB = () => {
           });
           queueStore.createIndex('by-status', 'status');
           queueStore.createIndex('by-school', 'schoolId');
+        }
+        if (!db.objectStoreNames.contains('offline_credentials')) {
+          const credStore = db.createObjectStore('offline_credentials', {
+            keyPath: 'id',
+          });
+          credStore.createIndex('by-school', 'schoolId');
+          credStore.createIndex('by-role', 'role');
+          credStore.createIndex('by-school-role', ['schoolId', 'role']);
         }
       },
     });
@@ -150,3 +181,124 @@ export const getPendingCount = async (): Promise<number> => {
     return 0;
   }
 };
+
+// --- AUTHENTIFICATION HORS LIGNE (CREDENTIALS & SESSION) ---
+
+export const saveOfflineCredential = async (cred: OfflineCredential): Promise<void> => {
+  try {
+    const db = await getDB();
+    await db.put('offline_credentials', cred);
+  } catch (error) {
+    console.warn('[OfflineStore] Failed to save offline credential:', cred.id, error);
+  }
+};
+
+export const saveOfflineCredentialsBatch = async (credentials: OfflineCredential[]): Promise<void> => {
+  try {
+    const db = await getDB();
+    const tx = db.transaction('offline_credentials', 'readwrite');
+    for (const cred of credentials) {
+      await tx.store.put(cred);
+    }
+    await tx.done;
+  } catch (error) {
+    console.warn('[OfflineStore] Failed to batch save offline credentials:', error);
+  }
+};
+
+export const getOfflineCredential = async (id: string): Promise<OfflineCredential | null> => {
+  try {
+    const db = await getDB();
+    const entry = await db.get('offline_credentials', id);
+    return entry || null;
+  } catch (error) {
+    console.warn('[OfflineStore] Failed to get offline credential:', id, error);
+    return null;
+  }
+};
+
+export const getOfflineCredentialsByRole = async (schoolId: string, role: string): Promise<OfflineCredential[]> => {
+  try {
+    const db = await getDB();
+    const results = await db.getAllFromIndex('offline_credentials', 'by-school-role', [schoolId, role]);
+    return results;
+  } catch (error) {
+    console.warn('[OfflineStore] Failed to get credentials by role:', error);
+    return [];
+  }
+};
+
+export const getOfflineCredentialsBySchool = async (schoolId: string): Promise<OfflineCredential[]> => {
+  try {
+    const db = await getDB();
+    return await db.getAllFromIndex('offline_credentials', 'by-school', schoolId);
+  } catch (error) {
+    console.warn('[OfflineStore] Failed to get credentials by school:', error);
+    return [];
+  }
+};
+
+export const clearOfflineCredentials = async (): Promise<void> => {
+  try {
+    const db = await getDB();
+    await db.clear('offline_credentials');
+  } catch (error) {
+    console.warn('[OfflineStore] Failed to clear offline credentials:', error);
+  }
+};
+
+// Durée de validité maximale d'une session hors ligne : 15 jours (en millisecondes)
+export const OFFLINE_SESSION_MAX_DAYS = 15;
+export const OFFLINE_SESSION_MAX_MS = OFFLINE_SESSION_MAX_DAYS * 24 * 60 * 60 * 1000;
+
+export interface OfflineSessionStorage {
+  userSession: any;
+  createdAt: number; // Date de création de la session
+  lastOnlineSyncAt: number; // Dernière date de synchronisation en ligne
+  expiresAt: number; // createdAt + OFFLINE_SESSION_MAX_MS
+}
+
+export const saveOfflineSession = (session: any, lastSyncAt: number = Date.now()): void => {
+  const now = Date.now();
+  const sessionData: OfflineSessionStorage = {
+    userSession: session,
+    createdAt: now,
+    lastOnlineSyncAt: lastSyncAt,
+    expiresAt: now + OFFLINE_SESSION_MAX_MS,
+  };
+  localStorage.setItem('pr_scl_offline_session', JSON.stringify(sessionData));
+  localStorage.setItem('pr_scl_matricule_session', JSON.stringify(session));
+};
+
+export const getValidOfflineSession = (): { session: any; daysRemaining: number } | null => {
+  const raw = localStorage.getItem('pr_scl_offline_session');
+  if (!raw) return null;
+
+  try {
+    const data: OfflineSessionStorage = JSON.parse(raw);
+    const now = Date.now();
+
+    if (now > data.expiresAt) {
+      console.warn('[OfflineStore] La session hors ligne a dépassé la limite autorisée de 15 jours.');
+      localStorage.removeItem('pr_scl_offline_session');
+      localStorage.removeItem('pr_scl_matricule_session');
+      return null;
+    }
+
+    const msRemaining = data.expiresAt - now;
+    const daysRemaining = Math.max(0, Math.ceil(msRemaining / (24 * 60 * 60 * 1000)));
+
+    return {
+      session: data.userSession,
+      daysRemaining,
+    };
+  } catch {
+    return null;
+  }
+};
+
+export const clearOfflineSession = (): void => {
+  localStorage.removeItem('pr_scl_offline_session');
+  localStorage.removeItem('pr_scl_matricule_session');
+};
+
