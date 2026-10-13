@@ -220,9 +220,9 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess }) => {
             } else {
                 const rawSession = await api.loginWithMatricule(matricule, schoolInfo?.id);
                 if (rawSession) {
-                    // Pour un directeur, extraire les cycles assignés depuis ses données staff
+                    // Pour un directeur ou un gestionnaire, extraire les cycles assignés depuis ses données staff
                     let assignedCycles: string[] | undefined;
-                    if (role === 'directeur' && identity?.data?.assignedCycles) {
+                    if ((role === 'directeur' || role === 'gestionnaire') && identity?.data?.assignedCycles) {
                         assignedCycles = identity.data.assignedCycles;
                     }
                     onLoginSuccess({ ...rawSession, role: role as any, assignedCycles });

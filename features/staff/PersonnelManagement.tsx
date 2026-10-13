@@ -10,6 +10,9 @@ export const PersonnelManagement: React.FC = () => {
     const [activeTab, setActiveTab] = useState<'liste' | 'inscription'>('liste');
     const [searchTerm, setSearchTerm] = useState('');
     const [filterRole, setFilterRole] = useState<'tous' | 'gestionnaire' | 'professeur'>('tous');
+    const [showFilters, setShowFilters] = useState(false);
+    const [filterCycle, setFilterCycle] = useState<string>('all');
+    const [filterClass, setFilterClass] = useState<string>('all');
     const [editingStaff, setEditingStaff] = useState<StaffMember | null>(null);
 
     const [newStaff, setNewStaff] = useState<Partial<StaffMember>>({
@@ -26,33 +29,84 @@ export const PersonnelManagement: React.FC = () => {
 
     const staffList = settings.staff || [];
 
+    // Classes disponibles pour le filtre selon le cycle choisi
+    const availableFilterClasses = useMemo(() => {
+        const classes: string[] = [];
+        const cyclesToProcess = filterCycle === 'all'
+            ? Object.values(cycles)
+            : Object.values(cycles).filter(c => c.id === filterCycle);
+
+        cyclesToProcess.forEach(cy => {
+            if (cy.type === 'simple') {
+                classes.push(...cy.levels);
+            } else {
+                const suffixes = cy.type === 'series' ? cy.series : cy.specialites;
+                cy.levels.forEach(lvl => {
+                    suffixes.forEach(s => classes.push(`${lvl} ${s}`));
+                });
+            }
+        });
+        return Array.from(new Set(classes));
+    }, [cycles, filterCycle]);
+
     const filteredStaff = useMemo(() => {
         const isDirecteur = session?.role === 'directeur';
         const directorCycles = session?.assignedCycles || [];
 
-        return isDirecteur
-            ? (settings.staff || []).filter(s => {
-                // Un directeur voit tous les dirigeants, son propre profil et le personnel de ses cycles
-                if (s.role === 'dirigeant') return true;
-                if (s.matricule === session?.matricule) return true;
-                const staffCycles = s.assignedCycles || [];
-                const staffClasses = s.assignedClasses || [];
-                const hasOverlap = staffCycles.some(cId => directorCycles.includes(cId)) ||
-                    staffClasses.some(cls => {
-                        const cycle = Object.values(cycles).find(cy => cy.levels.some(lvl => cls.startsWith(lvl)));
-                        return cycle ? directorCycles.includes(cycle.id) : false;
+        return (settings.staff || []).filter(s => {
+            // Permissions directeur
+            if (isDirecteur) {
+                if (s.role !== 'dirigeant' && s.matricule !== session?.matricule) {
+                    const staffCycles = s.assignedCycles || [];
+                    const staffClasses = s.assignedClasses || [];
+                    const hasOverlap = staffCycles.some(cId => directorCycles.includes(cId)) ||
+                        staffClasses.some(cls => {
+                            const cycle = Object.values(cycles).find(cy => cy.levels.some(lvl => cls.startsWith(lvl)));
+                            return cycle ? directorCycles.includes(cycle.id) : false;
+                        });
+                    if (!hasOverlap) return false;
+                }
+            }
+
+            // Recherche texte
+            const matchesSearch = `${s.nom} ${s.prenom} ${s.matricule}`.toLowerCase().includes(searchTerm.toLowerCase());
+            if (!matchesSearch) return false;
+
+            // Filtre rôle
+            const matchesRole = filterRole === 'tous' || s.role === filterRole;
+            if (!matchesRole) return false;
+
+            // Filtres spécifiques au cycle et à la classe
+            if (filterCycle !== 'all') {
+                if (s.role === 'professeur') {
+                    const profClasses = s.assignedClasses || [];
+                    const inCycle = profClasses.some(cls => {
+                        const cy = Object.values(cycles).find(c => c.levels.some(lvl => cls.startsWith(lvl)));
+                        return cy?.id === filterCycle;
                     });
-                if (!hasOverlap) return false;
-                const matchesSearch = `${s.nom} ${s.prenom} ${s.matricule}`.toLowerCase().includes(searchTerm.toLowerCase());
-                const matchesRole = filterRole === 'tous' || s.role === filterRole;
-                return matchesSearch && matchesRole;
-            }).sort((a, b) => a.nom.localeCompare(b.nom))
-            : (settings.staff || []).filter(s => {
-                const matchesSearch = `${s.nom} ${s.prenom} ${s.matricule}`.toLowerCase().includes(searchTerm.toLowerCase());
-                const matchesRole = filterRole === 'tous' || s.role === filterRole;
-                return matchesSearch && matchesRole;
-            }).sort((a, b) => a.nom.localeCompare(b.nom));
-    }, [staffList, searchTerm, filterRole, session, cycles]);
+                    if (!inCycle) return false;
+                } else if (s.role === 'directeur' || s.role === 'gestionnaire') {
+                    const staffCycles = s.assignedCycles || [];
+                    if (!staffCycles.includes(filterCycle)) return false;
+                } else {
+                    return false;
+                }
+            }
+
+            if (filterClass !== 'all') {
+                if (s.role === 'professeur') {
+                    const profClasses = s.assignedClasses || [];
+                    if (!profClasses.includes(filterClass)) return false;
+                } else {
+                    return false;
+                }
+            }
+
+            return true;
+        }).sort((a, b) => a.nom.localeCompare(b.nom));
+    }, [staffList, searchTerm, filterRole, filterCycle, filterClass, session, cycles]);
+
+    const hasActiveFilters = filterCycle !== 'all' || filterClass !== 'all';
 
     const generateStaffMatricule = () => {
         const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
@@ -118,25 +172,97 @@ export const PersonnelManagement: React.FC = () => {
 
             {activeTab === 'liste' ? (
                 <Card>
-                    <div className="flex flex-col lg:flex-row gap-6 mb-10">
-                        <div className="flex-1">
-                            <Input 
-                                placeholder="Rechercher par nom, prénom ou matricule..." 
-                                value={searchTerm} 
-                                onChange={e => setSearchTerm(e.target.value)}
-                                icon={<i className="fas fa-search"></i>}
-                            />
+                    <div className="space-y-4 mb-8">
+                        <div className="flex flex-col lg:flex-row gap-4 items-stretch lg:items-center">
+                            <div className="flex-1">
+                                <Input 
+                                    placeholder="Rechercher par nom, prénom ou matricule..." 
+                                    value={searchTerm} 
+                                    onChange={e => setSearchTerm(e.target.value)}
+                                    icon={<i className="fas fa-search"></i>}
+                                />
+                            </div>
+                            <div className="w-full lg:w-64">
+                                <Select 
+                                    value={filterRole}
+                                    onChange={e => setFilterRole(e.target.value as any)}
+                                    options={[
+                                        { value: 'tous', label: 'Tous les rôles' },
+                                        ...roles.map(r => ({ value: r, label: r.charAt(0).toUpperCase() + r.slice(1) }))
+                                    ]}
+                                />
+                            </div>
+                            <button
+                                type="button"
+                                onClick={() => setShowFilters(!showFilters)}
+                                className={`px-5 py-3 rounded-2xl font-bold flex items-center justify-center gap-2 border transition-all ${
+                                    showFilters || hasActiveFilters
+                                        ? 'bg-blue-600 text-white border-blue-600 shadow-lg shadow-blue-500/20'
+                                        : 'bg-white dark:bg-white/5 text-gray-700 dark:text-gray-200 border-gray-200 dark:border-white/10 hover:border-blue-400'
+                                }`}
+                                title="Filtrer les professeurs par cycle et classe"
+                            >
+                                <i className="fas fa-filter"></i>
+                                <span>Filtres</span>
+                                {hasActiveFilters && (
+                                    <span className="w-2 h-2 rounded-full bg-amber-400 animate-pulse"></span>
+                                )}
+                            </button>
                         </div>
-                        <div className="w-full lg:w-72">
-                            <Select 
-                                value={filterRole}
-                                onChange={e => setFilterRole(e.target.value as any)}
-                                options={[
-                                    { value: 'tous', label: 'Tous les rôles' },
-                                    ...roles.map(r => ({ value: r, label: r.charAt(0).toUpperCase() + r.slice(1) }))
-                                ]}
-                            />
-                        </div>
+
+                        {/* Volet de filtres avancés (cycle et classe pour professeurs) */}
+                        {showFilters && (
+                            <div className="p-4 bg-gray-50 dark:bg-white/5 border border-gray-200/80 dark:border-white/10 rounded-2xl flex flex-col md:flex-row gap-4 items-center animate-fade-in">
+                                <div className="flex-1 w-full">
+                                    <label className="block text-xs font-black uppercase tracking-widest text-gray-400 dark:text-gray-500 mb-1.5 ml-1">
+                                        Filtrer par Cycle
+                                    </label>
+                                    <select
+                                        value={filterCycle}
+                                        onChange={e => {
+                                            setFilterCycle(e.target.value);
+                                            setFilterClass('all');
+                                        }}
+                                        className="w-full h-12 bg-white dark:bg-slate-900/50 border-2 border-gray-100 dark:border-white/5 rounded-2xl px-4 text-sm font-medium text-gray-900 dark:text-white focus:border-blue-500"
+                                    >
+                                        <option value="all">Tous les cycles</option>
+                                        {Object.values(cycles).map(cy => (
+                                            <option key={cy.id} value={cy.id}>{cy.name}</option>
+                                        ))}
+                                    </select>
+                                </div>
+                                <div className="flex-1 w-full">
+                                    <label className="block text-xs font-black uppercase tracking-widest text-gray-400 dark:text-gray-500 mb-1.5 ml-1">
+                                        Filtrer par Classe
+                                    </label>
+                                    <select
+                                        value={filterClass}
+                                        onChange={e => setFilterClass(e.target.value)}
+                                        className="w-full h-12 bg-white dark:bg-slate-900/50 border-2 border-gray-100 dark:border-white/5 rounded-2xl px-4 text-sm font-medium text-gray-900 dark:text-white focus:border-blue-500"
+                                    >
+                                        <option value="all">Toutes les classes</option>
+                                        {availableFilterClasses.map(cls => (
+                                            <option key={cls} value={cls}>{cls}</option>
+                                        ))}
+                                    </select>
+                                </div>
+                                {hasActiveFilters && (
+                                    <div className="self-end md:self-center pt-2 md:pt-5">
+                                        <button
+                                            type="button"
+                                            onClick={() => {
+                                                setFilterCycle('all');
+                                                setFilterClass('all');
+                                            }}
+                                            className="text-xs font-bold text-red-500 hover:text-red-600 flex items-center gap-1.5 px-3 py-2 rounded-xl hover:bg-red-50 dark:hover:bg-red-950/30 transition-all"
+                                        >
+                                            <i className="fas fa-times"></i>
+                                            Réinitialiser
+                                        </button>
+                                    </div>
+                                )}
+                            </div>
+                        )}
                     </div>
 
                     {filteredStaff.length === 0 ? (
@@ -185,15 +311,28 @@ export const PersonnelManagement: React.FC = () => {
                                                         <span className={`w-fit px-3 py-1 rounded-xl text-[10px] font-black uppercase tracking-widest shadow-sm ${
                                                             s.role === 'gestionnaire' ? 'bg-amber-100 text-amber-700' : 
                                                             s.role === 'professeur' ? 'bg-indigo-100 text-indigo-700' : 
+                                                            s.role === 'directeur' ? 'bg-purple-100 text-purple-700' :
                                                             'bg-emerald-100 text-emerald-700'
                                                         }`}>
                                                             {s.role}
                                                         </span>
+                                                        {(s.role === 'directeur' || s.role === 'gestionnaire') && s.assignedCycles && s.assignedCycles.length > 0 && (
+                                                            <div className="flex flex-wrap gap-1.5">
+                                                                {s.assignedCycles.map(cId => (
+                                                                    <span key={cId} className="text-[9px] font-bold bg-purple-50 dark:bg-purple-900/20 text-purple-700 dark:text-purple-300 px-2 py-0.5 rounded-lg border border-purple-200 dark:border-purple-800/40">
+                                                                        {cycles[cId]?.name || cId}
+                                                                    </span>
+                                                                ))}
+                                                            </div>
+                                                        )}
                                                         {s.role === 'professeur' && s.assignments && s.assignments.length > 0 && (
                                                             <div className="flex flex-wrap gap-1.5">
                                                                 {s.assignments.map((a, idx) => (
-                                                                    <span key={idx} className="text-[9px] font-bold bg-white dark:bg-white/5 px-2 py-1 rounded-lg border dark:border-white/10 dark:text-gray-400 shadow-sm">
-                                                                        {a.classe}
+                                                                    <span key={idx} className="text-[9px] font-bold bg-white dark:bg-white/5 px-2 py-1 rounded-lg border dark:border-white/10 dark:text-gray-400 shadow-sm flex items-center gap-1">
+                                                                        <span>{a.classe}</span>
+                                                                        {a.subjects && a.subjects.length > 0 && (
+                                                                            <span className="text-blue-600 font-semibold">({a.subjects.join(', ')})</span>
+                                                                        )}
                                                                     </span>
                                                                 ))}
                                                             </div>
@@ -233,9 +372,14 @@ export const PersonnelManagement: React.FC = () => {
                                             <span className="px-3 py-1 bg-gray-100 dark:bg-white/10 rounded-full text-[10px] font-black uppercase tracking-widest dark:text-gray-300">
                                                 {s.role}
                                             </span>
+                                            {(s.role === 'directeur' || s.role === 'gestionnaire') && s.assignedCycles?.map(cId => (
+                                                <span key={cId} className="px-3 py-1 bg-purple-50 dark:bg-purple-900/20 rounded-full text-[10px] font-bold text-purple-600">
+                                                    {cycles[cId]?.name || cId}
+                                                </span>
+                                            ))}
                                             {s.assignments?.map((a, i) => (
                                                 <span key={i} className="px-3 py-1 bg-blue-50 dark:bg-blue-900/20 rounded-full text-[10px] font-bold text-blue-600">
-                                                    {a.classe}
+                                                    {a.classe} {a.subjects && a.subjects.length > 0 ? `(${a.subjects.join(', ')})` : ''}
                                                 </span>
                                             ))}
                                         </div>
@@ -320,7 +464,7 @@ const StaffForm: React.FC<{
             matricule: staff.matricule || '', 
             assignedClasses: assignments.map(a => a.classe),
             assignments: assignments,
-            assignedCycles: staff.role === 'directeur' ? selectedCycles : [],
+            assignedCycles: (staff.role === 'directeur' || staff.role === 'gestionnaire') ? selectedCycles : [],
         } as StaffMember);
     };
 
@@ -347,40 +491,57 @@ const StaffForm: React.FC<{
                 <Input label="Téléphone" value={staff.telephone || ''} onChange={e => setStaff({...staff, telephone: e.target.value})} />
             </div>
 
-            {staff.role === 'directeur' && (
-                <div className="p-6 bg-purple-50/50 dark:bg-purple-900/10 rounded-2xl border border-purple-100 dark:border-purple-800/30">
+            {(staff.role === 'directeur' || staff.role === 'gestionnaire') && (
+                <div className={`p-6 rounded-2xl border ${
+                    staff.role === 'gestionnaire'
+                        ? 'bg-amber-50/50 dark:bg-amber-900/10 border-amber-100 dark:border-amber-800/30'
+                        : 'bg-purple-50/50 dark:bg-purple-900/10 border-purple-100 dark:border-purple-800/30'
+                }`}>
                     <h3 className="font-bold mb-1 flex items-center gap-2 dark:text-white">
-                        <i className="fas fa-building-columns text-purple-600"></i>
+                        <i className={`fas fa-building-columns ${staff.role === 'gestionnaire' ? 'text-amber-600' : 'text-purple-600'}`}></i>
                         Cycles sous sa responsabilité
                     </h3>
-                    {isDirecteurSession ? (
+                    {isDirecteurSession && staff.role === 'directeur' ? (
                         <p className="text-sm text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/20 p-3 rounded-xl border border-amber-200 dark:border-amber-800/30 flex items-center gap-2 mt-3">
                             <i className="fas fa-lock"></i>
                             Vous ne pouvez pas modifier vos propres cycles d'accès.
                         </p>
                     ) : (
                         <>
-                            <p className="text-xs text-gray-500 mb-3">Sélectionnez les cycles que ce directeur peut gérer.</p>
+                            <p className="text-xs text-gray-500 mb-3">
+                                {staff.role === 'gestionnaire'
+                                    ? "Sélectionnez le ou les cycles attribués à ce gestionnaire."
+                                    : "Sélectionnez les cycles que ce directeur peut gérer."
+                                }
+                            </p>
                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                                {Object.values(cycles).map(cy => (
-                                    <label key={cy.id} className={`flex items-center gap-3 p-3 rounded-xl cursor-pointer transition-all border ${
-                                        selectedCycles.includes(cy.id)
-                                        ? 'bg-purple-600 text-white border-purple-400 shadow-md'
-                                        : 'bg-white dark:bg-gray-800 border-gray-100 dark:border-white/5 text-gray-600 dark:text-gray-300 hover:border-purple-400'
-                                    }`}>
-                                        <input
-                                            type="checkbox"
-                                            className="hidden"
-                                            checked={selectedCycles.includes(cy.id)}
-                                            onChange={(e) => {
-                                                if (e.target.checked) setSelectedCycles([...selectedCycles, cy.id]);
-                                                else setSelectedCycles(selectedCycles.filter(id => id !== cy.id));
-                                            }}
-                                        />
-                                        <i className={`fas ${selectedCycles.includes(cy.id) ? 'fa-check-circle' : 'fa-circle opacity-20'} text-sm`}></i>
-                                        <span className="text-sm font-bold">{cy.name}</span>
-                                    </label>
-                                ))}
+                                {Object.values(cycles).map(cy => {
+                                    const isSelected = selectedCycles.includes(cy.id);
+                                    const activeColorClass = staff.role === 'gestionnaire'
+                                        ? 'bg-amber-500 text-white border-amber-400 shadow-md'
+                                        : 'bg-purple-600 text-white border-purple-400 shadow-md';
+                                    const hoverClass = staff.role === 'gestionnaire' ? 'hover:border-amber-400' : 'hover:border-purple-400';
+
+                                    return (
+                                        <label key={cy.id} className={`flex items-center gap-3 p-3 rounded-xl cursor-pointer transition-all border ${
+                                            isSelected
+                                            ? activeColorClass
+                                            : `bg-white dark:bg-gray-800 border-gray-100 dark:border-white/5 text-gray-600 dark:text-gray-300 ${hoverClass}`
+                                        }`}>
+                                            <input
+                                                type="checkbox"
+                                                className="hidden"
+                                                checked={isSelected}
+                                                onChange={(e) => {
+                                                    if (e.target.checked) setSelectedCycles([...selectedCycles, cy.id]);
+                                                    else setSelectedCycles(selectedCycles.filter(id => id !== cy.id));
+                                                }}
+                                            />
+                                            <i className={`fas ${isSelected ? 'fa-check-circle' : 'fa-circle opacity-20'} text-sm`}></i>
+                                            <span className="text-sm font-bold">{cy.name}</span>
+                                        </label>
+                                    );
+                                })}
                             </div>
                         </>
                     )}
@@ -432,35 +593,54 @@ const StaffForm: React.FC<{
                                     <div className="space-y-4 max-h-80 overflow-y-auto pr-2">
                                         {assignments.map(assignment => {
                                             const cycle = Object.values(cycles).find(cy => cy.levels.some(lvl => assignment.classe.startsWith(lvl)));
-                                            const isPrimary = cycle?.type === 'simple';
+                                            const isPrimary = cycle?.id?.toLowerCase().includes('primaire') || cycle?.name?.toLowerCase().includes('primaire');
                                             const availableSubjects = subjects[assignment.classe] || [];
 
                                             return (
                                                 <div key={assignment.classe} className="p-4 bg-white dark:bg-gray-800 rounded-xl border border-gray-100 dark:border-white/10 shadow-sm">
                                                     <div className="flex items-center justify-between mb-3">
                                                         <span className="font-bold text-blue-600">{assignment.classe}</span>
+                                                        {assignment.subjects.length > 0 && (
+                                                            <span className="text-[10px] text-gray-500 font-bold bg-blue-50 dark:bg-blue-900/30 px-2 py-0.5 rounded-full">
+                                                                {assignment.subjects.length} matière{assignment.subjects.length > 1 ? 's' : ''}
+                                                            </span>
+                                                        )}
                                                     </div>
                                                     {isPrimary ? (
-                                                        <p className="text-xs text-gray-500 italic">Toutes les matières.</p>
+                                                        <p className="text-xs text-gray-500 italic">Enseignement polyvalent (Toutes les matières).</p>
                                                     ) : (
-                                                        <div className="flex flex-wrap gap-2">
-                                                            {availableSubjects.map((sub: Subject) => (
-                                                                <button
-                                                                    key={sub.id}
-                                                                    type="button"
-                                                                    onClick={() => {
+                                                        <>
+                                                            <p className="text-[11px] text-gray-400 mb-2">Cliquez pour attribuer une ou plusieurs matières :</p>
+                                                            {availableSubjects.length === 0 ? (
+                                                                <p className="text-xs text-amber-500 italic">Aucune matière configurée pour cette classe dans les Paramètres.</p>
+                                                            ) : (
+                                                                <div className="flex flex-wrap gap-2">
+                                                                    {availableSubjects.map((sub: Subject) => {
                                                                         const isSelected = assignment.subjects.includes(sub.nom);
-                                                                        setAssignments(assignments.map(a => a.classe === assignment.classe 
-                                                                            ? { ...a, subjects: isSelected ? a.subjects.filter(s => s !== sub.nom) : [...a.subjects, sub.nom] }
-                                                                            : a
-                                                                        ));
-                                                                    }}
-                                                                    className={`px-2 py-1 rounded text-[10px] font-bold border ${assignment.subjects.includes(sub.nom) ? 'bg-blue-100 border-blue-200 text-blue-700' : 'bg-gray-50 dark:bg-white/5 dark:text-gray-400'}`}
-                                                                >
-                                                                    {sub.nom}
-                                                                </button>
-                                                            ))}
-                                                        </div>
+                                                                        return (
+                                                                            <button
+                                                                                key={sub.id}
+                                                                                type="button"
+                                                                                onClick={() => {
+                                                                                    setAssignments(assignments.map(a => a.classe === assignment.classe 
+                                                                                        ? { ...a, subjects: isSelected ? a.subjects.filter(s => s !== sub.nom) : [...a.subjects, sub.nom] }
+                                                                                        : a
+                                                                                    ));
+                                                                                }}
+                                                                                className={`px-2.5 py-1.5 rounded-lg text-xs font-bold transition-all border flex items-center gap-1.5 ${
+                                                                                    isSelected 
+                                                                                        ? 'bg-blue-600 border-blue-600 text-white shadow-sm' 
+                                                                                        : 'bg-gray-50 dark:bg-white/5 border-gray-200 dark:border-white/10 text-gray-700 dark:text-gray-300 hover:border-blue-400'
+                                                                                }`}
+                                                                            >
+                                                                                <i className={`fas ${isSelected ? 'fa-check' : 'fa-plus'} text-[10px]`}></i>
+                                                                                {sub.nom}
+                                                                            </button>
+                                                                        );
+                                                                    })}
+                                                                </div>
+                                                            )}
+                                                        </>
                                                     )}
                                                 </div>
                                             );

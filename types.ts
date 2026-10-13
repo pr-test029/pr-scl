@@ -149,7 +149,7 @@ export interface StaffMember {
   activeYears?: string[]; // Années scolaires où ce membre est actif
   assignedClasses: string[]; // Kept for quick access/display
   assignments?: TeacherAssignment[]; // Detailed assignments
-  assignedCycles?: string[]; // IDs des cycles gérés (pour le rôle directeur)
+  assignedCycles?: string[]; // IDs des cycles gérés (pour les rôles directeur et gestionnaire)
 }
 
 export interface AppSettings {
@@ -183,7 +183,7 @@ export interface UserSession {
   role: UserRole;
   matricule?: string; // Présent pour les élèves et le personnel
   allowed_academic_years: string[]; // Années scolaires que l'utilisateur peut voir
-  assignedCycles?: string[]; // IDs des cycles accessibles (pour le rôle directeur)
+  assignedCycles?: string[]; // IDs des cycles accessibles (pour les rôles directeur et gestionnaire)
 }
 
 // Type pour les écoles (gestion admin)
