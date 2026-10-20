@@ -24,6 +24,9 @@ export interface Student {
   tuteurTelephone?: string; // Téléphone du tuteur
   tuteurEmail?: string; // Email du tuteur
   tuteurRelation?: string; // Relation avec l'élève (Père, Mère, Tuteur légal, etc.)
+  salle?: string; // Nom ou ID de la salle attribuée à l'élève
+  isSpecial?: boolean; // Élève à statut spécial (tarif mensuel personnalisé)
+  specialMonthlyFee?: number; // Montant mensuel spécial optionnel spécifique à l'élève
 }
 
 export interface Payment {
@@ -73,6 +76,7 @@ export interface Classroom {
   id: string;
   name: string;
   capacity?: number;
+  assignedClasses?: string[]; // Classes liées à cette salle (plusieurs classes peuvent occuper la même salle)
 }
 
 export interface BulletinHeaderSettings {
@@ -95,6 +99,7 @@ export interface Cycle {
   specialites: string[]; // Ex: ["Maths", "Physique"]
   classrooms: Classroom[]; // Salles de classe
   bulletinHeader?: BulletinHeaderSettings; // Configuration de l'entête spécifique au cycle
+  maxGrade?: number; // Moyenne maximale du cycle (ex: 10 pour le primaire, 20 pour le secondaire/supérieur)
 }
 
 export interface AppreciationRule {
@@ -126,6 +131,7 @@ export interface AccountingSettings {
   reRegistrationFee?: number; // Frais de réinscription globaux (déprécié — garder pour compatibilité)
   classRegistrationFees?: Record<string, number>; // Frais d'inscription par classe
   classReRegistrationFees?: Record<string, number>; // Frais de réinscription par classe
+  classSpecialFees?: Record<string, number>; // Montant mensuel spécial par classe
 }
 
 export type UserRole = 'dirigeant' | 'gestionnaire' | 'eleve' | 'professeur' | 'directeur';

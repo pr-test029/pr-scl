@@ -29,6 +29,11 @@ export const StudentDetails: React.FC<StudentDetailsProps> = ({ student, onBack 
         appreciationRules: (cycleHeader.appreciationRules && cycleHeader.appreciationRules.length > 0) ? cycleHeader.appreciationRules : settings.bulletin.appreciationRules,
     };
 
+    // Détection de l'échelle de notation (Primaire: 10, Secondaire: 20)
+    const isPrimary = student.cycle.toLowerCase().includes('primaire') || (studentCycle && (studentCycle.maxGrade === 10 || studentCycle.name.toLowerCase().includes('primaire')));
+    const cycleMaxScale = studentCycle?.maxGrade || (isPrimary ? 10 : 20);
+    const passingThreshold = cycleMaxScale / 2; // 5 pour le primaire, 10 pour le secondaire
+
     // Détection du cycle universitaire
     const isUniversity = student.cycle === 'universite';
     const periods = isUniversity ? ['S1', 'S2'] : ['1', '2', '3'];
@@ -558,8 +563,8 @@ export const StudentDetails: React.FC<StudentDetailsProps> = ({ student, onBack 
                                     </tr>
                                 )}
                                 <tr className="bg-[#1e293b] text-white font-black h-10 uppercase text-[11px]">
-                                    <td colSpan={3} className="text-center tracking-widest">MOYENNE GÉNÉRALE DU TRIMESTRE</td>
-                                    <td colSpan={4} className="text-left pl-6 text-xl">{bulletinData.generalAverage.toFixed(2)}</td>
+                                    <td colSpan={3} className="text-center tracking-widest">MOYENNE GÉNÉRALE DU TRIMESTRE (/{cycleMaxScale})</td>
+                                    <td colSpan={4} className="text-left pl-6 text-xl">{bulletinData.generalAverage.toFixed(2)} / {cycleMaxScale}</td>
                                 </tr>
                             </tfoot>
                         </table>
@@ -571,7 +576,7 @@ export const StudentDetails: React.FC<StudentDetailsProps> = ({ student, onBack 
                                 <div className="space-y-2 text-[11px]">
                                     <p className="font-black text-lg">
                                         {bulletinData.subjects.length === 0 ? "Données insuffisantes" : (
-                                            bulletinData.generalAverage >= 10 
+                                            bulletinData.generalAverage >= passingThreshold 
                                                 ? (student.genre === 'Fille' || student.genre === 'F' ? "Admise" : "Admis")
                                                 : "Echoué"
                                         )}

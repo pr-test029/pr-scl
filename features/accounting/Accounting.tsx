@@ -4,12 +4,13 @@ import { HelpGuide } from '../../components/ui/HelpGuide';
 import { useSchool } from '../../App';
 import { Student, Payment, Expense } from '../../types';
 import { ReceiptGenerator, ReceiptData, ReceiptGeneratorRef } from './ReceiptGenerator';
+import { DetailedAccounting } from './DetailedAccounting';
 
 export const Accounting: React.FC = () => {
-    const { students, payments, expenses, cycles, settings, addPayment, addExpense, deleteExpense, session, selectedAcademicYear } = useSchool();
+    const { students, payments, expenses, cycles, settings, addPayment, addExpense, deleteExpense, session, selectedAcademicYear, updateStudent } = useSchool();
     
     // Tabs
-    const [activeTab, setActiveTab] = useState<'encaissements' | 'historique_encaissements' | 'decaissements'>('encaissements');
+    const [activeTab, setActiveTab] = useState<'encaissements' | 'historique_encaissements' | 'decaissements' | 'analyses'>('encaissements');
 
     // -- ENCAISSEMENTS STATE --
     const [searchQuery, setSearchQuery] = useState('');
@@ -46,10 +47,22 @@ export const Accounting: React.FC = () => {
         });
     }, [students, searchQuery, selectedCycle, selectedClass]);
 
-    const getStudentAnnualFee = (student: Student) => {
+    const getStudentMonthlyFee = (student: Student) => {
         const fullClassName = student.serie ? `${student.classe} ${student.serie}` : student.classe;
-        const monthlyFee = settings.accounting?.classFees[fullClassName] || 0;
-        return monthlyFee * 9;
+        if (student.isSpecial) {
+            if (student.specialMonthlyFee !== undefined && student.specialMonthlyFee >= 0) {
+                return student.specialMonthlyFee;
+            }
+            const classSpecialFee = settings.accounting?.classSpecialFees?.[fullClassName] ?? settings.accounting?.classSpecialFees?.[student.classe];
+            if (classSpecialFee !== undefined && classSpecialFee >= 0) {
+                return classSpecialFee;
+            }
+        }
+        return settings.accounting?.classFees?.[fullClassName] ?? settings.accounting?.classFees?.[student.classe] ?? 0;
+    };
+
+    const getStudentAnnualFee = (student: Student) => {
+        return getStudentMonthlyFee(student) * 9;
     };
 
     const getStudentTotalPaid = (studentId: string, baseTotalPaid: number = 0) => {
@@ -326,6 +339,12 @@ export const Accounting: React.FC = () => {
               >
                 <i className="fas fa-file-invoice-dollar mr-2"></i> Décaissements (Dépenses)
               </button>
+              <button
+                className={`px-6 py-2 rounded-xl font-bold transition-all ${activeTab === 'analyses' ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-500/30' : 'bg-white dark:bg-white/5 text-gray-600 dark:text-gray-300'}`}
+                onClick={() => setActiveTab('analyses')}
+              >
+                <i className="fas fa-chart-pie mr-2"></i> Analyses & Statistiques
+              </button>
               <button 
                 className="ml-auto px-4 py-2 bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-600 hover:to-teal-600 text-white rounded-xl font-bold shadow-lg shadow-teal-500/30 transition-all flex items-center gap-2" 
                 onClick={() => setIsOtherPaymentModalOpen(true)}
@@ -421,7 +440,24 @@ export const Accounting: React.FC = () => {
                                                 <td className={`px-4 py-4 whitespace-nowrap text-sm font-bold ${annual === 0 ? 'text-orange-500' : remaining === 0 ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>
                                                     {annual === 0 ? 'Non Configuré' : remaining === 0 ? 'SOLDÉ' : `${remaining.toLocaleString()} FCFA`}
                                                 </td>
-                                                <td className="px-4 py-4 whitespace-nowrap text-right">
+                                                <td className="px-4 py-4 whitespace-nowrap text-right space-x-2">
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => {
+                                                            const willBeSpecial = !s.isSpecial;
+                                                            const updatedStudent = { ...s, isSpecial: willBeSpecial };
+                                                            updateStudent(updatedStudent);
+                                                        }}
+                                                        className={`px-2.5 py-1.5 rounded-lg text-xs font-bold transition-all border ${
+                                                            s.isSpecial 
+                                                                ? 'bg-amber-100 text-amber-800 border-amber-300 dark:bg-amber-900/40 dark:text-amber-300 dark:border-amber-700 hover:bg-amber-200' 
+                                                                : 'bg-gray-100 text-gray-600 border-gray-200 dark:bg-white/5 dark:text-gray-300 dark:border-white/10 hover:bg-gray-200'
+                                                        }`}
+                                                        title={s.isSpecial ? "Statut Spécial activé (cliquez pour retirer)" : "Accorder le statut spécial"}
+                                                    >
+                                                        <i className={`fas fa-star mr-1 ${s.isSpecial ? 'text-amber-500' : 'text-gray-400'}`}></i>
+                                                        {s.isSpecial ? 'Spécial' : 'Standard'}
+                                                    </button>
                                                     <Button 
                                                         size="sm" 
                                                         variant={remaining === 0 && annual > 0 ? "secondary" : "primary"}
@@ -567,6 +603,17 @@ export const Accounting: React.FC = () => {
                 </div>
             )}
 
+            {/* TAB CONTENT: ANALYSES & STATISTIQUES AVANCÉES (4ème ONGLET) */}
+            {activeTab === 'analyses' && (
+                <DetailedAccounting 
+                    students={students}
+                    payments={payments}
+                    expenses={expenses}
+                    cycles={cycles}
+                    accountingSettings={settings.accounting}
+                />
+            )}
+
             {/* Payment Modal (Encaissements only) */}
             {isPaymentModalOpen && currentStudent && (
                 <Modal 
@@ -590,9 +637,30 @@ export const Accounting: React.FC = () => {
                                         <span className="text-gray-500 dark:text-gray-400">Matricule :</span>
                                         <span className="font-bold font-mono text-blue-600 dark:text-blue-400">{currentStudent.matricule}</span>
                                     </div>
+                                    <div className="flex justify-between items-center text-sm p-2 rounded-xl bg-amber-50/50 dark:bg-amber-900/10 border border-amber-200 dark:border-amber-800/30">
+                                        <span className="font-bold text-amber-800 dark:text-amber-300 flex items-center gap-1.5">
+                                            <i className="fas fa-star text-amber-500"></i> Statut Spécial :
+                                        </span>
+                                        <button
+                                            type="button"
+                                            onClick={() => {
+                                                const updated = { ...currentStudent, isSpecial: !currentStudent.isSpecial };
+                                                updateStudent(updated);
+                                            }}
+                                            className={`px-3 py-1 rounded-lg text-xs font-bold transition-all shadow-sm ${
+                                                currentStudent.isSpecial 
+                                                    ? 'bg-amber-500 text-white hover:bg-amber-600' 
+                                                    : 'bg-gray-200 text-gray-700 dark:bg-gray-700 dark:text-gray-300 hover:bg-gray-300'
+                                            }`}
+                                        >
+                                            {currentStudent.isSpecial ? 'Activé (Tarif Spécial)' : 'Désactivé (Tarif Standard)'}
+                                        </button>
+                                    </div>
                                     <div className="flex justify-between text-sm">
-                                        <span className="text-gray-500 dark:text-gray-400">Mensualité Normale :</span>
-                                        <span className="font-bold text-gray-800 dark:text-gray-200">{currentStudentStats.monthlyFee.toLocaleString()} FCFA</span>
+                                        <span className="text-gray-500 dark:text-gray-400">{currentStudent.isSpecial ? 'Mensualité Spéciale :' : 'Mensualité Normale :'}</span>
+                                        <span className={`font-bold ${currentStudent.isSpecial ? 'text-amber-600 dark:text-amber-400' : 'text-gray-800 dark:text-gray-200'}`}>
+                                            {currentStudentStats.monthlyFee.toLocaleString()} FCFA
+                                        </span>
                                     </div>
                                     <div className="flex justify-between text-sm">
                                         <span className="text-gray-500 dark:text-gray-400">Total Annuel :</span>

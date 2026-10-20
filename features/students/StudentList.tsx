@@ -1,14 +1,16 @@
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useRef } from 'react';
+import * as XLSX from 'xlsx';
 import { Card, Button, Input, Modal, Select } from '../../components/ui/Common';
 import { useSchool } from '../../App';
-import { Student, Cycle } from '../../types';
+import { Student, Cycle, Payment } from '../../types';
+import { generateMatricule } from '../../services/firebase';
 import { StudentDetails } from './StudentDetails';
 import { StudentForm } from './StudentForm';
 import { StudentBadgeModal } from './StudentBadgeModal';
 
 export const StudentList: React.FC = () => {
-  const { students, cycles, deleteStudent, session, settings } = useSchool();
+  const { students, cycles, deleteStudent, session, settings, addStudent, addPayment, selectedAcademicYear } = useSchool();
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCycle, setSelectedCycle] = useState<string>('all');
   const [selectedClass, setSelectedClass] = useState<string>('all');
@@ -22,6 +24,12 @@ export const StudentList: React.FC = () => {
   const [selectedStudentId, setSelectedStudentId] = useState<string | null>(null);
   const [editingStudent, setEditingStudent] = useState<Student | null>(null);
   const [badgeStudent, setBadgeStudent] = useState<Student | null>(null);
+
+  // States pour l'exportation
+  const [showExportModal, setShowExportModal] = useState(false);
+  const [exportScope, setExportScope] = useState<'all' | 'cycle' | 'classe'>('all');
+  const [exportCycle, setExportCycle] = useState<string>('');
+  const [exportClass, setExportClass] = useState<string>('');
 
   // Filter Logic
   const filteredStudents = useMemo(() => {
@@ -40,6 +48,65 @@ export const StudentList: React.FC = () => {
       return matchesSearch && matchesCycle && matchesClass;
     });
   }, [students, searchTerm, selectedCycle, selectedClass, session, staffRecord]);
+
+  // Handle Export Excel
+  const handleExportExcel = () => {
+    let listToExport = [...students];
+
+    let scopeLabel = "Tous_les_eleves";
+    if (exportScope === 'cycle' && exportCycle) {
+      listToExport = listToExport.filter(s => s.cycle === exportCycle);
+      scopeLabel = `Cycle_${cycles[exportCycle]?.name || exportCycle}`.replace(/\s+/g, '_');
+    } else if (exportScope === 'classe' && exportClass) {
+      listToExport = listToExport.filter(s => {
+        const fullClassName = s.serie ? `${s.classe} ${s.serie}` : s.classe;
+        return fullClassName === exportClass || s.classe === exportClass;
+      });
+      scopeLabel = `Classe_${exportClass}`.replace(/\s+/g, '_');
+    }
+
+    if (listToExport.length === 0) {
+      alert("Aucun élève trouvé pour les critères de sélection choisis.");
+      return;
+    }
+
+    const dataRows = listToExport.map(s => ({
+      "Matricule": s.matricule || '',
+      "Nom": s.nom || '',
+      "Prénom": s.prenom || '',
+      "Date de Naissance": s.dateNaissance || '',
+      "Genre": s.genre || '',
+      "Adresse": s.adresse || '',
+      "Ville": s.ville || '',
+      "Téléphone": s.telephone || '',
+      "Email": s.email || '',
+      "Cycle": cycles[s.cycle]?.name || s.cycle || '',
+      "Classe": s.classe || '',
+      "Série / Spécialité": s.serie || '',
+      "Nom Tuteur": s.tuteurNom || '',
+      "Relation Tuteur": s.tuteurRelation || '',
+      "Téléphone Tuteur": s.tuteurTelephone || '',
+      "Email Tuteur": s.tuteurEmail || '',
+      "Remarques / Notes": s.notes_info || '',
+      "Date d'Inscription": s.dateInscription || '',
+      "Statut Spécial": s.isSpecial ? "OUI" : "NON",
+      "Année Scolaire": s.academic_year || selectedAcademicYear
+    }));
+
+    const worksheet = XLSX.utils.json_to_sheet(dataRows);
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, "Élèves");
+    
+    // Auto-fit column widths
+    const columnWidths = Object.keys(dataRows[0] || {}).map(key => ({
+      wch: Math.max(key.length + 3, 14)
+    }));
+    worksheet['!cols'] = columnWidths;
+
+    const fileName = `Export_Eleves_${scopeLabel}_${selectedAcademicYear}.xlsx`;
+    XLSX.writeFile(workbook, fileName);
+    setShowExportModal(false);
+  };
 
   // Obtenir les classes uniques pour le filtre (selon le cycle sélectionné)
   const availableClasses = useMemo(() => {
@@ -159,7 +226,24 @@ export const StudentList: React.FC = () => {
            </div>
         </div>
 
-        <div className="flex items-center justify-end mb-4">
+        <div className="flex flex-col sm:flex-row items-center justify-between gap-4 mb-4">
+          <div className="flex flex-wrap items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                setExportScope(selectedClass !== 'all' ? 'classe' : selectedCycle !== 'all' ? 'cycle' : 'all');
+                setExportCycle(selectedCycle !== 'all' ? selectedCycle : (Object.keys(cycles)[0] || ''));
+                setExportClass(selectedClass !== 'all' ? selectedClass : (availableClasses[0] || ''));
+                setShowExportModal(true);
+              }}
+              className="rounded-xl border-emerald-600 text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-950/30 shadow-sm"
+              icon={<i className="fas fa-file-excel text-emerald-600"></i>}
+            >
+              Exporter en Excel
+            </Button>
+          </div>
+
           <div className="bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 px-4 py-2 rounded-xl text-sm font-bold shadow-sm">
             Total : {filteredStudents.length} élève{filteredStudents.length > 1 ? 's' : ''}
           </div>
@@ -203,8 +287,13 @@ export const StudentList: React.FC = () => {
                       </td>
                       <td className="px-8 py-5 whitespace-nowrap">
                         <div className="text-sm font-bold text-gray-900 dark:text-gray-200">{student.serie ? `${student.classe} ${student.serie}` : student.classe}</div>
-                        <div className="text-[10px] font-black text-gray-400 uppercase tracking-widest">
-                          {cycles[student.cycle]?.name} 
+                        <div className="text-[10px] font-black text-gray-400 uppercase tracking-widest flex items-center gap-1.5 flex-wrap">
+                          <span>{cycles[student.cycle]?.name}</span>
+                          {student.salle && (
+                            <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-green-100 dark:bg-green-950/40 text-green-700 dark:text-green-300 font-bold text-[9px] border border-green-200 dark:border-green-800/40">
+                              <i className="fas fa-door-closed text-[8px]"></i> {student.salle}
+                            </span>
+                          )}
                         </div>
                       </td>
                       <td className="px-8 py-5 whitespace-nowrap">
@@ -246,7 +335,10 @@ export const StudentList: React.FC = () => {
                           </div>
                           <div>
                             <h4 className="font-black text-gray-900 dark:text-white">{student.nom} {student.prenom}</h4>
-                            <p className="text-xs font-bold text-blue-600 dark:text-blue-400">{student.serie ? `${student.classe} ${student.serie}` : student.classe} • {cycles[student.cycle]?.name}</p>
+                            <p className="text-xs font-bold text-blue-600 dark:text-blue-400">
+                              {student.serie ? `${student.classe} ${student.serie}` : student.classe} • {cycles[student.cycle]?.name}
+                              {student.salle && <span className="ml-2 font-semibold text-green-600 dark:text-green-400">({student.salle})</span>}
+                            </p>
                           </div>
                       </div>
                       <div className="flex gap-2">
@@ -279,6 +371,98 @@ export const StudentList: React.FC = () => {
           />
         </Modal>
       )}
+      {/* Modal Export Excel */}
+      {showExportModal && (
+        <Modal 
+          isOpen={true} 
+          onClose={() => setShowExportModal(false)} 
+          title="Exporter les élèves en fichier Excel (.xlsx)"
+          maxWidth="max-w-md"
+        >
+          <div className="space-y-4">
+            <p className="text-sm text-gray-600 dark:text-gray-300">
+              Choisissez le périmètre des élèves que vous souhaitez exporter :
+            </p>
+
+            <div className="space-y-2">
+              <label className="flex items-center gap-2 p-3 rounded-xl border dark:border-white/10 hover:bg-gray-50 dark:hover:bg-white/5 cursor-pointer transition-colors">
+                <input 
+                  type="radio" 
+                  name="exportScope" 
+                  checked={exportScope === 'all'} 
+                  onChange={() => setExportScope('all')}
+                  className="w-4 h-4 text-emerald-600"
+                />
+                <div>
+                  <div className="font-bold text-sm text-gray-800 dark:text-white">Tous les élèves</div>
+                  <div className="text-xs text-gray-400">Exporter la totalité des élèves enregistrés ({students.length})</div>
+                </div>
+              </label>
+
+              <label className="flex items-center gap-2 p-3 rounded-xl border dark:border-white/10 hover:bg-gray-50 dark:hover:bg-white/5 cursor-pointer transition-colors">
+                <input 
+                  type="radio" 
+                  name="exportScope" 
+                  checked={exportScope === 'cycle'} 
+                  onChange={() => setExportScope('cycle')}
+                  className="w-4 h-4 text-emerald-600"
+                />
+                <div className="flex-1">
+                  <div className="font-bold text-sm text-gray-800 dark:text-white">Par Cycle spécifique</div>
+                  <div className="text-xs text-gray-400">Exporter les élèves d'un cycle précis</div>
+                </div>
+              </label>
+              {exportScope === 'cycle' && (
+                <div className="pl-6 pt-1">
+                  <Select 
+                    label="Choisir le cycle"
+                    value={exportCycle}
+                    onChange={e => setExportCycle(e.target.value)}
+                    options={Object.values(cycles).map(c => ({ value: c.id, label: c.name }))}
+                  />
+                </div>
+              )}
+
+              <label className="flex items-center gap-2 p-3 rounded-xl border dark:border-white/10 hover:bg-gray-50 dark:hover:bg-white/5 cursor-pointer transition-colors">
+                <input 
+                  type="radio" 
+                  name="exportScope" 
+                  checked={exportScope === 'classe'} 
+                  onChange={() => setExportScope('classe')}
+                  className="w-4 h-4 text-emerald-600"
+                />
+                <div className="flex-1">
+                  <div className="font-bold text-sm text-gray-800 dark:text-white">Par Classe en particulier</div>
+                  <div className="text-xs text-gray-400">Exporter uniquement les élèves d'une classe</div>
+                </div>
+              </label>
+              {exportScope === 'classe' && (
+                <div className="pl-6 pt-1">
+                  <Select 
+                    label="Choisir la classe"
+                    value={exportClass}
+                    onChange={e => setExportClass(e.target.value)}
+                    options={availableClasses.map(c => ({ value: c, label: c }))}
+                  />
+                </div>
+              )}
+            </div>
+
+            <div className="flex justify-end gap-2 pt-4 border-t dark:border-white/10">
+              <Button variant="secondary" onClick={() => setShowExportModal(false)}>Annuler</Button>
+              <Button 
+                variant="primary" 
+                onClick={handleExportExcel}
+                className="!bg-emerald-600 hover:!bg-emerald-700"
+                icon={<i className="fas fa-download mr-1"></i>}
+              >
+                Télécharger le fichier Excel
+              </Button>
+            </div>
+          </div>
+        </Modal>
+      )}
+
     </div>
   );
 };

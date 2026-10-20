@@ -477,20 +477,31 @@ const CycleConfigModal: React.FC<CycleConfigModalProps> = ({ cycle, onClose, act
                 {activeTab === 'general' && (
                     <div className="space-y-4">
                         <Input label="Nom du cycle" value={cycle.name} onChange={e => onUpdateCycle({...cycle, name: e.target.value})} />
-                        <Select 
-                            label="Type de cycle" 
-                            options={[
-                                {value: 'simple', label: 'Simple (Classes uniques)'},
-                                {value: 'series', label: 'Avec Séries (ex: A, C, D)'},
-                                {value: 'specialites', label: 'Avec Spécialités'},
-                            ]}
-                            value={cycle.type}
-                            onChange={e => onUpdateCycle({...cycle, type: e.target.value as any})}
-                        />
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <Select 
+                                label="Type de cycle" 
+                                options={[
+                                    {value: 'simple', label: 'Simple (Classes uniques)'},
+                                    {value: 'series', label: 'Avec Séries (ex: A, C, D)'},
+                                    {value: 'specialites', label: 'Avec Spécialités'},
+                                ]}
+                                value={cycle.type}
+                                onChange={e => onUpdateCycle({...cycle, type: e.target.value as any})}
+                            />
+                            <Select 
+                                label="Barème de notation (Moyenne maximale)" 
+                                options={[
+                                    {value: '20', label: 'Moyenne sur 20 (Secondaire / Supérieur / Général) - Admis >= 10'},
+                                    {value: '10', label: 'Moyenne sur 10 (Primaire) - Admis >= 5'},
+                                ]}
+                                value={(cycle.maxGrade || (cycle.id.toLowerCase().includes('primaire') || cycle.name.toLowerCase().includes('primaire') ? 10 : 20)).toString()}
+                                onChange={e => onUpdateCycle({...cycle, maxGrade: parseInt(e.target.value) || 20})}
+                            />
+                        </div>
                         <p className="text-sm text-gray-500 dark:text-gray-300 bg-gray-50 dark:bg-white/5 dark:border dark:border-white/10 p-3 rounded">
                             <i className="fas fa-info-circle mr-2"></i>
-                            <strong>Simple:</strong> Une classe par niveau (ex: 6ème, 5ème).<br/>
-                            <strong>Séries/Spécialités:</strong> Les classes sont la combinaison d'un niveau et d'une série (ex: Terminale C, Première A).
+                            <strong>Barème Primaire (sur 10) :</strong> La moyenne maximale est de 10. Les élèves ayant 5/10 ou plus sont admis, ceux en dessous de 5 sont échoués.<br/>
+                            <strong>Barème Standard (sur 20) :</strong> La moyenne maximale est de 20. Les élèves ayant 10/20 ou plus sont admis.
                         </p>
                     </div>
                 )}
@@ -524,6 +535,28 @@ const CycleConfigModal: React.FC<CycleConfigModalProps> = ({ cycle, onClose, act
 
 const StructureEditor: React.FC<{ cycle: Cycle; onUpdate: (c: Cycle) => void }> = ({ cycle, onUpdate }) => {
     const [newItem, setNewItem] = useState('');
+    const [editingItem, setEditingItem] = useState<{ 
+        type: 'level' | 'serie' | 'specialite' | 'classroom'; 
+        oldValue: string; 
+        currentValue: string; 
+        classroomId?: string;
+        assignedClasses?: string[];
+    } | null>(null);
+
+    // List of all classes in this cycle
+    const allCycleClasses = useMemo(() => {
+        if (cycle.type === 'simple') return cycle.levels;
+        const suffixes = cycle.type === 'series' ? cycle.series : cycle.specialites;
+        const combos: string[] = [];
+        cycle.levels.forEach(lvl => {
+            if (suffixes.length > 0) {
+                suffixes.forEach(s => combos.push(`${lvl} ${s}`));
+            } else {
+                combos.push(lvl);
+            }
+        });
+        return combos;
+    }, [cycle]);
 
     const addLevel = () => {
         if (newItem && !cycle.levels.includes(newItem)) {
@@ -548,10 +581,35 @@ const StructureEditor: React.FC<{ cycle: Cycle; onUpdate: (c: Cycle) => void }> 
 
     const addClassroom = () => {
         if (newItem) {
-            const newRoom: Classroom = { id: `room_${Date.now()}`, name: newItem };
+            const newRoom: Classroom = { id: `room_${Date.now()}`, name: newItem, assignedClasses: [] };
             onUpdate({...cycle, classrooms: [...cycle.classrooms, newRoom]});
             setNewItem('');
         }
+    };
+
+    const handleSaveEdit = () => {
+        if (!editingItem || !editingItem.currentValue.trim()) return;
+        const val = editingItem.currentValue.trim();
+
+        if (editingItem.type === 'level') {
+            const updated = cycle.levels.map(l => l === editingItem.oldValue ? val : l);
+            onUpdate({ ...cycle, levels: updated });
+        } else if (editingItem.type === 'serie') {
+            const updated = cycle.series.map(s => s === editingItem.oldValue ? val : s);
+            onUpdate({ ...cycle, series: updated });
+        } else if (editingItem.type === 'specialite') {
+            const updated = cycle.specialites.map(s => s === editingItem.oldValue ? val : s);
+            onUpdate({ ...cycle, specialites: updated });
+        } else if (editingItem.type === 'classroom') {
+            const updated = cycle.classrooms.map(c => c.id === editingItem.classroomId ? { 
+                ...c, 
+                name: val, 
+                assignedClasses: editingItem.assignedClasses || [] 
+            } : c);
+            onUpdate({ ...cycle, classrooms: updated });
+        }
+
+        setEditingItem(null);
     };
 
     return (
@@ -561,15 +619,28 @@ const StructureEditor: React.FC<{ cycle: Cycle; onUpdate: (c: Cycle) => void }> 
                 <h4 className="font-bold mb-2 flex items-center gap-2 dark:text-gray-200"><i className="fas fa-layer-group text-blue-500"></i> Classes / Niveaux</h4>
                 <div className="flex flex-wrap gap-2 mb-3">
                     {cycle.levels.map(lvl => (
-                        <div key={lvl} className="bg-blue-100 dark:bg-blue-900/50 text-blue-800 dark:text-blue-100 border dark:border-blue-500/30 px-3 py-1 rounded-full flex items-center gap-2">
-                            <span>{lvl}</span>
-                            <button onClick={() => onUpdate({...cycle, levels: cycle.levels.filter(l => l !== lvl)})} className="hover:text-red-500">&times;</button>
+                        <div key={lvl} className="bg-blue-100 dark:bg-blue-900/50 text-blue-800 dark:text-blue-100 border dark:border-blue-500/30 px-3 py-1.5 rounded-full flex items-center gap-2">
+                            <span className="font-medium text-sm">{lvl}</span>
+                            <button 
+                                onClick={() => setEditingItem({ type: 'level', oldValue: lvl, currentValue: lvl })} 
+                                className="text-blue-600 hover:text-blue-800 dark:text-blue-300 dark:hover:text-white transition-colors"
+                                title="Modifier"
+                            >
+                                <i className="fas fa-pencil-alt text-xs"></i>
+                            </button>
+                            <button 
+                                onClick={() => onUpdate({...cycle, levels: cycle.levels.filter(l => l !== lvl)})} 
+                                className="text-blue-400 hover:text-red-500 transition-colors ml-1"
+                                title="Supprimer"
+                            >
+                                &times;
+                            </button>
                         </div>
                     ))}
                     {cycle.levels.length === 0 && <span className="text-gray-400 text-sm italic">Aucun niveau défini</span>}
                 </div>
                 <div className="flex gap-2 max-w-md">
-                    <Input placeholder="Ajouter niveau (ex: 6ème)" value={newItem} onChange={e => setNewItem(e.target.value)} />
+                    <Input placeholder="Ajouter niveau (ex: CP1, 6ème)" value={newItem} onChange={e => setNewItem(e.target.value)} />
                     <Button size="sm" onClick={addLevel}>Ajouter</Button>
                 </div>
             </div>
@@ -583,12 +654,19 @@ const StructureEditor: React.FC<{ cycle: Cycle; onUpdate: (c: Cycle) => void }> 
                     </h4>
                     <div className="flex flex-wrap gap-2 mb-3">
                         {(cycle.type === 'series' ? cycle.series : cycle.specialites).map(item => (
-                            <div key={item} className="bg-purple-100 dark:bg-purple-900/50 text-purple-800 dark:text-purple-100 border dark:border-purple-500/30 px-3 py-1 rounded-full flex items-center gap-2">
-                                <span>{item}</span>
+                            <div key={item} className="bg-purple-100 dark:bg-purple-900/50 text-purple-800 dark:text-purple-100 border dark:border-purple-500/30 px-3 py-1.5 rounded-full flex items-center gap-2">
+                                <span className="font-medium text-sm">{item}</span>
+                                <button 
+                                    onClick={() => setEditingItem({ type: cycle.type === 'series' ? 'serie' : 'specialite', oldValue: item, currentValue: item })} 
+                                    className="text-purple-600 hover:text-purple-800 dark:text-purple-300 dark:hover:text-white transition-colors"
+                                    title="Modifier"
+                                >
+                                    <i className="fas fa-pencil-alt text-xs"></i>
+                                </button>
                                 <button onClick={() => {
                                     if(cycle.type === 'series') onUpdate({...cycle, series: cycle.series.filter(s => s !== item)});
                                     else onUpdate({...cycle, specialites: cycle.specialites.filter(s => s !== item)});
-                                }} className="hover:text-red-500">&times;</button>
+                                }} className="text-purple-400 hover:text-red-500 transition-colors ml-1" title="Supprimer">&times;</button>
                             </div>
                         ))}
                     </div>
@@ -601,21 +679,125 @@ const StructureEditor: React.FC<{ cycle: Cycle; onUpdate: (c: Cycle) => void }> 
 
             {/* Classrooms */}
             <div>
-                <h4 className="font-bold mb-2 flex items-center gap-2 dark:text-gray-200"><i className="fas fa-door-open text-green-500"></i> Salles de classe (Facultatif)</h4>
-                <div className="flex flex-wrap gap-2 mb-3">
+                <h4 className="font-bold mb-2 flex items-center gap-2 dark:text-gray-200"><i className="fas fa-door-open text-green-500"></i> Salles de classe</h4>
+                <p className="text-xs text-gray-500 dark:text-gray-400 mb-3">
+                    Créez des salles et associez-les aux classes de ce cycle. Plusieurs classes peuvent partager la même salle.
+                </p>
+                <div className="flex flex-col gap-2.5 mb-3">
                     {cycle.classrooms.map(room => (
-                        <div key={room.id} className="bg-green-100 dark:bg-green-900/50 text-green-800 dark:text-green-100 border dark:border-green-500/30 px-3 py-1 rounded-full flex items-center gap-2">
-                            <span>{room.name}</span>
-                            <button onClick={() => onUpdate({...cycle, classrooms: cycle.classrooms.filter(c => c.id !== room.id)})} className="hover:text-red-500">&times;</button>
+                        <div key={room.id} className="p-3 bg-green-50/70 dark:bg-green-950/20 border border-green-200 dark:border-green-800/40 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-2 shadow-sm">
+                            <div className="flex items-center gap-2 flex-wrap">
+                                <span className="font-bold text-sm text-green-900 dark:text-green-200 flex items-center gap-1.5">
+                                    <i className="fas fa-door-closed text-xs text-green-600"></i> {room.name}
+                                </span>
+                                {room.assignedClasses && room.assignedClasses.length > 0 ? (
+                                    <div className="flex flex-wrap gap-1">
+                                        {room.assignedClasses.map(cls => (
+                                            <span key={cls} className="text-[10px] font-bold bg-green-200 dark:bg-green-900/60 text-green-800 dark:text-green-200 px-2 py-0.5 rounded-lg">
+                                                {cls}
+                                            </span>
+                                        ))}
+                                    </div>
+                                ) : (
+                                    <span className="text-[10px] italic text-gray-400 dark:text-gray-500">(Toutes les classes ou non assignée)</span>
+                                )}
+                            </div>
+                            <div className="flex items-center gap-1 self-end sm:self-auto">
+                                <button 
+                                    onClick={() => setEditingItem({ 
+                                        type: 'classroom', 
+                                        oldValue: room.name, 
+                                        currentValue: room.name, 
+                                        classroomId: room.id,
+                                        assignedClasses: room.assignedClasses || []
+                                    })} 
+                                    className="p-1.5 px-2.5 rounded-lg bg-green-100 hover:bg-green-200 dark:bg-green-900/40 dark:hover:bg-green-900/70 text-green-700 dark:text-green-300 transition-colors text-xs font-semibold flex items-center gap-1"
+                                    title="Modifier la salle et les classes liées"
+                                >
+                                    <i className="fas fa-pencil-alt text-xs"></i> Configurer
+                                </button>
+                                <button 
+                                    onClick={() => onUpdate({...cycle, classrooms: cycle.classrooms.filter(c => c.id !== room.id)})} 
+                                    className="p-1.5 px-2 rounded-lg text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-950/30 transition-colors text-xs" 
+                                    title="Supprimer la salle"
+                                >
+                                    <i className="fas fa-trash-alt"></i>
+                                </button>
+                            </div>
                         </div>
                     ))}
-                    {cycle.classrooms.length === 0 && <span className="text-gray-400 text-sm italic">Aucune salle définie</span>}
+                    {cycle.classrooms.length === 0 && <span className="text-gray-400 text-sm italic">Aucune salle définie pour ce cycle</span>}
                 </div>
                 <div className="flex gap-2 max-w-md">
                     <Input placeholder="Nom de la salle (ex: Salle 101)" value={newItem} onChange={e => setNewItem(e.target.value)} />
                     <Button size="sm" onClick={addClassroom}>Ajouter</Button>
                 </div>
             </div>
+
+            {/* Modal de réédition en place */}
+            {editingItem && (
+                <Modal 
+                    isOpen={true} 
+                    onClose={() => setEditingItem(null)} 
+                    title={editingItem.type === 'classroom' ? `Configuration Salle : ${editingItem.oldValue}` : `Modifier : ${editingItem.oldValue}`}
+                    maxWidth="max-w-lg"
+                >
+                    <div className="space-y-4">
+                        <Input 
+                            label={editingItem.type === 'classroom' ? "Nom de la salle" : "Nouvelle valeur"} 
+                            value={editingItem.currentValue} 
+                            onChange={e => setEditingItem({ ...editingItem, currentValue: e.target.value })} 
+                            autoFocus
+                        />
+
+                        {editingItem.type === 'classroom' && (
+                            <div className="space-y-2 pt-2 border-t dark:border-white/10">
+                                <label className="block text-xs font-bold uppercase text-gray-500 dark:text-gray-400">
+                                    Classes liées à cette salle (plusieurs classes possibles)
+                                </label>
+                                <p className="text-xs text-gray-400 dark:text-gray-500">
+                                    Cochez les classes autorisées à occuper ou être affectées à cette salle.
+                                </p>
+                                <div className="grid grid-cols-2 gap-2 max-h-48 overflow-y-auto p-2 bg-gray-50 dark:bg-white/5 rounded-xl border dark:border-white/10">
+                                    {allCycleClasses.map(cls => {
+                                        const isChecked = (editingItem.assignedClasses || []).includes(cls);
+                                        return (
+                                            <label 
+                                                key={cls} 
+                                                className={`flex items-center gap-2 p-2 rounded-lg cursor-pointer text-xs font-bold transition-colors ${isChecked ? 'bg-green-100 dark:bg-green-900/40 text-green-800 dark:text-green-200 border border-green-300 dark:border-green-800' : 'hover:bg-gray-100 dark:hover:bg-white/5 text-gray-700 dark:text-gray-300'}`}
+                                            >
+                                                <input 
+                                                    type="checkbox" 
+                                                    checked={isChecked}
+                                                    onChange={e => {
+                                                        const current = editingItem.assignedClasses || [];
+                                                        const next = e.target.checked 
+                                                            ? [...current, cls]
+                                                            : current.filter(c => c !== cls);
+                                                        setEditingItem({ ...editingItem, assignedClasses: next });
+                                                    }}
+                                                    className="w-4 h-4 text-green-600 rounded"
+                                                />
+                                                <span className="truncate">{cls}</span>
+                                            </label>
+                                        );
+                                    })}
+                                    {allCycleClasses.length === 0 && (
+                                        <p className="col-span-2 text-center text-xs text-gray-400 py-3 italic">
+                                            Aucune classe définie dans ce cycle pour le moment.
+                                        </p>
+                                    )}
+                                </div>
+                            </div>
+                        )}
+
+                        <div className="flex justify-end gap-2 pt-4 border-t dark:border-white/10">
+                            <Button variant="secondary" onClick={() => setEditingItem(null)}>Annuler</Button>
+                            <Button variant="primary" onClick={handleSaveEdit}>Enregistrer les modifications</Button>
+                        </div>
+                    </div>
+                </Modal>
+            )}
         </div>
     );
 };
@@ -756,6 +938,7 @@ const AccountingSettingsEditor: React.FC<{
     
     const cycle = cycles[selectedCycleId];
     const classFees = settings.accounting?.classFees || {};
+    const classSpecialFees = settings.accounting?.classSpecialFees || {};
     const classRegistrationFees = settings.accounting?.classRegistrationFees || {};
     const classReRegistrationFees = settings.accounting?.classReRegistrationFees || {};
 
@@ -784,6 +967,17 @@ const AccountingSettingsEditor: React.FC<{
         });
     };
 
+    const handleSpecialFeeChange = (className: string, fee: number) => {
+        const updated = { ...classSpecialFees, [className]: fee };
+        onUpdateSettings({
+            ...settings,
+            accounting: {
+                ...settings.accounting,
+                classSpecialFees: updated
+            }
+        });
+    };
+
     const handleRegFeeChange = (className: string, fee: number) => {
         const updated = { ...classRegistrationFees, [className]: fee };
         onUpdateSettings({
@@ -807,7 +1001,7 @@ const AccountingSettingsEditor: React.FC<{
             <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
                 <div>
                     <h3 className="text-xl font-bold dark:text-white">Frais Scolaires par Classe</h3>
-                    <p className="text-sm text-gray-500 dark:text-gray-400">Définissez les tarifs mensuels, d'inscription et de réinscription pour chaque classe.</p>
+                    <p className="text-sm text-gray-500 dark:text-gray-400">Définissez les tarifs mensuels standards, les tarifs mensuels spéciaux, ainsi que les frais d'inscription et de réinscription pour chaque classe.</p>
                 </div>
                 <div className="w-full md:w-64">
                     <Select 
@@ -822,7 +1016,7 @@ const AccountingSettingsEditor: React.FC<{
             <div className="bg-blue-50 dark:bg-blue-900/20 p-4 rounded-xl border border-blue-100 dark:border-blue-800/30">
                 <p className="text-sm text-blue-700 dark:text-blue-300">
                     <i className="fas fa-info-circle mr-2"></i>
-                    Les calculs annuels sont basés sur une période de <strong>9 mois</strong>. Les frais d'inscription et de réinscription sont définis par classe. Les changements sont enregistrés automatiquement.
+                    Les calculs annuels sont basés sur une période de <strong>9 mois</strong>. Le <strong>Tarif Mensuel Spécial</strong> est appliqué automatiquement aux élèves de la classe marqués avec le statut "Élève Spécial" (ex: boursiers, cas particuliers, fratrie).
                 </p>
             </div>
 
@@ -832,13 +1026,17 @@ const AccountingSettingsEditor: React.FC<{
                         <thead className="bg-gray-100 dark:bg-white/10">
                             <tr>
                                 <th className="px-4 py-3 text-left text-xs font-bold text-gray-500 dark:text-gray-300 uppercase tracking-wider">Classe</th>
-                                <th className="px-4 py-3 text-left text-xs font-bold text-gray-500 dark:text-gray-300 uppercase tracking-wider">Tarif Mensuel (FCFA)</th>
-                                <th className="px-4 py-3 text-left text-xs font-bold text-gray-500 dark:text-gray-300 uppercase tracking-wider">Total Annuel (9 mois)</th>
+                                <th className="px-4 py-3 text-left text-xs font-bold text-gray-500 dark:text-gray-300 uppercase tracking-wider">Tarif Mensuel Standard</th>
+                                <th className="px-4 py-3 text-left text-xs font-bold text-amber-600 dark:text-amber-400 uppercase tracking-wider">
+                                    <i className="fas fa-star mr-1"></i>Tarif Mensuel Spécial
+                                </th>
+                                <th className="px-4 py-3 text-left text-xs font-bold text-gray-500 dark:text-gray-300 uppercase tracking-wider">Annuel Standard (9 mois)</th>
+                                <th className="px-4 py-3 text-left text-xs font-bold text-amber-600 dark:text-amber-400 uppercase tracking-wider">Annuel Spécial (9 mois)</th>
                                 <th className="px-4 py-3 text-left text-xs font-bold text-purple-600 dark:text-purple-400 uppercase tracking-wider">
-                                    <i className="fas fa-user-plus mr-1"></i>Inscription (FCFA)
+                                    <i className="fas fa-user-plus mr-1"></i>Inscription
                                 </th>
                                 <th className="px-4 py-3 text-left text-xs font-bold text-green-600 dark:text-green-400 uppercase tracking-wider">
-                                    <i className="fas fa-redo mr-1"></i>Réinscription (FCFA)
+                                    <i className="fas fa-redo mr-1"></i>Réinscription
                                 </th>
                             </tr>
                         </thead>
@@ -847,38 +1045,52 @@ const AccountingSettingsEditor: React.FC<{
                                 <tr key={cls} className="hover:bg-gray-50 dark:hover:bg-white/5 transition-colors">
                                     <td className="px-4 py-4 whitespace-nowrap text-sm font-bold text-gray-900 dark:text-white">{cls}</td>
                                     <td className="px-4 py-4 whitespace-nowrap">
-                                        <div className="w-36">
+                                        <div className="w-32">
                                             <Input 
                                                 type="number" 
                                                 placeholder="0" 
                                                 value={classFees[cls] || ''} 
                                                 onChange={e => handleFeeChange(cls, parseInt(e.target.value) || 0)}
-                                                className="font-mono text-lg"
+                                                className="font-mono text-sm"
                                             />
                                         </div>
                                     </td>
-                                    <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-600 dark:text-gray-300 font-mono font-bold">
-                                        {(classFees[cls] || 0) * 9} FCFA
+                                    <td className="px-4 py-4 whitespace-nowrap">
+                                        <div className="w-32">
+                                            <Input 
+                                                type="number" 
+                                                placeholder="0" 
+                                                value={classSpecialFees[cls] || ''} 
+                                                onChange={e => handleSpecialFeeChange(cls, parseInt(e.target.value) || 0)}
+                                                className="font-mono text-sm border-amber-300 dark:border-amber-700/60 focus:border-amber-500"
+                                            />
+                                        </div>
+                                    </td>
+                                    <td className="px-4 py-4 whitespace-nowrap text-xs text-gray-600 dark:text-gray-300 font-mono font-bold">
+                                        {((classFees[cls] || 0) * 9).toLocaleString()} FCFA
+                                    </td>
+                                    <td className="px-4 py-4 whitespace-nowrap text-xs text-amber-600 dark:text-amber-400 font-mono font-bold">
+                                        {((classSpecialFees[cls] || 0) * 9).toLocaleString()} FCFA
                                     </td>
                                     <td className="px-4 py-4 whitespace-nowrap">
-                                        <div className="w-36">
+                                        <div className="w-32">
                                             <Input 
                                                 type="number" 
                                                 placeholder="0" 
                                                 value={classRegistrationFees[cls] || ''} 
                                                 onChange={e => handleRegFeeChange(cls, parseInt(e.target.value) || 0)}
-                                                className="font-mono text-lg"
+                                                className="font-mono text-sm"
                                             />
                                         </div>
                                     </td>
                                     <td className="px-4 py-4 whitespace-nowrap">
-                                        <div className="w-36">
+                                        <div className="w-32">
                                             <Input 
                                                 type="number" 
                                                 placeholder="0" 
                                                 value={classReRegistrationFees[cls] || ''} 
                                                 onChange={e => handleReRegFeeChange(cls, parseInt(e.target.value) || 0)}
-                                                className="font-mono text-lg"
+                                                className="font-mono text-sm"
                                             />
                                         </div>
                                     </td>
@@ -886,7 +1098,7 @@ const AccountingSettingsEditor: React.FC<{
                             ))}
                             {combinations.length === 0 && (
                                 <tr>
-                                    <td colSpan={5} className="px-6 py-10 text-center text-gray-500 italic">
+                                    <td colSpan={7} className="px-6 py-10 text-center text-gray-500 italic">
                                         Aucune classe configurée pour ce cycle. Allez dans l'onglet "Cycles &amp; Matières" pour ajouter des niveaux.
                                     </td>
                                 </tr>

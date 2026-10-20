@@ -12,7 +12,7 @@ export const AcademicResults: React.FC = () => {
     const [selectedClass, setSelectedClass] = useState<string>('');
     const [activeTrimestre, setActiveTrimestre] = useState<string>('1');
 
-    // Résolution de l'entête du bulletin : cycle spécifique > paramètres globaux
+    // Résolution de l'entête du bulletin et cycle : cycle spécifique > paramètres globaux
     const currentCycle = cycles[selectedCycle];
     const cycleHeader = currentCycle?.bulletinHeader || {};
     const bh = {
@@ -21,6 +21,11 @@ export const AcademicResults: React.FC = () => {
         schoolMotto: cycleHeader.schoolMotto || settings.bulletin.schoolMotto,
         schoolLocation: cycleHeader.schoolLocation || settings.bulletin.schoolLocation,
     };
+
+    // Détection de l'échelle de notation pour le cycle sélectionné
+    const isPrimary = selectedCycle.toLowerCase().includes('primaire') || (currentCycle && (currentCycle.maxGrade === 10 || currentCycle.name.toLowerCase().includes('primaire')));
+    const cycleMaxScale = currentCycle?.maxGrade || (isPrimary ? 10 : 20);
+    const passingThreshold = cycleMaxScale / 2;
 
     // Filtered Classes for selected cycle
     const availableClasses = useMemo(() => {
@@ -238,30 +243,39 @@ export const AcademicResults: React.FC = () => {
                                     <th className="px-6 py-4 text-left text-xs font-black text-gray-500 dark:text-gray-400 uppercase tracking-widest">Rang</th>
                                     <th className="px-6 py-4 text-left text-xs font-black text-gray-500 dark:text-gray-400 uppercase tracking-widest">Nom et Prénom</th>
                                     <th className="px-6 py-4 text-left text-xs font-black text-gray-500 dark:text-gray-400 uppercase tracking-widest">Matricule</th>
-                                    <th className="px-6 py-4 text-right text-xs font-black text-gray-500 dark:text-gray-400 uppercase tracking-widest">Moyenne</th>
+                                    <th className="px-6 py-4 text-right text-xs font-black text-gray-500 dark:text-gray-400 uppercase tracking-widest">Moyenne (/{cycleMaxScale})</th>
+                                    <th className="px-6 py-4 text-center text-xs font-black text-gray-500 dark:text-gray-400 uppercase tracking-widest">Décision</th>
                                 </tr>
                             </thead>
                             <tbody className="bg-white dark:bg-transparent divide-y divide-gray-200 dark:divide-white/10">
-                                {rankings.map((s, idx) => (
-                                    <tr key={s.id} className="hover:bg-gray-50 dark:hover:bg-white/5 transition-colors group">
-                                        <td className="px-6 py-4 whitespace-nowrap">
-                                            <div className={`w-8 h-8 rounded-lg flex items-center justify-center font-black text-sm ${idx === 0 ? 'bg-yellow-400 text-white shadow-lg' : idx === 1 ? 'bg-gray-200 text-gray-700' : idx === 2 ? 'bg-orange-100 text-orange-700' : 'bg-gray-100 dark:bg-white/10 text-gray-500'}`}>
-                                                {idx + 1}
-                                            </div>
-                                        </td>
-                                        <td className="px-6 py-4 whitespace-nowrap font-bold text-gray-900 dark:text-white uppercase tracking-tight">
-                                            {s.nom} {s.prenom}
-                                        </td>
-                                        <td className="px-6 py-4 whitespace-nowrap font-mono text-sm text-blue-600 dark:text-blue-400">
-                                            {s.matricule}
-                                        </td>
-                                        <td className="px-6 py-4 whitespace-nowrap text-right">
-                                            <span className={`text-lg font-black ${s.average >= 10 ? 'text-green-600' : 'text-red-600'}`}>
-                                                {s.average.toFixed(2)}
-                                            </span>
-                                        </td>
-                                    </tr>
-                                ))}
+                                {rankings.map((s, idx) => {
+                                    const isAdmis = s.average >= passingThreshold;
+                                    return (
+                                        <tr key={s.id} className="hover:bg-gray-50 dark:hover:bg-white/5 transition-colors group">
+                                            <td className="px-6 py-4 whitespace-nowrap">
+                                                <div className={`w-8 h-8 rounded-lg flex items-center justify-center font-black text-sm ${idx === 0 ? 'bg-yellow-400 text-white shadow-lg' : idx === 1 ? 'bg-gray-200 text-gray-700' : idx === 2 ? 'bg-orange-100 text-orange-700' : 'bg-gray-100 dark:bg-white/10 text-gray-500'}`}>
+                                                    {idx + 1}
+                                                </div>
+                                            </td>
+                                            <td className="px-6 py-4 whitespace-nowrap font-bold text-gray-900 dark:text-white uppercase tracking-tight">
+                                                {s.nom} {s.prenom}
+                                            </td>
+                                            <td className="px-6 py-4 whitespace-nowrap font-mono text-sm text-blue-600 dark:text-blue-400">
+                                                {s.matricule}
+                                            </td>
+                                            <td className="px-6 py-4 whitespace-nowrap text-right">
+                                                <span className={`text-lg font-black ${isAdmis ? 'text-green-600' : 'text-red-600'}`}>
+                                                    {s.average.toFixed(2)}
+                                                </span>
+                                            </td>
+                                            <td className="px-6 py-4 whitespace-nowrap text-center">
+                                                <span className={`px-3 py-1 rounded-full text-xs font-black uppercase ${isAdmis ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300' : 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300'}`}>
+                                                    {isAdmis ? 'Admis' : 'Échoué'}
+                                                </span>
+                                            </td>
+                                        </tr>
+                                    );
+                                })}
                                 {rankings.length === 0 && (
                                     <tr>
                                         <td colSpan={4} className="px-6 py-12 text-center text-gray-500 italic">
@@ -309,19 +323,26 @@ export const AcademicResults: React.FC = () => {
                                     <tr style={{ backgroundColor: '#f2f2f2' }}>
                                         <th style={{ border: '1px solid black', padding: '10px', textAlign: 'center', width: '60px' }}>RANG</th>
                                         <th style={{ border: '1px solid black', padding: '10px', textAlign: 'left' }}>NOM ET PRÉNOM</th>
-                                        <th style={{ border: '1px solid black', padding: '10px', textAlign: 'center', width: '150px' }}>MATRICULE</th>
-                                        <th style={{ border: '1px solid black', padding: '10px', textAlign: 'center', width: '120px' }}>MOYENNE</th>
+                                        <th style={{ border: '1px solid black', padding: '10px', textAlign: 'center', width: '130px' }}>MATRICULE</th>
+                                        <th style={{ border: '1px solid black', padding: '10px', textAlign: 'center', width: '120px' }}>MOYENNE (/{cycleMaxScale})</th>
+                                        <th style={{ border: '1px solid black', padding: '10px', textAlign: 'center', width: '110px' }}>DÉCISION</th>
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    {rankings.map((s, idx) => (
-                                        <tr key={s.id}>
-                                            <td style={{ border: '1px solid black', padding: '10px', textAlign: 'center', fontWeight: 'bold' }}>{idx + 1}</td>
-                                            <td style={{ border: '1px solid black', padding: '10px', fontWeight: 'bold', textTransform: 'uppercase' }}>{s.nom} {s.prenom}</td>
-                                            <td style={{ border: '1px solid black', padding: '10px', textAlign: 'center', fontFamily: 'monospace' }}>{s.matricule}</td>
-                                            <td style={{ border: '1px solid black', padding: '10px', textAlign: 'center', fontWeight: '900' }}>{s.average.toFixed(2)}</td>
-                                        </tr>
-                                    ))}
+                                    {rankings.map((s, idx) => {
+                                        const isAdmis = s.average >= passingThreshold;
+                                        return (
+                                            <tr key={s.id}>
+                                                <td style={{ border: '1px solid black', padding: '10px', textAlign: 'center', fontWeight: 'bold' }}>{idx + 1}</td>
+                                                <td style={{ border: '1px solid black', padding: '10px', fontWeight: 'bold', textTransform: 'uppercase' }}>{s.nom} {s.prenom}</td>
+                                                <td style={{ border: '1px solid black', padding: '10px', textAlign: 'center', fontFamily: 'monospace' }}>{s.matricule}</td>
+                                                <td style={{ border: '1px solid black', padding: '10px', textAlign: 'center', fontWeight: '900' }}>{s.average.toFixed(2)}</td>
+                                                <td style={{ border: '1px solid black', padding: '10px', textAlign: 'center', fontWeight: 'bold', color: isAdmis ? '#15803d' : '#b91c1c' }}>
+                                                    {isAdmis ? 'ADMIS' : 'ÉCHOUÉ'}
+                                                </td>
+                                            </tr>
+                                        );
+                                    })}
                                 </tbody>
                             </table>
 
