@@ -32,6 +32,14 @@ export const DetailedAccounting: React.FC<DetailedAccountingProps> = ({
 
     // 3. Chart Type (4 types)
     const [chartType, setChartType] = useState<ChartType>('bar');
+    const [activeChartPoint, setActiveChartPoint] = useState<{
+        index: number;
+        label: string;
+        encaisse: number;
+        decaisse: number;
+        solde: number;
+        xPct: number;
+    } | null>(null);
 
     // Months reference for school year
     const schoolMonths = useMemo(() => [
@@ -549,17 +557,66 @@ export const DetailedAccounting: React.FC<DetailedAccountingProps> = ({
                         </div>
                     )}
 
-                    {/* 2. Graphique COURBE (Line Chart SVG stylé) */}
+                    {/* 2. Graphique COURBE (Line Chart SVG stylé & interactif) */}
                     {chartType === 'line' && (
                         <div className="space-y-6">
-                            <div className="relative w-full h-72 border-b border-l border-gray-200 dark:border-white/10 p-4">
-                                <svg viewBox="0 0 500 200" className="w-full h-full overflow-visible">
-                                    {/* Grille */}
-                                    <line x1="0" y1="50" x2="500" y2="50" stroke="#888" strokeDasharray="3 3" opacity="0.1" />
-                                    <line x1="0" y1="100" x2="500" y2="100" stroke="#888" strokeDasharray="3 3" opacity="0.1" />
-                                    <line x1="0" y1="150" x2="500" y2="150" stroke="#888" strokeDasharray="3 3" opacity="0.1" />
+                            {/* Bannière d'information interactive au survol / clic */}
+                            <div className="min-h-[50px] p-3 rounded-2xl bg-gradient-to-r from-slate-50 via-gray-100 to-slate-50 dark:from-white/5 dark:via-white/10 dark:to-white/5 border border-gray-200 dark:border-white/10 flex flex-wrap items-center justify-between gap-4 transition-all duration-300">
+                                {activeChartPoint ? (
+                                    <>
+                                        <div className="flex items-center gap-3">
+                                            <span className="w-3 h-3 rounded-full bg-blue-500 animate-ping"></span>
+                                            <span className="text-xs font-black uppercase text-gray-500 dark:text-gray-400">Période :</span>
+                                            <span className="text-sm font-black text-gray-900 dark:text-white px-2.5 py-0.5 rounded-lg bg-white dark:bg-white/10 shadow-sm">{activeChartPoint.label}</span>
+                                        </div>
+                                        <div className="flex flex-wrap items-center gap-4 text-xs font-bold">
+                                            <div className="flex items-center gap-1.5 text-emerald-600 dark:text-emerald-400">
+                                                <i className="fas fa-arrow-down"></i>
+                                                <span>Encaissé:</span>
+                                                <span className="font-black text-sm">{activeChartPoint.encaisse.toLocaleString()} FCFA</span>
+                                            </div>
+                                            <div className="flex items-center gap-1.5 text-rose-600 dark:text-rose-400">
+                                                <i className="fas fa-arrow-up"></i>
+                                                <span>Décaissé:</span>
+                                                <span className="font-black text-sm">{activeChartPoint.decaisse.toLocaleString()} FCFA</span>
+                                            </div>
+                                            <div className="flex items-center gap-1.5 px-3 py-1 rounded-xl bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300">
+                                                <span>Solde:</span>
+                                                <span className="font-black">{activeChartPoint.solde.toLocaleString()} FCFA</span>
+                                            </div>
+                                        </div>
+                                    </>
+                                ) : (
+                                    <div className="w-full flex items-center justify-center gap-2 text-xs font-medium text-gray-400">
+                                        <i className="fas fa-mouse-pointer animate-bounce text-blue-500"></i>
+                                        <span>Survolez ou cliquez sur les points du graphique pour inspecter les résultats détaillés de chaque mois.</span>
+                                    </div>
+                                )}
+                            </div>
 
-                                    {/* Courbe Recettes (Vert) */}
+                            <div className="relative w-full h-80 border-b border-l border-gray-200 dark:border-white/10 p-4">
+                                <svg viewBox="0 0 500 200" className="w-full h-full overflow-visible">
+                                    {/* Grille avec repères de valeurs */}
+                                    <line x1="0" y1="20" x2="500" y2="20" stroke="#888" strokeDasharray="3 3" opacity="0.15" />
+                                    <text x="5" y="16" fontSize="7" fill="#888" fontWeight="bold">{maxTimelineValue.toLocaleString()} FCFA</text>
+                                    <line x1="0" y1="65" x2="500" y2="65" stroke="#888" strokeDasharray="3 3" opacity="0.1" />
+                                    <line x1="0" y1="110" x2="500" y2="110" stroke="#888" strokeDasharray="3 3" opacity="0.1" />
+                                    <text x="5" y="106" fontSize="7" fill="#888" fontWeight="bold">{Math.round(maxTimelineValue / 2).toLocaleString()} FCFA</text>
+                                    <line x1="0" y1="155" x2="500" y2="155" stroke="#888" strokeDasharray="3 3" opacity="0.1" />
+                                    <line x1="0" y1="180" x2="500" y2="180" stroke="#888" opacity="0.25" />
+
+                                    {/* Ligne verticale indicatrice active */}
+                                    {activeChartPoint && (() => {
+                                        const count = metrics.timelineData.length;
+                                        if (count < 2) return null;
+                                        const step = 500 / (count - 1);
+                                        const activeX = activeChartPoint.index * step;
+                                        return (
+                                            <line x1={activeX} y1="0" x2={activeX} y2="180" stroke="#3b82f6" strokeWidth="1.5" strokeDasharray="2 2" opacity="0.8" />
+                                        );
+                                    })()}
+
+                                    {/* Courbe Recettes (Vert Émeraude lumineux) */}
                                     {(() => {
                                         const count = metrics.timelineData.length;
                                         if (count < 2) return null;
@@ -575,24 +632,31 @@ export const DetailedAccounting: React.FC<DetailedAccountingProps> = ({
                                                 <polyline
                                                     fill="none"
                                                     stroke="#10b981"
-                                                    strokeWidth="3.5"
+                                                    strokeWidth="4"
                                                     strokeLinecap="round"
                                                     strokeLinejoin="round"
                                                     points={points}
-                                                    className="transition-all duration-1000 ease-out"
+                                                    filter="drop-shadow(0px 3px 6px rgba(16, 185, 129, 0.35))"
+                                                    className="transition-all duration-700 ease-out"
                                                 />
                                                 {metrics.timelineData.map((d, idx) => {
                                                     const x = idx * step;
                                                     const y = 180 - (d.encaisse / maxTimelineValue) * 160;
+                                                    const isSelected = activeChartPoint?.index === idx;
                                                     return (
-                                                        <circle key={`p-enc-${idx}`} cx={x} cy={y} r="5" fill="#10b981" stroke="#ffffff" strokeWidth="2" className="hover:scale-150 transition-transform cursor-pointer" />
+                                                        <g key={`p-enc-${idx}`} className="cursor-pointer"
+                                                           onMouseEnter={() => setActiveChartPoint({ index: idx, label: d.label, encaisse: d.encaisse, decaisse: d.decaisse, solde: d.encaisse - d.decaisse, xPct: (idx / (count - 1)) * 100 })}
+                                                           onClick={() => setActiveChartPoint({ index: idx, label: d.label, encaisse: d.encaisse, decaisse: d.decaisse, solde: d.encaisse - d.decaisse, xPct: (idx / (count - 1)) * 100 })}>
+                                                            <circle cx={x} cy={y} r={isSelected ? "9" : "6"} fill="#10b981" stroke="#ffffff" strokeWidth="2.5" className="transition-all duration-300 drop-shadow-md" />
+                                                            {isSelected && <circle cx={x} cy={y} r="13" fill="#10b981" opacity="0.25" className="animate-ping" />}
+                                                        </g>
                                                     );
                                                 })}
                                             </>
                                         );
                                     })()}
 
-                                    {/* Courbe Dépenses (Rose) */}
+                                    {/* Courbe Dépenses (Rose Corail vibrant) */}
                                     {(() => {
                                         const count = metrics.timelineData.length;
                                         if (count < 2) return null;
@@ -608,17 +672,24 @@ export const DetailedAccounting: React.FC<DetailedAccountingProps> = ({
                                                 <polyline
                                                     fill="none"
                                                     stroke="#f43f5e"
-                                                    strokeWidth="3.5"
+                                                    strokeWidth="4"
                                                     strokeLinecap="round"
                                                     strokeLinejoin="round"
                                                     points={points}
-                                                    className="transition-all duration-1000 ease-out"
+                                                    filter="drop-shadow(0px 3px 6px rgba(244, 63, 94, 0.35))"
+                                                    className="transition-all duration-700 ease-out"
                                                 />
                                                 {metrics.timelineData.map((d, idx) => {
                                                     const x = idx * step;
                                                     const y = 180 - (d.decaisse / maxTimelineValue) * 160;
+                                                    const isSelected = activeChartPoint?.index === idx;
                                                     return (
-                                                        <circle key={`p-dec-${idx}`} cx={x} cy={y} r="5" fill="#f43f5e" stroke="#ffffff" strokeWidth="2" className="hover:scale-150 transition-transform cursor-pointer" />
+                                                        <g key={`p-dec-${idx}`} className="cursor-pointer"
+                                                           onMouseEnter={() => setActiveChartPoint({ index: idx, label: d.label, encaisse: d.encaisse, decaisse: d.decaisse, solde: d.encaisse - d.decaisse, xPct: (idx / (count - 1)) * 100 })}
+                                                           onClick={() => setActiveChartPoint({ index: idx, label: d.label, encaisse: d.encaisse, decaisse: d.decaisse, solde: d.encaisse - d.decaisse, xPct: (idx / (count - 1)) * 100 })}>
+                                                            <circle cx={x} cy={y} r={isSelected ? "9" : "6"} fill="#f43f5e" stroke="#ffffff" strokeWidth="2.5" className="transition-all duration-300 drop-shadow-md" />
+                                                            {isSelected && <circle cx={x} cy={y} r="13" fill="#f43f5e" opacity="0.25" className="animate-ping" />}
+                                                        </g>
                                                     );
                                                 })}
                                             </>
@@ -626,38 +697,95 @@ export const DetailedAccounting: React.FC<DetailedAccountingProps> = ({
                                     })()}
                                 </svg>
                             </div>
-                            <div className="flex items-center justify-center gap-8 text-xs font-bold">
-                                <div className="flex items-center gap-2">
-                                    <div className="w-3.5 h-3.5 rounded-full bg-emerald-500"></div>
-                                    <span className="text-gray-700 dark:text-gray-300">Courbe Encaissements</span>
+                            <div className="flex flex-wrap items-center justify-between gap-4 px-2">
+                                <div className="flex items-center gap-6 text-xs font-bold">
+                                    <div className="flex items-center gap-2">
+                                        <div className="w-3.5 h-3.5 rounded-full bg-emerald-500 shadow-sm shadow-emerald-500/50"></div>
+                                        <span className="text-gray-700 dark:text-gray-300">Courbe Recettes (Encaissé)</span>
+                                    </div>
+                                    <div className="flex items-center gap-2">
+                                        <div className="w-3.5 h-3.5 rounded-full bg-rose-500 shadow-sm shadow-rose-500/50"></div>
+                                        <span className="text-gray-700 dark:text-gray-300">Courbe Dépenses (Décaissé)</span>
+                                    </div>
                                 </div>
-                                <div className="flex items-center gap-2">
-                                    <div className="w-3.5 h-3.5 rounded-full bg-rose-500"></div>
-                                    <span className="text-gray-700 dark:text-gray-300">Courbe Décaissements</span>
+                                <div className="text-[11px] text-gray-400 font-medium italic">
+                                    Affichage dynamique au survol et au clic
                                 </div>
                             </div>
                         </div>
                     )}
 
-                    {/* 3. Graphique AIRE / SURFACE (Area Chart SVG) */}
+                    {/* 3. Graphique AIRE / SURFACE (Area Chart SVG stylé & interactif) */}
                     {chartType === 'area' && (
                         <div className="space-y-6">
-                            <div className="relative w-full h-72 border-b border-l border-gray-200 dark:border-white/10 p-4">
+                            {/* Bannière d'information interactive */}
+                            <div className="min-h-[50px] p-3 rounded-2xl bg-gradient-to-r from-slate-50 via-gray-100 to-slate-50 dark:from-white/5 dark:via-white/10 dark:to-white/5 border border-gray-200 dark:border-white/10 flex flex-wrap items-center justify-between gap-4 transition-all duration-300">
+                                {activeChartPoint ? (
+                                    <>
+                                        <div className="flex items-center gap-3">
+                                            <span className="w-3 h-3 rounded-full bg-indigo-500 animate-ping"></span>
+                                            <span className="text-xs font-black uppercase text-gray-500 dark:text-gray-400">Période :</span>
+                                            <span className="text-sm font-black text-gray-900 dark:text-white px-2.5 py-0.5 rounded-lg bg-white dark:bg-white/10 shadow-sm">{activeChartPoint.label}</span>
+                                        </div>
+                                        <div className="flex flex-wrap items-center gap-4 text-xs font-bold">
+                                            <div className="flex items-center gap-1.5 text-emerald-600 dark:text-emerald-400">
+                                                <i className="fas fa-layer-group"></i>
+                                                <span>Recettes:</span>
+                                                <span className="font-black text-sm">{activeChartPoint.encaisse.toLocaleString()} FCFA</span>
+                                            </div>
+                                            <div className="flex items-center gap-1.5 text-rose-600 dark:text-rose-400">
+                                                <i className="fas fa-layer-group"></i>
+                                                <span>Dépenses:</span>
+                                                <span className="font-black text-sm">{activeChartPoint.decaisse.toLocaleString()} FCFA</span>
+                                            </div>
+                                            <div className="flex items-center gap-1.5 px-3 py-1 rounded-xl bg-indigo-50 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300">
+                                                <span>Balance:</span>
+                                                <span className="font-black">{activeChartPoint.solde.toLocaleString()} FCFA</span>
+                                            </div>
+                                        </div>
+                                    </>
+                                ) : (
+                                    <div className="w-full flex items-center justify-center gap-2 text-xs font-medium text-gray-400">
+                                        <i className="fas fa-hand-pointer animate-bounce text-indigo-500"></i>
+                                        <span>Survolez ou cliquez sur les jalons de l'aire pour voir les détails chiffrés.</span>
+                                    </div>
+                                )}
+                            </div>
+
+                            <div className="relative w-full h-80 border-b border-l border-gray-200 dark:border-white/10 p-4">
                                 <svg viewBox="0 0 500 200" className="w-full h-full overflow-visible">
                                     <defs>
                                         <linearGradient id="areaGradientEnc" x1="0" y1="0" x2="0" y2="1">
-                                            <stop offset="0%" stopColor="#10b981" stopOpacity="0.6" />
-                                            <stop offset="100%" stopColor="#10b981" stopOpacity="0.05" />
+                                            <stop offset="0%" stopColor="#10b981" stopOpacity="0.75" />
+                                            <stop offset="50%" stopColor="#10b981" stopOpacity="0.3" />
+                                            <stop offset="100%" stopColor="#10b981" stopOpacity="0.02" />
                                         </linearGradient>
                                         <linearGradient id="areaGradientDec" x1="0" y1="0" x2="0" y2="1">
-                                            <stop offset="0%" stopColor="#f43f5e" stopOpacity="0.5" />
-                                            <stop offset="100%" stopColor="#f43f5e" stopOpacity="0.05" />
+                                            <stop offset="0%" stopColor="#f43f5e" stopOpacity="0.65" />
+                                            <stop offset="50%" stopColor="#f43f5e" stopOpacity="0.25" />
+                                            <stop offset="100%" stopColor="#f43f5e" stopOpacity="0.02" />
                                         </linearGradient>
                                     </defs>
 
                                     {/* Grille */}
-                                    <line x1="0" y1="50" x2="500" y2="50" stroke="#888" strokeDasharray="3 3" opacity="0.1" />
-                                    <line x1="0" y1="100" x2="500" y2="100" stroke="#888" strokeDasharray="3 3" opacity="0.1" />
+                                    <line x1="0" y1="20" x2="500" y2="20" stroke="#888" strokeDasharray="3 3" opacity="0.15" />
+                                    <text x="5" y="16" fontSize="7" fill="#888" fontWeight="bold">{maxTimelineValue.toLocaleString()} FCFA</text>
+                                    <line x1="0" y1="65" x2="500" y2="65" stroke="#888" strokeDasharray="3 3" opacity="0.1" />
+                                    <line x1="0" y1="110" x2="500" y2="110" stroke="#888" strokeDasharray="3 3" opacity="0.1" />
+                                    <text x="5" y="106" fontSize="7" fill="#888" fontWeight="bold">{Math.round(maxTimelineValue / 2).toLocaleString()} FCFA</text>
+                                    <line x1="0" y1="155" x2="500" y2="155" stroke="#888" strokeDasharray="3 3" opacity="0.1" />
+                                    <line x1="0" y1="180" x2="500" y2="180" stroke="#888" opacity="0.25" />
+
+                                    {/* Ligne verticale indicatrice */}
+                                    {activeChartPoint && (() => {
+                                        const count = metrics.timelineData.length;
+                                        if (count < 2) return null;
+                                        const step = 500 / (count - 1);
+                                        const activeX = activeChartPoint.index * step;
+                                        return (
+                                            <line x1={activeX} y1="0" x2={activeX} y2="180" stroke="#6366f1" strokeWidth="1.5" strokeDasharray="2 2" opacity="0.8" />
+                                        );
+                                    })()}
 
                                     {/* Aire Encaissements */}
                                     {(() => {
@@ -670,8 +798,12 @@ export const DetailedAccounting: React.FC<DetailedAccountingProps> = ({
                                             return `${x},${y}`;
                                         });
                                         const areaPoints = `0,180 ${pts.join(' ')} 500,180`;
+                                        const linePoints = pts.join(' ');
                                         return (
-                                            <polygon points={areaPoints} fill="url(#areaGradientEnc)" />
+                                            <>
+                                                <polygon points={areaPoints} fill="url(#areaGradientEnc)" />
+                                                <polyline fill="none" stroke="#10b981" strokeWidth="3" points={linePoints} strokeLinecap="round" strokeLinejoin="round" />
+                                            </>
                                         );
                                     })()}
 
@@ -686,20 +818,44 @@ export const DetailedAccounting: React.FC<DetailedAccountingProps> = ({
                                             return `${x},${y}`;
                                         });
                                         const areaPoints = `0,180 ${pts.join(' ')} 500,180`;
+                                        const linePoints = pts.join(' ');
                                         return (
-                                            <polygon points={areaPoints} fill="url(#areaGradientDec)" />
+                                            <>
+                                                <polygon points={areaPoints} fill="url(#areaGradientDec)" />
+                                                <polyline fill="none" stroke="#f43f5e" strokeWidth="3" points={linePoints} strokeLinecap="round" strokeLinejoin="round" />
+                                                {/* Jalons interactifs */}
+                                                {metrics.timelineData.map((d, idx) => {
+                                                    const x = idx * step;
+                                                    const yEnc = 180 - (d.encaisse / maxTimelineValue) * 160;
+                                                    const yDec = 180 - (d.decaisse / maxTimelineValue) * 160;
+                                                    const isSelected = activeChartPoint?.index === idx;
+                                                    return (
+                                                        <g key={`area-pt-${idx}`} className="cursor-pointer"
+                                                           onMouseEnter={() => setActiveChartPoint({ index: idx, label: d.label, encaisse: d.encaisse, decaisse: d.decaisse, solde: d.encaisse - d.decaisse, xPct: (idx / (count - 1)) * 100 })}
+                                                           onClick={() => setActiveChartPoint({ index: idx, label: d.label, encaisse: d.encaisse, decaisse: d.decaisse, solde: d.encaisse - d.decaisse, xPct: (idx / (count - 1)) * 100 })}>
+                                                            <circle cx={x} cy={yEnc} r={isSelected ? "8" : "5"} fill="#10b981" stroke="#ffffff" strokeWidth="2" className="transition-all duration-300 drop-shadow" />
+                                                            <circle cx={x} cy={yDec} r={isSelected ? "8" : "5"} fill="#f43f5e" stroke="#ffffff" strokeWidth="2" className="transition-all duration-300 drop-shadow" />
+                                                        </g>
+                                                    );
+                                                })}
+                                            </>
                                         );
                                     })()}
                                 </svg>
                             </div>
-                            <div className="flex items-center justify-center gap-8 text-xs font-bold">
-                                <div className="flex items-center gap-2">
-                                    <div className="w-4 h-4 rounded bg-emerald-500/40 border border-emerald-500"></div>
-                                    <span className="text-gray-700 dark:text-gray-300">Surface Recettes</span>
+                            <div className="flex flex-wrap items-center justify-between gap-4 px-2">
+                                <div className="flex items-center gap-6 text-xs font-bold">
+                                    <div className="flex items-center gap-2">
+                                        <div className="w-4 h-4 rounded bg-gradient-to-t from-emerald-500/20 to-emerald-500/70 border border-emerald-500"></div>
+                                        <span className="text-gray-700 dark:text-gray-300">Surface Dégradée Recettes</span>
+                                    </div>
+                                    <div className="flex items-center gap-2">
+                                        <div className="w-4 h-4 rounded bg-gradient-to-t from-rose-500/20 to-rose-500/70 border border-rose-500"></div>
+                                        <span className="text-gray-700 dark:text-gray-300">Surface Dégradée Dépenses</span>
+                                    </div>
                                 </div>
-                                <div className="flex items-center gap-2">
-                                    <div className="w-4 h-4 rounded bg-rose-500/40 border border-rose-500"></div>
-                                    <span className="text-gray-700 dark:text-gray-300">Surface Dépenses</span>
+                                <div className="text-[11px] text-gray-400 font-medium italic">
+                                    Graphique immersif haute lisibilité
                                 </div>
                             </div>
                         </div>

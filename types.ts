@@ -37,6 +37,7 @@ export interface Payment {
   date: string;
   method: 'cash' | 'card' | 'wave' | 'mobile_money' | 'check';
   notes?: string;
+  type?: 'tuition' | 'registration' | 're_registration' | 'other'; // Type de paiement (scolarité vs inscription)
   recorded_by?: string; // UID de celui qui a encaissé
   recorded_by_name?: string; // Nom de celui qui a encaissé
 }

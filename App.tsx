@@ -319,8 +319,11 @@ const App: React.FC = () => {
   const addPayment = async (p: Payment) => {
     try {
       setPayments(prev => [...prev, p]);
-      // Mise à jour optimiste de l'élève
-      setStudents(prev => prev.map(s => s.id === p.studentId ? { ...s, totalPaid: (s.totalPaid || 0) + p.amount } : s));
+      // Mise à jour optimiste de l'élève (scolarité seulement, hors inscription/réinscription)
+      const isRegistration = p.type === 'registration' || p.type === 're_registration' || (p.notes && /inscription/i.test(p.notes));
+      if (!isRegistration) {
+        setStudents(prev => prev.map(s => s.id === p.studentId ? { ...s, totalPaid: (s.totalPaid || 0) + p.amount } : s));
+      }
       await api.addPaymentDB(p);
     } catch (e: any) {
       alert("Erreur lors de l'enregistrement du paiement : " + e.message);

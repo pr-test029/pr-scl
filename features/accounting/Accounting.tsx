@@ -66,10 +66,16 @@ export const Accounting: React.FC = () => {
     };
 
     const getStudentTotalPaid = (studentId: string, baseTotalPaid: number = 0) => {
+        // Ne comptabiliser que les paiements de scolarité (exclure frais d'inscription et réinscription)
         const sumPayments = payments
-            .filter(p => p.studentId === studentId)
+            .filter(p => {
+                if (p.studentId !== studentId) return false;
+                if (p.type === 'registration' || p.type === 're_registration') return false;
+                if (p.notes && /inscription/i.test(p.notes)) return false;
+                return true;
+            })
             .reduce((acc, p) => acc + (p.amount || 0), 0);
-        return Math.max(baseTotalPaid, sumPayments);
+        return sumPayments;
     };
 
     // Financial Stats
@@ -719,6 +725,80 @@ export const Accounting: React.FC = () => {
                                             </span>
                                         )}
                                     </div>
+                                </div>
+
+                                {/* Échéancier et barres de progression mensuelle (sur 9 mois d'Octobre à Juin) */}
+                                <div className="mt-6 pt-5 border-t border-gray-200 dark:border-white/10 space-y-3">
+                                    <div className="flex items-center justify-between">
+                                        <h5 className="text-xs font-black uppercase tracking-wider text-gray-700 dark:text-gray-200 flex items-center gap-1.5">
+                                            <i className="fas fa-calendar-alt text-blue-500"></i> Progression Mensuelle (9 mois)
+                                        </h5>
+                                        <span className="text-[10px] text-gray-400 font-bold">
+                                            {currentStudentStats.monthlyFee > 0 ? `${currentStudentStats.monthlyFee.toLocaleString()} FCFA / mois` : 'Non défini'}
+                                        </span>
+                                    </div>
+
+                                    {currentStudentStats.monthlyFee <= 0 ? (
+                                        <p className="text-xs text-orange-500 italic py-2">Frais mensuels non configurés pour cette classe.</p>
+                                    ) : (
+                                        <div className="grid grid-cols-1 gap-2.5 max-h-56 overflow-y-auto pr-1 custom-scrollbar">
+                                            {[
+                                                { id: 1, label: 'Octobre' },
+                                                { id: 2, label: 'Novembre' },
+                                                { id: 3, label: 'Décembre' },
+                                                { id: 4, label: 'Janvier' },
+                                                { id: 5, label: 'Février' },
+                                                { id: 6, label: 'Mars' },
+                                                { id: 7, label: 'Avril' },
+                                                { id: 8, label: 'Mai' },
+                                                { id: 9, label: 'Juin' }
+                                            ].map((m, idx) => {
+                                                const monthlyFee = currentStudentStats.monthlyFee;
+                                                const totalPaid = currentStudentStats.paidAmount;
+                                                // Montant alloué à ce mois
+                                                const coveredBefore = idx * monthlyFee;
+                                                const paidForThisMonth = Math.max(0, Math.min(monthlyFee, totalPaid - coveredBefore));
+                                                const pct = monthlyFee > 0 ? Math.min(100, Math.round((paidForThisMonth / monthlyFee) * 100)) : 0;
+                                                const isCompleted = pct === 100;
+                                                const isPending = pct === 0;
+
+                                                return (
+                                                    <div key={m.id} className="p-2 bg-white dark:bg-white/5 rounded-xl border border-gray-100 dark:border-white/5 text-xs shadow-sm">
+                                                        <div className="flex items-center justify-between mb-1">
+                                                            <span className="font-bold text-gray-800 dark:text-gray-200 flex items-center gap-1.5">
+                                                                <span className={`w-2 h-2 rounded-full ${isCompleted ? 'bg-green-500' : pct > 0 ? 'bg-amber-500 animate-pulse' : 'bg-gray-300 dark:bg-gray-600'}`}></span>
+                                                                {m.label}
+                                                            </span>
+                                                            <div className="flex items-center gap-2">
+                                                                <span className="text-[10px] text-gray-500 dark:text-gray-400">
+                                                                    {paidForThisMonth.toLocaleString()} / {monthlyFee.toLocaleString()} FCFA
+                                                                </span>
+                                                                <span className={`font-black text-[10px] px-1.5 py-0.5 rounded ${
+                                                                    isCompleted ? 'bg-green-100 text-green-700 dark:bg-green-950/60 dark:text-green-300' :
+                                                                    pct > 0 ? 'bg-amber-100 text-amber-700 dark:bg-amber-950/60 dark:text-amber-300' :
+                                                                    'bg-gray-100 text-gray-500 dark:bg-white/10 dark:text-gray-400'
+                                                                }`}>
+                                                                    {pct}%
+                                                                </span>
+                                                            </div>
+                                                        </div>
+                                                        <div className="w-full bg-gray-100 dark:bg-gray-800 rounded-full h-2 overflow-hidden">
+                                                            <div 
+                                                                className={`h-full transition-all duration-700 ${
+                                                                    isCompleted 
+                                                                        ? 'bg-gradient-to-r from-emerald-500 to-green-600' 
+                                                                        : pct > 0 
+                                                                            ? 'bg-gradient-to-r from-amber-400 to-amber-600' 
+                                                                            : 'bg-transparent'
+                                                                }`} 
+                                                                style={{ width: `${pct}%` }}
+                                                            ></div>
+                                                        </div>
+                                                    </div>
+                                                );
+                                            })}
+                                        </div>
+                                    )}
                                 </div>
                             </div>
 

@@ -169,6 +169,7 @@ export const StudentForm: React.FC<StudentFormProps> = ({ onSuccess, initialData
             amount: regFee,
             date: new Date().toISOString(),
             method: 'cash',
+            type: enrollmentType === 'inscription' ? 'registration' : 're_registration',
             notes: enrollmentType === 'inscription' ? 'Frais d\'inscription' : 'Frais de réinscription',
             recorded_by: session?.user_id,
             recorded_by_name: session?.display_name || 'Inconnu'
@@ -459,6 +460,7 @@ export const StudentForm: React.FC<StudentFormProps> = ({ onSuccess, initialData
               amount: regFee,
               date: nowIso,
               method: 'cash',
+              type: 'registration',
               notes: "Frais d'inscription (Importation)",
               recorded_by: session?.user_id,
               recorded_by_name: session?.display_name || 'Import Automatique'

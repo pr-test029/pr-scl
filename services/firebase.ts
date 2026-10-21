@@ -1051,17 +1051,22 @@ export const addPaymentDB = async (payment: Payment) => {
     cached.push(dataToSave as Payment);
     await cacheData(cacheKey, cached);
 
-    // Mettre à jour le totalPaid dans le cache des élèves
-    const studentsCacheKey = `students_${schoolId}_${payment.academic_year}`;
-    getCachedData<Student[]>(studentsCacheKey).then(students => {
-        if (students) {
-            const sIdx = students.findIndex(s => s.id === payment.studentId);
-            if (sIdx >= 0) {
-                students[sIdx].totalPaid = (students[sIdx].totalPaid || 0) + payment.amount;
-                cacheData(studentsCacheKey, students);
+    // Mettre à jour le totalPaid dans le cache des élèves (uniquement pour les frais de scolarité)
+    const isRegistration = payment.type === 'registration' || 
+                           payment.type === 're_registration' ||
+                           (payment.notes && /inscription/i.test(payment.notes));
+    if (!isRegistration) {
+        const studentsCacheKey = `students_${schoolId}_${payment.academic_year}`;
+        getCachedData<Student[]>(studentsCacheKey).then(students => {
+            if (students) {
+                const sIdx = students.findIndex(s => s.id === payment.studentId);
+                if (sIdx >= 0) {
+                    students[sIdx].totalPaid = (students[sIdx].totalPaid || 0) + payment.amount;
+                    cacheData(studentsCacheKey, students);
+                }
             }
-        }
-    });
+        });
+    }
 
     await enqueueMutation({
         type: 'CREATE',
@@ -1072,18 +1077,20 @@ export const addPaymentDB = async (payment: Payment) => {
     });
 
     const firestoreWrite = setDoc(doc(db, "payments", docId), dataToSave).then(async () => {
-        // Mettre à jour le document élève
-        const studentDocId = `${schoolId}_${payment.academic_year}_${payment.studentId}`;
-        try {
-            const studentDoc = await getDoc(doc(db, "students", studentDocId));
-            if (studentDoc.exists()) {
-                const currentTotal = studentDoc.data().totalPaid || 0;
-                await updateDoc(doc(db, "students", studentDocId), {
-                    totalPaid: currentTotal + payment.amount
-                });
+        // Mettre à jour le document élève dans Firestore (uniquement pour les frais de scolarité)
+        if (!isRegistration) {
+            const studentDocId = `${schoolId}_${payment.academic_year}_${payment.studentId}`;
+            try {
+                const studentDoc = await getDoc(doc(db, "students", studentDocId));
+                if (studentDoc.exists()) {
+                    const currentTotal = studentDoc.data().totalPaid || 0;
+                    await updateDoc(doc(db, "students", studentDocId), {
+                        totalPaid: currentTotal + payment.amount
+                    });
+                }
+            } catch (e) {
+                console.warn("[addPaymentDB] Student totalPaid update deferred:", e);
             }
-        } catch (e) {
-            console.warn("[addPaymentDB] Student totalPaid update deferred:", e);
         }
     }).catch(err => {
         console.warn("[addPaymentDB] Firestore async write:", err?.message || err);

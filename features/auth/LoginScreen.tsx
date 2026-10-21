@@ -147,51 +147,51 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess }) => {
         }
 
         if (selectedRole === 'dirigeant') {
-            const user = api.auth.currentUser;
-            if (!user || user.isAnonymous) {
-                setStep('school_login');
-                return;
-            }
-            // Vérifier si un mot de passe dirigeant est configuré
-            if (schoolInfo?.id) {
-                setLoading(true);
-                try {
-                    const pwd = await getSchoolManagerPassword(schoolInfo.id);
-                    if (pwd && pwd.trim() !== '') {
-                        // Un mot de passe est requis
-                        setManagerPasswordInput('');
-                        setStep('manager_password');
-                    } else {
-                        // Pas de mot de passe configuré : accès direct
-                        finishLogin(selectedRole);
-                    }
-                } catch {
-                    finishLogin(selectedRole);
-                } finally {
-                    setLoading(false);
-                }
-            } else {
-                finishLogin(selectedRole);
-            }
+            // Un dirigeant peut être soit l'administrateur principal de l'école (mot de passe école),
+            // soit un membre du personnel créé avec le rôle "dirigeant" (avec son code/matricule unique).
+            setManagerPasswordInput('');
+            setStep('manager_password');
         } else {
             setStep('identity_verification');
         }
     };
 
-    // Phase 2b: Manager password verification
+    // Phase 2b: Manager password or Staff Dirigeant verification
     const handleManagerPasswordSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         setError('');
         setLoading(true);
+        const codeEntered = managerPasswordInput.trim().toUpperCase();
+
         try {
-            const pwd = await getSchoolManagerPassword(schoolInfo!.id);
-            if (managerPasswordInput.trim() === (pwd || '').trim()) {
-                await finishLogin('dirigeant');
-            } else {
-                setError('Mot de passe incorrect. Veuillez réessayer.');
+            // 1. Vérifier d'abord si le code correspond au mot de passe de direction configuré pour l'école
+            if (schoolInfo?.id) {
+                const pwd = await getSchoolManagerPassword(schoolInfo.id);
+                if (pwd && pwd.trim() !== '' && codeEntered === pwd.trim().toUpperCase()) {
+                    await finishLogin('dirigeant');
+                    return;
+                }
             }
-        } catch {
-            setError('Erreur lors de la vérification du mot de passe.');
+
+            // 2. Si non, vérifier si le code correspond au matricule d'un membre du personnel enregistré avec le rôle "dirigeant"
+            const identityRes = await api.findIdentityByMatricule(codeEntered, schoolInfo?.id);
+            if (identityRes && identityRes.type === 'staff' && identityRes.data?.role === 'dirigeant') {
+                const rawSession = await api.loginWithMatricule(codeEntered, schoolInfo?.id);
+                if (rawSession) {
+                    onLoginSuccess({
+                        ...rawSession,
+                        role: 'dirigeant',
+                        display_name: `${identityRes.data.prenom} ${identityRes.data.nom}`,
+                        matricule: codeEntered
+                    });
+                    return;
+                }
+            }
+
+            setError('Code ou mot de passe dirigeant incorrect.');
+        } catch (err: any) {
+            console.error("Erreur vérification dirigeant:", err);
+            setError(err.message || 'Erreur lors de la vérification.');
         } finally {
             setLoading(false);
         }
@@ -534,15 +534,15 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess }) => {
                             </div>
                             <h2 className="text-2xl font-black dark:text-white">Accès Dirigeant</h2>
                             <p className="text-gray-500 mt-1 text-sm">
-                                <span className="font-bold text-amber-600">{schoolInfo?.name}</span> — Saisissez votre mot de passe
+                                <span className="font-bold text-amber-600">{schoolInfo?.name}</span> — Saisissez votre mot de passe administrateur ou votre matricule dirigeant
                             </p>
                         </div>
 
                         <form onSubmit={handleManagerPasswordSubmit} className="space-y-5">
                             <Input
                                 type="password"
-                                label="Mot de passe Dirigeant"
-                                placeholder="Ex: SCL2024"
+                                label="Mot de passe ou Matricule Dirigeant"
+                                placeholder="Ex: SCL2024 ou SCL-ABC123"
                                 value={managerPasswordInput}
                                 onChange={e => setManagerPasswordInput(e.target.value.toUpperCase().replace(/\s/g, ''))}
                                 required

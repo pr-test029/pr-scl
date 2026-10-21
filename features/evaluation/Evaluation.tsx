@@ -110,7 +110,16 @@ export const Evaluation: React.FC = () => {
         const debtors = students.filter(student => {
             const monthlyFee = getStudentMonthlyFee(student);
             const expectedUpToNow = monthlyFee * selectedMonth;
-            return (student.totalPaid || 0) < expectedUpToNow;
+            // Ne comptabiliser que les paiements de scolarité (hors frais d'inscription/réinscription)
+            const tuitionPaid = payments
+                .filter(p => {
+                    if (p.studentId !== student.id) return false;
+                    if (p.type === 'registration' || p.type === 're_registration') return false;
+                    if (p.notes && /inscription/i.test(p.notes)) return false;
+                    return true;
+                })
+                .reduce((acc, p) => acc + (p.amount || 0), 0);
+            return tuitionPaid < expectedUpToNow;
         });
 
         const cyclesFound = Array.from(new Set(debtors.map(s => s.cycle)));
@@ -313,7 +322,15 @@ export const Evaluation: React.FC = () => {
                                             <span className="text-xs font-bold text-red-600 bg-red-100 dark:bg-red-950/60 px-3 py-1 rounded-xl">
                                                 Total dû : {recoveryData.studentsToDisplay.reduce((sum, s) => {
                                                     const fee = getStudentMonthlyFee(s);
-                                                    return sum + ((fee * selectedMonth) - (s.totalPaid || 0));
+                                                    const tuitionPaid = payments
+                                                        .filter(p => {
+                                                            if (p.studentId !== s.id) return false;
+                                                            if (p.type === 'registration' || p.type === 're_registration') return false;
+                                                            if (p.notes && /inscription/i.test(p.notes)) return false;
+                                                            return true;
+                                                        })
+                                                        .reduce((acc, p) => acc + (p.amount || 0), 0);
+                                                    return sum + ((fee * selectedMonth) - tuitionPaid);
                                                 }, 0).toLocaleString()} FCFA
                                             </span>
                                         </div>
@@ -323,7 +340,15 @@ export const Evaluation: React.FC = () => {
                                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 p-2">
                                         {recoveryData.studentsToDisplay.map(s => {
                                             const monthlyFee = getStudentMonthlyFee(s);
-                                            const debt = (monthlyFee * selectedMonth) - (s.totalPaid || 0);
+                                            const tuitionPaid = payments
+                                                .filter(p => {
+                                                    if (p.studentId !== s.id) return false;
+                                                    if (p.type === 'registration' || p.type === 're_registration') return false;
+                                                    if (p.notes && /inscription/i.test(p.notes)) return false;
+                                                    return true;
+                                                })
+                                                .reduce((acc, p) => acc + (p.amount || 0), 0);
+                                            const debt = (monthlyFee * selectedMonth) - tuitionPaid;
                                             return (
                                                 <div key={s.id} className="p-4 bg-gray-50 dark:bg-white/5 rounded-2xl flex justify-between items-center border dark:border-white/10 group hover:border-red-300 hover:bg-red-50/30 dark:hover:bg-red-900/10 transition-all">
                                                     <div>
