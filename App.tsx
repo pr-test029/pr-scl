@@ -385,10 +385,10 @@ const App: React.FC = () => {
   };
 
   const isSchoolOwner = (session?.user_id === school?.owner_id && session?.role === 'dirigeant') || (session?.email && session.email === school?.owner_email && session?.role === 'dirigeant');
-  const effectiveRole = isSchoolOwner ? 'dirigeant' : session?.role;
-  const isAdmin = effectiveRole === 'admin' || session?.email === 'powerfulreach029@gmail.com';
+  const isAdmin = session?.role === 'admin' || session?.email === 'powerfulreach029@gmail.com';
+  const effectiveRole = session?.role === 'admin' ? 'admin' : (isSchoolOwner ? 'dirigeant' : session?.role);
   const isDirecteur = effectiveRole === 'directeur';
-  const isDirigeant = effectiveRole === 'dirigeant';
+  const isDirigeant = effectiveRole === 'dirigeant' || effectiveRole === 'admin';
 
   // Sécurité : Protection stricte des vues selon le rôle effectif de l'utilisateur
   useEffect(() => {

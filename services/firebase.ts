@@ -173,10 +173,23 @@ export const checkSchoolSubscription = async (schoolId: string, currentUserEmail
                 isExpired = false;
                 daysRemaining = 30;
             } else {
-                const expiryDate = school.subscription_expires_at.toDate();
-                const timeDiff = expiryDate.getTime() - now.getTime();
-                daysRemaining = Math.ceil(timeDiff / (1000 * 60 * 60 * 24));
-                isExpired = daysRemaining <= 0;
+                let expiryDate: Date | null = null;
+                if (typeof school.subscription_expires_at?.toDate === 'function') {
+                    expiryDate = school.subscription_expires_at.toDate();
+                } else if (school.subscription_expires_at instanceof Date) {
+                    expiryDate = school.subscription_expires_at;
+                } else if (typeof school.subscription_expires_at === 'string' || typeof school.subscription_expires_at === 'number') {
+                    expiryDate = new Date(school.subscription_expires_at);
+                }
+
+                if (expiryDate && !isNaN(expiryDate.getTime())) {
+                    const timeDiff = expiryDate.getTime() - now.getTime();
+                    daysRemaining = Math.ceil(timeDiff / (1000 * 60 * 60 * 24));
+                    isExpired = daysRemaining <= 0;
+                } else {
+                    isExpired = false;
+                    daysRemaining = 30;
+                }
             }
         } else {
             // Pour tous les autres statuts (free, expired, null), on bloque
@@ -324,6 +337,28 @@ export const getSchoolManagerPassword = async (schoolId: string): Promise<string
     }
 };
 
+// Vérifie si une école a des identifiants dirigeants configurés (mot de passe ou personnel avec rôle dirigeant)
+export const checkSchoolHasManagerSecurity = async (schoolId: string): Promise<{ hasSecurity: boolean, hasPassword: boolean, hasStaffDirigeant: boolean }> => {
+    try {
+        const docRef = doc(db, "app_config", `${schoolId}_settings`);
+        const docSnap = await getDoc(docRef);
+        if (docSnap.exists()) {
+            const settings = docSnap.data().data as AppSettings;
+            const hasPassword = !!(settings.managerPassword && settings.managerPassword.trim() !== '');
+            const hasStaffDirigeant = !!(settings.staff && settings.staff.some(s => s.role === 'dirigeant'));
+            return {
+                hasSecurity: hasPassword || hasStaffDirigeant,
+                hasPassword,
+                hasStaffDirigeant
+            };
+        }
+        return { hasSecurity: false, hasPassword: false, hasStaffDirigeant: false };
+    } catch (error) {
+        console.error("checkSchoolHasManagerSecurity error:", error);
+        return { hasSecurity: false, hasPassword: false, hasStaffDirigeant: false };
+    }
+};
+
 export const fetchUserSession = async (): Promise<UserSession | null> => {
     return new Promise((resolve) => {
         const unsubscribe = onAuthStateChanged(auth, async (user) => {
@@ -429,20 +464,23 @@ const ensureSchoolId = async () => {
 export const updateUserRole = async (userId: string, newRole: string, isAnonymous: boolean = false) => {
     try {
         if (isAnonymous) {
-            await updateDoc(doc(db, "sessions", userId), { role: newRole });
+            await setDoc(doc(db, "sessions", userId), { role: newRole }, { merge: true });
         } else {
-            await updateDoc(doc(db, "profiles", userId), { role: newRole });
+            await setDoc(doc(db, "profiles", userId), { role: newRole }, { merge: true });
         }
         
         // Update local cache
         const localSessionStr = localStorage.getItem('pr_scl_matricule_session');
         if (localSessionStr) {
             const localSession = JSON.parse(localSessionStr);
-            localSession.role = newRole;
-            localStorage.setItem('pr_scl_matricule_session', JSON.stringify(localSession));
+            if (localSession.user_id === userId) {
+                localSession.role = newRole;
+                localStorage.setItem('pr_scl_matricule_session', JSON.stringify(localSession));
+            }
         }
     } catch (error) {
         console.error("updateUserRole error:", error);
+        throw error;
     }
 };
 
@@ -1217,8 +1255,16 @@ export const setSubscription = async (
     let baseDate = now;
     
     if (schoolData && schoolData.subscription_status === 'active' && schoolData.subscription_expires_at) {
-        const currentExpiry = schoolData.subscription_expires_at.toDate();
-        if (currentExpiry > now) {
+        let currentExpiry: Date | null = null;
+        if (typeof schoolData.subscription_expires_at?.toDate === 'function') {
+            currentExpiry = schoolData.subscription_expires_at.toDate();
+        } else if (schoolData.subscription_expires_at instanceof Date) {
+            currentExpiry = schoolData.subscription_expires_at;
+        } else if (typeof schoolData.subscription_expires_at === 'string' || typeof schoolData.subscription_expires_at === 'number') {
+            currentExpiry = new Date(schoolData.subscription_expires_at);
+        }
+
+        if (currentExpiry && !isNaN(currentExpiry.getTime()) && currentExpiry > now) {
             baseDate = currentExpiry;
         }
     }
@@ -1237,11 +1283,12 @@ export const setSubscription = async (
             break;
     }
 
-    await updateDoc(doc(db, "schools", schoolId), {
+    // Utilisation de setDoc avec merge: true pour garantir l'écriture même si des champs sont manquants
+    await setDoc(doc(db, "schools", schoolId), {
         subscription_plan: plan,
         subscription_expires_at: Timestamp.fromDate(expiresAt),
         subscription_status: 'active'
-    });
+    }, { merge: true });
 };
 
 // --- API PROFILES ---

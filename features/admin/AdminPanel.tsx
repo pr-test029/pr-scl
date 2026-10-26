@@ -94,9 +94,10 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBack, userRole }) => {
             await setSubscription(school.id, plan);
             setShowConfirmModal(false);
             setConfirmAction(null);
-        } catch (error) {
+            alert(`Abonnement de ${months} mois accordé avec succès à "${school.name}".`);
+        } catch (error: any) {
             console.error('Erreur lors de la mise à jour:', error);
-            alert('Erreur lors de la mise à jour de l\'abonnement');
+            alert(`Erreur lors de l'octroi de l'abonnement: ${error?.message || error}`);
         } finally {
             setProcessing(false);
         }
