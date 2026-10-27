@@ -2,6 +2,20 @@
 import { Cycle, Subject, AppSettings } from './types';
 
 export const INITIAL_CYCLES: Record<string, Cycle> = {
+  "primaire": {
+    id: "primaire",
+    name: "Primaire",
+    levels: ["CP1", "CP2", "CE1", "CE2", "CM1", "CM2"],
+    series: [],
+    specialites: [],
+    classrooms: [
+      { id: "salle_p1", name: "Salle CP" },
+      { id: "salle_p2", name: "Salle CE" },
+      { id: "salle_p3", name: "Salle CM" }
+    ],
+    type: "simple",
+    maxGrade: 10
+  },
   "college": {
     id: "college",
     name: "Collège",
@@ -12,7 +26,8 @@ export const INITIAL_CYCLES: Record<string, Cycle> = {
       { id: "salle_101", name: "Salle 101" },
       { id: "salle_102", name: "Salle 102" }
     ],
-    type: "simple"
+    type: "simple",
+    maxGrade: 20
   },
   "lycee": {
     id: "lycee",
@@ -21,10 +36,11 @@ export const INITIAL_CYCLES: Record<string, Cycle> = {
     series: ["A", "C", "D"],
     specialites: [],
     classrooms: [
-        { id: "salle_201", name: "Amphi A" },
-        { id: "labo_phys", name: "Labo Physique" }
+      { id: "salle_201", name: "Amphi A" },
+      { id: "labo_phys", name: "Labo Physique" }
     ],
-    type: "series"
+    type: "series",
+    maxGrade: 20
   },
   "lycee_technique": {
     id: "lycee_technique",
@@ -33,7 +49,8 @@ export const INITIAL_CYCLES: Record<string, Cycle> = {
     levels: ["Seconde", "Première", "Terminale"],
     series: ["G1", "G2", "G3"],
     specialites: [],
-    classrooms: []
+    classrooms: [],
+    maxGrade: 20
   },
   "universite": {
     id: "universite",
@@ -41,45 +58,321 @@ export const INITIAL_CYCLES: Record<string, Cycle> = {
     type: "specialites",
     levels: ["Licence 1", "Licence 2", "Licence 3", "Master 1", "Master 2", "Doctorat"],
     series: [],
-    specialites: [], // Les spécialités seront définies par l'utilisateur
-    classrooms: []
+    specialites: [],
+    classrooms: [],
+    maxGrade: 20
   }
 };
 
 export const INITIAL_SUBJECTS: Record<string, Subject[]> = {
+  // --- 1. PRIMAIRE ---
+  // CP1 & CP2
+  "CP1": [
+    { id: "cp1_1", nom: "Dictée", coefficient: 1 },
+    { id: "cp1_2", nom: "Copie", coefficient: 1 },
+    { id: "cp1_3", nom: "Écriture", coefficient: 1 },
+    { id: "cp1_4", nom: "Orthographe", coefficient: 1 },
+    { id: "cp1_5", nom: "Grammaire", coefficient: 1 },
+    { id: "cp1_6", nom: "Lecture", coefficient: 1 },
+    { id: "cp1_7", nom: "Poésie", coefficient: 1 },
+    { id: "cp1_8", nom: "Numération", coefficient: 1 },
+    { id: "cp1_9", nom: "Opération", coefficient: 1 },
+    { id: "cp1_10", nom: "Calcul rapide", coefficient: 1 },
+    { id: "cp1_11", nom: "Géométrie", coefficient: 1 },
+    { id: "cp1_12", nom: "Problème", coefficient: 1 },
+    { id: "cp1_13", nom: "Art plastique", coefficient: 1 }
+  ],
+  "CP2": [
+    { id: "cp2_1", nom: "Dictée", coefficient: 1 },
+    { id: "cp2_2", nom: "Copie", coefficient: 1 },
+    { id: "cp2_3", nom: "Écriture", coefficient: 1 },
+    { id: "cp2_4", nom: "Orthographe", coefficient: 1 },
+    { id: "cp2_5", nom: "Grammaire", coefficient: 1 },
+    { id: "cp2_6", nom: "Lecture", coefficient: 1 },
+    { id: "cp2_7", nom: "Poésie", coefficient: 1 },
+    { id: "cp2_8", nom: "Numération", coefficient: 1 },
+    { id: "cp2_9", nom: "Opération", coefficient: 1 },
+    { id: "cp2_10", nom: "Calcul rapide", coefficient: 1 },
+    { id: "cp2_11", nom: "Géométrie", coefficient: 1 },
+    { id: "cp2_12", nom: "Problème", coefficient: 1 },
+    { id: "cp2_13", nom: "Art plastique", coefficient: 1 }
+  ],
+
+  // CE1
+  "CE1": [
+    { id: "ce1_1", nom: "Dictée", coefficient: 1 },
+    { id: "ce1_2", nom: "Question", coefficient: 1 },
+    { id: "ce1_3", nom: "Écriture", coefficient: 1 },
+    { id: "ce1_4", nom: "Expression écrite", coefficient: 1 },
+    { id: "ce1_5", nom: "Orthographe", coefficient: 1 },
+    { id: "ce1_6", nom: "Grammaire", coefficient: 1 },
+    { id: "ce1_7", nom: "Vocabulaire", coefficient: 1 },
+    { id: "ce1_8", nom: "Conjugaison", coefficient: 1 },
+    { id: "ce1_9", nom: "Lecture", coefficient: 1 },
+    { id: "ce1_10", nom: "Poésie", coefficient: 1 },
+    { id: "ce1_11", nom: "Numération", coefficient: 1 },
+    { id: "ce1_12", nom: "Opération", coefficient: 1 },
+    { id: "ce1_13", nom: "Calcul rapide", coefficient: 1 },
+    { id: "ce1_14", nom: "Géométrie", coefficient: 1 },
+    { id: "ce1_15", nom: "Mesure", coefficient: 1 },
+    { id: "ce1_16", nom: "Problème", coefficient: 1 },
+    { id: "ce1_17", nom: "ECMP", coefficient: 1 },
+    { id: "ce1_18", nom: "Éducation pour la santé", coefficient: 1 },
+    { id: "ce1_19", nom: "Activité d'observation et d'éveil", coefficient: 1 },
+    { id: "ce1_20", nom: "Art plastique", coefficient: 1 }
+  ],
+
+  // CE2
+  "CE2": [
+    { id: "ce2_1", nom: "Dictée", coefficient: 1 },
+    { id: "ce2_2", nom: "Question", coefficient: 1 },
+    { id: "ce2_3", nom: "Écriture", coefficient: 1 },
+    { id: "ce2_4", nom: "Expression écrite", coefficient: 1 },
+    { id: "ce2_5", nom: "Orthographe", coefficient: 1 },
+    { id: "ce2_6", nom: "Grammaire", coefficient: 1 },
+    { id: "ce2_7", nom: "Vocabulaire", coefficient: 1 },
+    { id: "ce2_8", nom: "Conjugaison", coefficient: 1 },
+    { id: "ce2_9", nom: "Lecture", coefficient: 1 },
+    { id: "ce2_10", nom: "Poésie", coefficient: 1 },
+    { id: "ce2_11", nom: "Numération", coefficient: 1 },
+    { id: "ce2_12", nom: "Opération", coefficient: 1 },
+    { id: "ce2_13", nom: "Calcul rapide", coefficient: 1 },
+    { id: "ce2_14", nom: "Géométrie", coefficient: 1 },
+    { id: "ce2_15", nom: "Mesure", coefficient: 1 },
+    { id: "ce2_16", nom: "Problème", coefficient: 1 },
+    { id: "ce2_17", nom: "Physique-chimie", coefficient: 1 },
+    { id: "ce2_18", nom: "SVT", coefficient: 1 },
+    { id: "ce2_19", nom: "Technologie", coefficient: 1 },
+    { id: "ce2_20", nom: "Initiation à la production", coefficient: 1 },
+    { id: "ce2_21", nom: "Histoire-Géo", coefficient: 1 },
+    { id: "ce2_22", nom: "Éducation civique", coefficient: 1 },
+    { id: "ce2_23", nom: "Éducation morale", coefficient: 1 },
+    { id: "ce2_24", nom: "Éducation pour la vie familiale", coefficient: 1 },
+    { id: "ce2_25", nom: "Éducation pour la paix", coefficient: 1 },
+    { id: "ce2_26", nom: "Éducation pour la santé", coefficient: 1 },
+    { id: "ce2_27", nom: "Art plastique", coefficient: 1 }
+  ],
+
+  // CM1
+  "CM1": [
+    { id: "cm1_1", nom: "Dictée", coefficient: 1 },
+    { id: "cm1_2", nom: "Question", coefficient: 1 },
+    { id: "cm1_3", nom: "Écriture", coefficient: 1 },
+    { id: "cm1_4", nom: "Expression écrite", coefficient: 1 },
+    { id: "cm1_5", nom: "Orthographe", coefficient: 1 },
+    { id: "cm1_6", nom: "Grammaire", coefficient: 1 },
+    { id: "cm1_7", nom: "Vocabulaire", coefficient: 1 },
+    { id: "cm1_8", nom: "Conjugaison", coefficient: 1 },
+    { id: "cm1_9", nom: "Lecture", coefficient: 1 },
+    { id: "cm1_10", nom: "Poésie", coefficient: 1 },
+    { id: "cm1_11", nom: "Numération", coefficient: 1 },
+    { id: "cm1_12", nom: "Opération", coefficient: 1 },
+    { id: "cm1_13", nom: "Calcul rapide", coefficient: 1 },
+    { id: "cm1_14", nom: "Géométrie", coefficient: 1 },
+    { id: "cm1_15", nom: "Mesure", coefficient: 1 },
+    { id: "cm1_16", nom: "Proportionnalité", coefficient: 1 },
+    { id: "cm1_17", nom: "Problème", coefficient: 1 },
+    { id: "cm1_18", nom: "Problème pratique", coefficient: 1 },
+    { id: "cm1_19", nom: "Physique-chimie", coefficient: 1 },
+    { id: "cm1_20", nom: "SVT", coefficient: 1 },
+    { id: "cm1_21", nom: "Technologie", coefficient: 1 },
+    { id: "cm1_22", nom: "Initiation à la production", coefficient: 1 },
+    { id: "cm1_23", nom: "Histoire-Géo", coefficient: 1 },
+    { id: "cm1_24", nom: "Éducation civique", coefficient: 1 },
+    { id: "cm1_25", nom: "Éducation morale", coefficient: 1 },
+    { id: "cm1_26", nom: "Éducation pour la vie familiale", coefficient: 1 },
+    { id: "cm1_27", nom: "Éducation pour la paix", coefficient: 1 },
+    { id: "cm1_28", nom: "Éducation pour la santé", coefficient: 1 },
+    { id: "cm1_29", nom: "Art plastique", coefficient: 1 }
+  ],
+
+  // CM2
+  "CM2": [
+    { id: "cm2_1", nom: "Dictée", coefficient: 1 },
+    { id: "cm2_2", nom: "Question", coefficient: 1 },
+    { id: "cm2_3", nom: "Écriture", coefficient: 1 },
+    { id: "cm2_4", nom: "Expression écrite", coefficient: 1 },
+    { id: "cm2_5", nom: "Question de cours", coefficient: 1 },
+    { id: "cm2_6", nom: "Lecture", coefficient: 1 },
+    { id: "cm2_7", nom: "Poésie", coefficient: 1 },
+    { id: "cm2_8", nom: "Mathématiques", coefficient: 1 },
+    { id: "cm2_9", nom: "Calcul rapide", coefficient: 1 },
+    { id: "cm2_10", nom: "Physique", coefficient: 1 },
+    { id: "cm2_11", nom: "Technologie", coefficient: 1 },
+    { id: "cm2_12", nom: "Art plastique", coefficient: 1 }
+  ],
+
+  // --- 2. COLLÈGE (6ème à 3ème) ---
   "6ème": [
-    { id: "fr_6", nom: "Français", coefficient: 3, teacher: "M. Dupont" },
-    { id: "math_6", nom: "Mathématiques", coefficient: 3, teacher: "Mme. Curie" },
-    { id: "hg_6", nom: "Histoire-Géographie", coefficient: 2, teacher: "M. Michelet" },
-    { id: "svt_6", nom: "SVT", coefficient: 2 },
-    { id: "ang_6", nom: "Anglais", coefficient: 2 },
-    { id: "eps_6", nom: "EPS", coefficient: 1 }
+    { id: "c6_1", nom: "Français", coefficient: 3 },
+    { id: "c6_2", nom: "Anglais", coefficient: 2 },
+    { id: "c6_3", nom: "Mathématiques", coefficient: 3 },
+    { id: "c6_4", nom: "Physique-Chimie", coefficient: 2 },
+    { id: "c6_5", nom: "SVT", coefficient: 2 },
+    { id: "c6_6", nom: "Histoire-Géo", coefficient: 2 },
+    { id: "c6_7", nom: "ECMP", coefficient: 1 },
+    { id: "c6_8", nom: "Art plastique", coefficient: 1 },
+    { id: "c6_9", nom: "EPS", coefficient: 1 }
+  ],
+  "5ème": [
+    { id: "c5_1", nom: "Français", coefficient: 3 },
+    { id: "c5_2", nom: "Anglais", coefficient: 2 },
+    { id: "c5_3", nom: "Mathématiques", coefficient: 3 },
+    { id: "c5_4", nom: "Physique-Chimie", coefficient: 2 },
+    { id: "c5_5", nom: "SVT", coefficient: 2 },
+    { id: "c5_6", nom: "Histoire-Géo", coefficient: 2 },
+    { id: "c5_7", nom: "ECMP", coefficient: 1 },
+    { id: "c5_8", nom: "Art plastique", coefficient: 1 },
+    { id: "c5_9", nom: "EPS", coefficient: 1 }
+  ],
+  "4ème": [
+    { id: "c4_1", nom: "Français", coefficient: 3 },
+    { id: "c4_2", nom: "Anglais", coefficient: 2 },
+    { id: "c4_3", nom: "Mathématiques", coefficient: 3 },
+    { id: "c4_4", nom: "Physique-Chimie", coefficient: 2 },
+    { id: "c4_5", nom: "SVT", coefficient: 2 },
+    { id: "c4_6", nom: "Histoire-Géo", coefficient: 2 },
+    { id: "c4_7", nom: "ECMP", coefficient: 1 },
+    { id: "c4_8", nom: "Art plastique", coefficient: 1 },
+    { id: "c4_9", nom: "EPS", coefficient: 1 }
   ],
   "3ème": [
-    { id: "fr_3", nom: "Français", coefficient: 3 },
-    { id: "math_3", nom: "Mathématiques", coefficient: 3 },
-    { id: "hg_3", nom: "Histoire-Géographie", coefficient: 2 },
-    { id: "svt_3", nom: "SVT", coefficient: 2 },
-    { id: "pc_3", nom: "Physique-Chimie", coefficient: 2 },
-    { id: "ang_3", nom: "Anglais", coefficient: 2 },
-    { id: "eps_3", nom: "EPS", coefficient: 1 }
+    { id: "c3_1", nom: "Français", coefficient: 3 },
+    { id: "c3_2", nom: "Anglais", coefficient: 2 },
+    { id: "c3_3", nom: "Mathématiques", coefficient: 3 },
+    { id: "c3_4", nom: "Physique-Chimie", coefficient: 2 },
+    { id: "c3_5", nom: "SVT", coefficient: 2 },
+    { id: "c3_6", nom: "Histoire-Géo", coefficient: 2 },
+    { id: "c3_7", nom: "EPS", coefficient: 1 }
+  ],
+
+  // --- 3. LYCÉE (Seconde à Terminale) ---
+  // Seconde
+  "Seconde": [
+    { id: "sec_1", nom: "Français", coefficient: 3 },
+    { id: "sec_2", nom: "Anglais", coefficient: 2 },
+    { id: "sec_3", nom: "Espagnol", coefficient: 2 },
+    { id: "sec_4", nom: "Mathématiques", coefficient: 3 },
+    { id: "sec_5", nom: "Physique-Chimie", coefficient: 2 },
+    { id: "sec_6", nom: "SVT", coefficient: 2 },
+    { id: "sec_7", nom: "Histoire-Géo", coefficient: 2 },
+    { id: "sec_8", nom: "Philosophie", coefficient: 2 },
+    { id: "sec_9", nom: "EPS", coefficient: 1 }
+  ],
+  "Seconde A": [
+    { id: "sec_a_1", nom: "Français", coefficient: 3 },
+    { id: "sec_a_2", nom: "Anglais", coefficient: 2 },
+    { id: "sec_a_3", nom: "Espagnol", coefficient: 2 },
+    { id: "sec_a_4", nom: "Mathématiques", coefficient: 3 },
+    { id: "sec_a_5", nom: "Physique-Chimie", coefficient: 2 },
+    { id: "sec_a_6", nom: "SVT", coefficient: 2 },
+    { id: "sec_a_7", nom: "Histoire-Géo", coefficient: 2 },
+    { id: "sec_a_8", nom: "Philosophie", coefficient: 2 },
+    { id: "sec_a_9", nom: "EPS", coefficient: 1 }
+  ],
+  "Seconde C": [
+    { id: "sec_c_1", nom: "Français", coefficient: 3 },
+    { id: "sec_c_2", nom: "Anglais", coefficient: 2 },
+    { id: "sec_c_3", nom: "Espagnol", coefficient: 2 },
+    { id: "sec_c_4", nom: "Mathématiques", coefficient: 3 },
+    { id: "sec_c_5", nom: "Physique-Chimie", coefficient: 2 },
+    { id: "sec_c_6", nom: "SVT", coefficient: 2 },
+    { id: "sec_c_7", nom: "Histoire-Géo", coefficient: 2 },
+    { id: "sec_c_8", nom: "Philosophie", coefficient: 2 },
+    { id: "sec_c_9", nom: "EPS", coefficient: 1 }
+  ],
+  "Seconde D": [
+    { id: "sec_d_1", nom: "Français", coefficient: 3 },
+    { id: "sec_d_2", nom: "Anglais", coefficient: 2 },
+    { id: "sec_d_3", nom: "Espagnol", coefficient: 2 },
+    { id: "sec_d_4", nom: "Mathématiques", coefficient: 3 },
+    { id: "sec_d_5", nom: "Physique-Chimie", coefficient: 2 },
+    { id: "sec_d_6", nom: "SVT", coefficient: 2 },
+    { id: "sec_d_7", nom: "Histoire-Géo", coefficient: 2 },
+    { id: "sec_d_8", nom: "Philosophie", coefficient: 2 },
+    { id: "sec_d_9", nom: "EPS", coefficient: 1 }
+  ],
+
+  // Première
+  "Première": [
+    { id: "1ere_1", nom: "Français", coefficient: 3 },
+    { id: "1ere_2", nom: "Anglais", coefficient: 2 },
+    { id: "1ere_3", nom: "Mathématiques", coefficient: 3 },
+    { id: "1ere_4", nom: "Physique-Chimie", coefficient: 2 },
+    { id: "1ere_5", nom: "SVT", coefficient: 2 },
+    { id: "1ere_6", nom: "Histoire-Géo", coefficient: 2 },
+    { id: "1ere_7", nom: "Philosophie", coefficient: 2 },
+    { id: "1ere_8", nom: "EPS", coefficient: 1 }
+  ],
+  "Première A": [
+    { id: "1ere_a_1", nom: "Français", coefficient: 4 },
+    { id: "1ere_a_2", nom: "Anglais", coefficient: 3 },
+    { id: "1ere_a_3", nom: "Espagnol", coefficient: 3 },
+    { id: "1ere_a_4", nom: "Mathématiques", coefficient: 2 },
+    { id: "1ere_a_5", nom: "Histoire-Géo", coefficient: 3 },
+    { id: "1ere_a_6", nom: "Philosophie", coefficient: 3 },
+    { id: "1ere_a_7", nom: "EPS", coefficient: 1 }
+  ],
+  "Première C": [
+    { id: "1ere_c_1", nom: "Français", coefficient: 3 },
+    { id: "1ere_c_2", nom: "Anglais", coefficient: 2 },
+    { id: "1ere_c_3", nom: "Mathématiques", coefficient: 5 },
+    { id: "1ere_c_4", nom: "Physique-Chimie", coefficient: 4 },
+    { id: "1ere_c_5", nom: "SVT", coefficient: 2 },
+    { id: "1ere_c_6", nom: "Histoire-Géo", coefficient: 2 },
+    { id: "1ere_c_7", nom: "Philosophie", coefficient: 2 },
+    { id: "1ere_c_8", nom: "EPS", coefficient: 1 }
+  ],
+  "Première D": [
+    { id: "1ere_d_1", nom: "Français", coefficient: 3 },
+    { id: "1ere_d_2", nom: "Anglais", coefficient: 2 },
+    { id: "1ere_d_3", nom: "Mathématiques", coefficient: 4 },
+    { id: "1ere_d_4", nom: "Physique-Chimie", coefficient: 4 },
+    { id: "1ere_d_5", nom: "SVT", coefficient: 4 },
+    { id: "1ere_d_6", nom: "Histoire-Géo", coefficient: 2 },
+    { id: "1ere_d_7", nom: "Philosophie", coefficient: 2 },
+    { id: "1ere_d_8", nom: "EPS", coefficient: 1 }
+  ],
+
+  // Terminale
+  "Terminale": [
+    { id: "term_1", nom: "Français", coefficient: 3 },
+    { id: "term_2", nom: "Anglais", coefficient: 2 },
+    { id: "term_3", nom: "Mathématiques", coefficient: 3 },
+    { id: "term_4", nom: "Physique-Chimie", coefficient: 2 },
+    { id: "term_5", nom: "SVT", coefficient: 2 },
+    { id: "term_6", nom: "Histoire-Géo", coefficient: 2 },
+    { id: "term_7", nom: "Philosophie", coefficient: 3 },
+    { id: "term_8", nom: "EPS", coefficient: 1 }
   ],
   "Terminale A": [
-    { id: "philo_ta", nom: "Philosophie", coefficient: 4, teacher: "M. Kant" },
-    { id: "fr_ta", nom: "Français", coefficient: 4 },
-    { id: "ang_ta", nom: "Anglais", coefficient: 3 },
-    { id: "hg_ta", nom: "Histoire-Géographie", coefficient: 3 },
-    { id: "math_ta", nom: "Mathématiques", coefficient: 2 },
-    { id: "eps_ta", nom: "EPS", coefficient: 1 }
+    { id: "term_a_1", nom: "Français", coefficient: 4 },
+    { id: "term_a_2", nom: "Anglais", coefficient: 3 },
+    { id: "term_a_3", nom: "Espagnol", coefficient: 3 },
+    { id: "term_a_4", nom: "Mathématiques", coefficient: 2 },
+    { id: "term_a_5", nom: "Histoire-Géo", coefficient: 3 },
+    { id: "term_a_6", nom: "Philosophie", coefficient: 4 },
+    { id: "term_a_7", nom: "EPS", coefficient: 1 }
   ],
   "Terminale C": [
-    { id: "math_tc", nom: "Mathématiques", coefficient: 5, teacher: "M. Euler" },
-    { id: "pc_tc", nom: "Physique-Chimie", coefficient: 5 },
-    { id: "svt_tc", nom: "SVT", coefficient: 2 },
-    { id: "philo_tc", nom: "Philosophie", coefficient: 2 },
-    { id: "ang_tc", nom: "Anglais", coefficient: 2 },
-    { id: "hg_tc", nom: "Histoire-Géographie", coefficient: 2 },
-    { id: "eps_tc", nom: "EPS", coefficient: 1 }
+    { id: "term_c_1", nom: "Français", coefficient: 3 },
+    { id: "term_c_2", nom: "Anglais", coefficient: 2 },
+    { id: "term_c_3", nom: "Mathématiques", coefficient: 5 },
+    { id: "term_c_4", nom: "Physique-Chimie", coefficient: 5 },
+    { id: "term_c_5", nom: "SVT", coefficient: 2 },
+    { id: "term_c_6", nom: "Histoire-Géo", coefficient: 2 },
+    { id: "term_c_7", nom: "Philosophie", coefficient: 2 },
+    { id: "term_c_8", nom: "EPS", coefficient: 1 }
+  ],
+  "Terminale D": [
+    { id: "term_d_1", nom: "Français", coefficient: 3 },
+    { id: "term_d_2", nom: "Anglais", coefficient: 2 },
+    { id: "term_d_3", nom: "Mathématiques", coefficient: 4 },
+    { id: "term_d_4", nom: "Physique-Chimie", coefficient: 4 },
+    { id: "term_d_5", nom: "SVT", coefficient: 5 },
+    { id: "term_d_6", nom: "Histoire-Géo", coefficient: 2 },
+    { id: "term_d_7", nom: "Philosophie", coefficient: 2 },
+    { id: "term_d_8", nom: "EPS", coefficient: 1 }
   ]
 };
 

@@ -3,6 +3,7 @@ import { Card, Input, Button, Select, Modal } from '../../components/ui/Common';
 import { TempWeightEditor } from '../../components/ui/TempWeightEditor';
 import { useSchool } from '../../App';
 import { AppSettings, Cycle, Subject, Classroom, AppreciationRule, StaffMember, BulletinHeaderSettings } from '../../types';
+import { INITIAL_CYCLES, INITIAL_SUBJECTS } from '../../constants';
 
 
 export const Settings: React.FC = () => {
@@ -341,11 +342,33 @@ export const Settings: React.FC = () => {
 
               {activeTab === 'structure' && (
                   <div className="space-y-6 animate-fade-in">
-                      <div className="flex justify-between items-center">
-                          <h3 className="font-bold dark:text-white">Gestion des Cycles</h3>
-                          <div className="flex gap-2">
-                              <Input placeholder="Nom..." value={newCycleName} onChange={e => setNewCycleName(e.target.value)} />
-                              <Button onClick={handleAddCycle}>Créer</Button>
+                      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+                          <div>
+                              <h3 className="font-bold dark:text-white">Gestion des Cycles</h3>
+                              <p className="text-xs text-gray-500 dark:text-gray-400">Configurez les cycles, niveaux, classes et matières de votre établissement</p>
+                          </div>
+                          <div className="flex flex-wrap items-center gap-2">
+                              <Button
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() => {
+                                      if (confirm("Charger les cycles et toutes les matières officielles (Primaire, Collège, Lycée, etc.) ? Vos classes existantes seront enrichies.")) {
+                                          updateCycles({ ...INITIAL_CYCLES, ...cycles });
+                                          // Charger les matières par classe
+                                          Object.entries(INITIAL_SUBJECTS).forEach(([cls, subs]) => {
+                                              updateSubjects(cls, subs);
+                                          });
+                                          alert("Catalogue officiel des cycles et matières chargé avec succès !");
+                                      }
+                                  }}
+                                  className="border-emerald-500 text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-950/30"
+                              >
+                                  <i className="fas fa-wand-magic-sparkles mr-1.5 text-emerald-600"></i> Charger catalogue officiel
+                              </Button>
+                              <div className="flex gap-2">
+                                  <Input placeholder="Nom du cycle..." value={newCycleName} onChange={e => setNewCycleName(e.target.value)} />
+                                  <Button onClick={handleAddCycle}>Créer</Button>
+                              </div>
                           </div>
                       </div>
                       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -875,7 +898,39 @@ const SubjectsEditor: React.FC<{
 
             {/* Right: Manage Subjects */}
             <div className="w-full md:w-2/3">
-                <h4 className="font-bold mb-4 dark:text-gray-200">2. Matières pour : <span className="text-[var(--primary-color)] dark:text-white dark:drop-shadow-[0_0_5px_var(--primary-color)]">{selectedClass || '...'}</span></h4>
+                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 mb-4">
+                    <h4 className="font-bold dark:text-gray-200">2. Matières pour : <span className="text-[var(--primary-color)] dark:text-white dark:drop-shadow-[0_0_5px_var(--primary-color)]">{selectedClass || '...'}</span></h4>
+                    {selectedClass && (
+                        <div className="flex items-center gap-2">
+                            {INITIAL_SUBJECTS[selectedClass] && (
+                                <button
+                                    onClick={() => {
+                                        if (confirm(`Remplacer les matières de la classe "${selectedClass}" par le programme officiel standardisé (${INITIAL_SUBJECTS[selectedClass].length} matières) ?`)) {
+                                            onUpdateSubjects(selectedClass, INITIAL_SUBJECTS[selectedClass]);
+                                        }
+                                    }}
+                                    className="px-2.5 py-1 text-xs font-semibold rounded-lg bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-800 transition-colors shadow-sm flex items-center gap-1.5"
+                                    title="Charger le catalogue officiel pour cette classe"
+                                >
+                                    <i className="fas fa-book-bookmark text-emerald-600"></i> Programme officiel
+                                </button>
+                            )}
+                            {currentSubjects.length > 0 && (
+                                <button
+                                    onClick={() => {
+                                        if (confirm(`Effacer toutes les matières configurées pour "${selectedClass}" ?`)) {
+                                            onUpdateSubjects(selectedClass, []);
+                                        }
+                                    }}
+                                    className="px-2 py-1 text-xs font-semibold rounded-lg text-red-500 hover:bg-red-50 dark:hover:bg-red-950/30 transition-colors"
+                                    title="Vider la liste des matières"
+                                >
+                                    <i className="fas fa-trash-can mr-1"></i> Vider
+                                </button>
+                            )}
+                        </div>
+                    )}
+                </div>
                 
                 {selectedClass && (
                     <>
