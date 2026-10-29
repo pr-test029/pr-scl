@@ -240,7 +240,10 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBack, userRole }) => {
 
         if (window.confirm(confirmMsg)) {
             try {
-                await updateUserRole(profile.uid, newRole);
+                const adminCodeGenerated = await updateUserRole(profile.uid, newRole);
+                if (newRole === 'admin' && adminCodeGenerated) {
+                    alert(`✅ Rôle Administrateur accordé à ${profile.display_name || profile.email}.\n\nCode d'accès Admin : ${adminCodeGenerated}\n\nCommuniquez ce code à l'utilisateur.`);
+                }
             } catch (error) {
                 console.error("Erreur lors de la mise à jour du rôle:", error);
                 alert("Erreur lors de la mise à jour du rôle");
@@ -527,6 +530,9 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBack, userRole }) => {
                                         Rôle
                                     </th>
                                     <th className="text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider py-4 px-4">
+                                        Code Admin
+                                    </th>
+                                    <th className="text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider py-4 px-4">
                                         Date d'inscription
                                     </th>
                                     <th className="text-right text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider py-4 px-4">
@@ -576,6 +582,24 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBack, userRole }) => {
                                                 <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold ${profile.role === 'admin' ? 'bg-amber-100 text-amber-700 border border-amber-200' : 'bg-slate-100 text-slate-700 border border-slate-200'}`}>
                                                     {profile.role === 'admin' ? 'Administrateur' : 'Utilisateur'}
                                                 </span>
+                                            </td>
+                                            <td className="py-4 px-4">
+                                                {profile.role === 'admin' && profile.admin_code ? (
+                                                    <div className="flex items-center gap-2">
+                                                        <span className="font-mono text-xs bg-amber-50 dark:bg-amber-900/20 text-amber-700 dark:text-amber-300 border border-amber-200 dark:border-amber-700 px-2 py-1 rounded-lg tracking-widest select-all">
+                                                            {profile.admin_code}
+                                                        </span>
+                                                        <button
+                                                            onClick={() => { navigator.clipboard.writeText(profile.admin_code!); }}
+                                                            className="text-gray-400 hover:text-amber-600 text-xs"
+                                                            title="Copier le code"
+                                                        >
+                                                            <i className="fas fa-copy"></i>
+                                                        </button>
+                                                    </div>
+                                                ) : (
+                                                    <span className="text-xs text-gray-400 italic">—</span>
+                                                )}
                                             </td>
                                             <td className="py-4 px-4">
                                                 <span className="text-sm text-gray-500">{formatDate(profile.created_at)}</span>

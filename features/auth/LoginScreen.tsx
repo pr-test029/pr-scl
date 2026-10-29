@@ -6,7 +6,7 @@ import * as api from '../../services/firebase';
 import { getSchoolManagerPassword, checkSchoolHasManagerSecurity } from '../../services/firebase';
 import { SubscriptionPayment } from '../subscription/SubscriptionPayment';
 import { OfflineCodeVerificationForm } from '../../components/OfflineCodeVerificationForm';
-import { syncSchoolCredentialsOffline } from '../../services/offlineAuthService';
+import { syncSchoolCredentialsOffline, authenticateSchoolOffline, saveSchoolForOfflineAuth } from '../../services/offlineAuthService';
 
 interface LoginScreenProps {
     onLoginSuccess: (session: UserSession) => void;
@@ -39,12 +39,47 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess }) => {
     const [expiredSchoolId, setExpiredSchoolId] = useState<string>('');
     const [showPaymentForm, setShowPaymentForm] = useState(false);
     const [schoolLogo, setSchoolLogo] = useState<string>('');
+    // Indique si le compte Firebase actuellement connecté possède le rôle admin
+    const [currentUserIsAdmin, setCurrentUserIsAdmin] = useState(false);
 
-    // Récupérer la session école existante au chargement
+    // Récupérer la session école existante au chargement + vérifier si l'utilisateur est admin
     useEffect(() => {
         const checkExistingSchool = async () => {
             const currentSchoolId = localStorage.getItem('pr_scl_school_id');
             const currentSchoolName = localStorage.getItem('pr_scl_school_name');
+
+            // Vérifier si le compte Firebase actuel est admin
+            const checkAdminStatus = async () => {
+                try {
+                    const currentUser = api.auth.currentUser;
+                    if (currentUser) {
+                        if (currentUser.email === 'powerfulreach029@gmail.com') {
+                            setCurrentUserIsAdmin(true);
+                            return;
+                        }
+                        // Lire le profil Firestore via l'api déjà importée
+                        const profileData = await api.fetchUserProfileById(currentUser.uid).catch(() => null);
+                        if (profileData && profileData.role === 'admin') {
+                            setCurrentUserIsAdmin(true);
+                            return;
+                        }
+                    }
+                } catch {}
+                // Fallback localStorage
+                try {
+                    const localSession = localStorage.getItem('pr_scl_matricule_session');
+                    if (localSession) {
+                        const parsed = JSON.parse(localSession);
+                        if (parsed.role === 'admin' || parsed.email === 'powerfulreach029@gmail.com') {
+                            setCurrentUserIsAdmin(true);
+                            return;
+                        }
+                    }
+                } catch {}
+                setCurrentUserIsAdmin(false);
+            };
+
+            checkAdminStatus();
             
             if (currentSchoolId && currentSchoolName) {
                 setLoading(true);
@@ -99,6 +134,30 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess }) => {
         setError('');
         setLoading(true);
 
+        // --- MODE HORS LIGNE ---
+        if (!navigator.onLine) {
+            try {
+                if (!isLogin) {
+                    throw new Error("La création d'une école nécessite une connexion Internet.");
+                }
+                const offlineResult = await authenticateSchoolOffline(email, password);
+                if (offlineResult.success && offlineResult.school) {
+                    setSchoolInfo(offlineResult.school);
+                    localStorage.setItem('pr_scl_school_id', offlineResult.school.id);
+                    localStorage.setItem('pr_scl_school_name', offlineResult.school.name);
+                    setStep('role_selection');
+                } else {
+                    setError(offlineResult.error || "Impossible de se connecter hors ligne à cette école.");
+                }
+            } catch (err: any) {
+                setError(err.message || "Erreur de connexion hors ligne.");
+            } finally {
+                setLoading(false);
+            }
+            return;
+        }
+
+        // --- MODE EN LIGNE ---
         try {
             if (isLogin) {
                 await api.signIn(email, password);
@@ -126,6 +185,8 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess }) => {
                     syncSchoolCredentialsOffline(session.school_id).catch(err =>
                         console.warn('[OfflineAuth] Échec de la synchronisation après connexion école:', err)
                     );
+                    // Sauvegarder les identifiants école pour connexion hors-ligne ultérieure
+                    saveSchoolForOfflineAuth(email, password, session.school_id, session.school_name, currentUser?.email || undefined).catch(() => {});
                 }
             }
         } catch (err: any) {
@@ -142,7 +203,18 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess }) => {
 
         // Branchement Mode Hors-Ligne : formulaire de vérification de code avec hash sécurisé
         if (!navigator.onLine) {
-            setStep('offline_code_verification');
+            if (selectedRole === 'admin') {
+                // En hors-ligne, vérifier via le formulaire de code
+                setStep('offline_code_verification');
+            } else {
+                setStep('offline_code_verification');
+            }
+            return;
+        }
+
+        if (selectedRole === 'admin') {
+            // Connexion admin : vérification directe via finishLogin (la session Firebase suffit)
+            await finishLogin('admin');
             return;
         }
 
@@ -499,7 +571,10 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess }) => {
                     </div>
 
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-6">
-                        <RoleCard icon="shield-alt" title="Admin" desc="Administration globale" onClick={() => handleRoleSelect('admin')} />
+                        {/* La carte Admin est INVISIBLE pour les utilisateurs ordinaires */}
+                        {currentUserIsAdmin && (
+                            <RoleCard icon="shield-alt" title="Admin" desc="Administration globale" onClick={() => handleRoleSelect('admin')} />
+                        )}
                         <RoleCard icon="user-tie" title="Dirigeant" desc="Gestion totale" onClick={() => handleRoleSelect('dirigeant')} />
                         <RoleCard icon="building-columns" title="Directeur" desc="Gestion par cycle" onClick={() => handleRoleSelect('directeur')} />
                         <RoleCard icon="user-cog" title="Gestionnaire" desc="Inscriptions" onClick={() => handleRoleSelect('gestionnaire')} />
@@ -511,7 +586,8 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess }) => {
                         <button onClick={() => { 
                             localStorage.removeItem('pr_scl_school_id');
                             localStorage.removeItem('pr_scl_school_name');
-                            api.signOut(); 
+                            if (navigator.onLine) api.signOut();
+                            setSchoolInfo(null);
                             setStep('school_login'); 
                         }} className="text-gray-500 hover:text-red-500 font-medium">
                             <i className="fas fa-sign-out-alt mr-2"></i> Changer d'école

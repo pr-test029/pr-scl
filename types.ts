@@ -135,7 +135,7 @@ export interface AccountingSettings {
   classSpecialFees?: Record<string, number>; // Montant mensuel spécial par classe
 }
 
-export type UserRole = 'dirigeant' | 'gestionnaire' | 'eleve' | 'professeur' | 'directeur';
+export type UserRole = 'dirigeant' | 'gestionnaire' | 'eleve' | 'professeur' | 'directeur' | 'admin';
 
 export interface TeacherAssignment {
   classe: string; // Ex: "6ème" or "Terminale C"
@@ -191,6 +191,7 @@ export interface UserSession {
   matricule?: string; // Présent pour les élèves et le personnel
   allowed_academic_years: string[]; // Années scolaires que l'utilisateur peut voir
   assignedCycles?: string[]; // IDs des cycles accessibles (pour les rôles directeur et gestionnaire)
+  admin_code?: string | null; // Code unique admin
 }
 
 // Type pour les écoles (gestion admin)

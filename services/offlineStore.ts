@@ -15,7 +15,7 @@ export interface PendingMutation {
 export interface OfflineCredential {
   id: string; // ex: schoolId_matricule ou schoolId_dirigeant
   schoolId: string;
-  role: string; // 'dirigeant' | 'directeur' | 'gestionnaire' | 'professeur' | 'eleve'
+  role: string; // 'admin' | 'dirigeant' | 'directeur' | 'gestionnaire' | 'professeur' | 'eleve'
   codeHash: string; // Hash SHA-256 avec salt
   salt: string; // Salt aléatoire
   displayName: string;
@@ -24,6 +24,16 @@ export interface OfflineCredential {
   matricule?: string;
   assignedCycles?: string[];
   syncedAt: number; // Date de synchronisation
+}
+
+export interface OfflineSchoolAccount {
+  email: string; // Clé principale (lowercase)
+  schoolId: string;
+  schoolName: string;
+  passwordHash: string;
+  salt: string;
+  ownerEmail?: string;
+  savedAt: number;
 }
 
 interface PRSGSDB extends DBSchema {
@@ -52,10 +62,17 @@ interface PRSGSDB extends DBSchema {
       'by-school-role': [string, string];
     };
   };
+  offline_schools: {
+    key: string; // email (lowercase)
+    value: OfflineSchoolAccount;
+    indexes: {
+      'by-school': string;
+    };
+  };
 }
 
 const DB_NAME = 'pr_sgs_offline_db';
-const DB_VERSION = 2;
+const DB_VERSION = 3;
 
 let dbPromise: Promise<IDBPDatabase<PRSGSDB>> | null = null;
 
@@ -81,6 +98,12 @@ const getDB = () => {
           credStore.createIndex('by-school', 'schoolId');
           credStore.createIndex('by-role', 'role');
           credStore.createIndex('by-school-role', ['schoolId', 'role']);
+        }
+        if (!db.objectStoreNames.contains('offline_schools')) {
+          const schoolStore = db.createObjectStore('offline_schools', {
+            keyPath: 'email',
+          });
+          schoolStore.createIndex('by-school', 'schoolId');
         }
       },
     });
@@ -301,4 +324,40 @@ export const clearOfflineSession = (): void => {
   localStorage.removeItem('pr_scl_offline_session');
   localStorage.removeItem('pr_scl_matricule_session');
 };
+
+// --- GESTION DES COMPTES ÉCOLES ENREGISTRÉS LOCALEMENT (HORS LIGNE) ---
+
+export const saveOfflineSchoolAccount = async (account: OfflineSchoolAccount): Promise<void> => {
+  try {
+    const db = await getDB();
+    await db.put('offline_schools', {
+      ...account,
+      email: account.email.trim().toLowerCase(),
+    });
+  } catch (error) {
+    console.warn('[OfflineStore] Failed to save offline school account:', error);
+  }
+};
+
+export const getOfflineSchoolAccount = async (email: string): Promise<OfflineSchoolAccount | null> => {
+  try {
+    const db = await getDB();
+    const entry = await db.get('offline_schools', email.trim().toLowerCase());
+    return entry || null;
+  } catch (error) {
+    console.warn('[OfflineStore] Failed to get offline school account:', error);
+    return null;
+  }
+};
+
+export const getAllOfflineSchoolAccounts = async (): Promise<OfflineSchoolAccount[]> => {
+  try {
+    const db = await getDB();
+    return await db.getAll('offline_schools');
+  } catch (error) {
+    console.warn('[OfflineStore] Failed to get all offline school accounts:', error);
+    return [];
+  }
+};
+
 

@@ -4,10 +4,14 @@ import { db } from './firebase';
 import { generateSalt, hashAuthCode, verifyAuthCode } from './offlineAuthCrypto';
 import {
   OfflineCredential,
+  OfflineSchoolAccount,
   saveOfflineCredentialsBatch,
   getOfflineCredential,
   getOfflineCredentialsByRole,
   getOfflineCredentialsBySchool,
+  saveOfflineSchoolAccount,
+  getOfflineSchoolAccount,
+  getAllOfflineSchoolAccounts,
   saveOfflineSession,
   getValidOfflineSession,
   clearOfflineSession,
@@ -113,6 +117,33 @@ export const syncSchoolCredentialsOffline = async (schoolId: string): Promise<{ 
       }
     }
 
+    // 3b. Synchroniser les administrateurs pour cette école ou globalement
+    try {
+      const profilesQ = query(collection(db, 'profiles'), where('role', '==', 'admin'));
+      const adminProfilesSnap = await getDocs(profilesQ);
+      for (const adminDoc of adminProfilesSnap.docs) {
+        const adminData = adminDoc.data();
+        const adminCode = adminData.admin_code || adminData.matricule || 'ADMIN';
+        const adminSalt = generateSalt();
+        const adminHash = await hashAuthCode(adminCode, adminSalt);
+
+        credentialsToSave.push({
+          id: `${schoolId}_admin_${adminDoc.id}`,
+          schoolId,
+          role: 'admin',
+          codeHash: adminHash,
+          salt: adminSalt,
+          displayName: adminData.display_name || 'Administrateur',
+          email: adminData.email,
+          photoUrl: adminData.photo_url,
+          matricule: adminCode,
+          syncedAt: now,
+        });
+      }
+    } catch (e) {
+      console.warn('[OfflineAuth] Impossible de synchroniser les profils admin:', e);
+    }
+
     // Enregistrer en lot dans IndexedDB
     if (credentialsToSave.length > 0) {
       await saveOfflineCredentialsBatch(credentialsToSave);
@@ -148,6 +179,13 @@ export const verifyOfflineAuthCode = async (
   if (role === 'dirigeant') {
     const cred = await getOfflineCredential(`${schoolId}_role_dirigeant`);
     if (cred) candidates.push(cred);
+  } else if (role === 'admin') {
+    // Chercher les comptes admin pour cette école
+    candidates = await getOfflineCredentialsByRole(schoolId, 'admin');
+    if (candidates.length === 0) {
+      const allCreds = await getOfflineCredentialsBySchool(schoolId);
+      candidates = allCreds.filter(c => c.role === 'admin');
+    }
   } else {
     // Chercher par rôle pour cette école
     candidates = await getOfflineCredentialsByRole(schoolId, role);
@@ -221,6 +259,82 @@ export const verifyOfflineAuthCode = async (
     session,
     daysRemaining
   };
+};
+
+// Authentification hors ligne d'une école (compte école précédemment connecté)
+export const authenticateSchoolOffline = async (
+  emailInput: string,
+  passwordInput: string
+): Promise<{ success: boolean; school?: { id: string; name: string }; error?: string }> => {
+  const email = emailInput.trim().toLowerCase();
+  if (!email || !passwordInput) {
+    return { success: false, error: 'Veuillez saisir votre email et mot de passe école.' };
+  }
+
+  // 1. Chercher dans IndexedDB
+  let account = await getOfflineSchoolAccount(email);
+
+  // Fallback : chercher dans localStorage si IndexedDB n'était pas encore alimenté
+  if (!account) {
+    const rawLocal = localStorage.getItem(`pr_scl_offline_school_${email}`);
+    if (rawLocal) {
+      try {
+        account = JSON.parse(rawLocal);
+      } catch {}
+    }
+  }
+
+  if (!account) {
+    return {
+      success: false,
+      error: "Ce compte école n'a jamais été connecté sur cet appareil en mode en ligne. Veuillez vous connecter au moins une fois avec une connexion Internet."
+    };
+  }
+
+  // 2. Vérifier le mot de passe
+  const isValid = await verifyAuthCode(passwordInput, account.passwordHash, account.salt);
+  if (!isValid) {
+    return {
+      success: false,
+      error: 'Mot de passe incorrect pour cette école en mode hors-ligne.'
+    };
+  }
+
+  return {
+    success: true,
+    school: {
+      id: account.schoolId,
+      name: account.schoolName
+    }
+  };
+};
+
+// Sauvegarder les identifiants d'une école pour réutilisation hors-ligne
+export const saveSchoolForOfflineAuth = async (
+  email: string,
+  password: string,
+  schoolId: string,
+  schoolName: string,
+  ownerEmail?: string
+): Promise<void> => {
+  try {
+    const salt = generateSalt();
+    const passwordHash = await hashAuthCode(password, salt);
+    const account: OfflineSchoolAccount = {
+      email: email.trim().toLowerCase(),
+      schoolId,
+      schoolName,
+      passwordHash,
+      salt,
+      ownerEmail,
+      savedAt: Date.now()
+    };
+    await saveOfflineSchoolAccount(account);
+    // Sauvegarder également une copie légère dans localStorage par précaution
+    localStorage.setItem(`pr_scl_offline_school_${account.email}`, JSON.stringify(account));
+  } catch (err) {
+    console.warn('[OfflineAuth] Échec de la sauvegarde locale du compte école:', err);
+  }
 };
 
 export {

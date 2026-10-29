@@ -24,6 +24,8 @@ export const OfflineCodeVerificationForm: React.FC<OfflineCodeVerificationFormPr
 
   const getRoleTitle = () => {
     switch (role) {
+      case 'admin':
+        return 'Administrateur';
       case 'dirigeant':
         return 'Dirigeant';
       case 'directeur':
@@ -41,6 +43,8 @@ export const OfflineCodeVerificationForm: React.FC<OfflineCodeVerificationFormPr
 
   const getRoleIcon = () => {
     switch (role) {
+      case 'admin':
+        return 'shield-alt';
       case 'dirigeant':
         return 'user-tie';
       case 'directeur':
@@ -57,6 +61,7 @@ export const OfflineCodeVerificationForm: React.FC<OfflineCodeVerificationFormPr
   };
 
   const getPlaceholder = () => {
+    if (role === 'admin') return 'Code unique administrateur (ex: ADM-XXXXX)';
     if (role === 'dirigeant') return 'Code ou mot de passe dirigeant';
     if (role === 'eleve') return 'Matricule élève (ex: SCL-001)';
     return 'Matricule personnel (ex: ENS-001)';

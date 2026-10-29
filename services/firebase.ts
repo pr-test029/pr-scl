@@ -461,12 +461,26 @@ const ensureSchoolId = async () => {
     return session?.school_id || null;
 };
 
-export const updateUserRole = async (userId: string, newRole: string, isAnonymous: boolean = false) => {
+export const generateAdminCode = (): string => {
+    const chars = '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+    let result = '';
+    for (let i = 0; i < 6; i++) {
+        result += chars.charAt(Math.floor(Math.random() * chars.length));
+    }
+    return `ADM-${result}`;
+};
+
+export const updateUserRole = async (userId: string, newRole: string, isAnonymous: boolean = false, adminCode?: string) => {
     try {
+        const updateData: any = { role: newRole };
+        if (newRole === 'admin') {
+            updateData.admin_code = adminCode || generateAdminCode();
+        }
+
         if (isAnonymous) {
-            await setDoc(doc(db, "sessions", userId), { role: newRole }, { merge: true });
+            await setDoc(doc(db, "sessions", userId), updateData, { merge: true });
         } else {
-            await setDoc(doc(db, "profiles", userId), { role: newRole }, { merge: true });
+            await setDoc(doc(db, "profiles", userId), updateData, { merge: true });
         }
         
         // Update local cache
@@ -475,9 +489,11 @@ export const updateUserRole = async (userId: string, newRole: string, isAnonymou
             const localSession = JSON.parse(localSessionStr);
             if (localSession.user_id === userId) {
                 localSession.role = newRole;
+                if (updateData.admin_code) localSession.admin_code = updateData.admin_code;
                 localStorage.setItem('pr_scl_matricule_session', JSON.stringify(localSession));
             }
         }
+        return updateData.admin_code;
     } catch (error) {
         console.error("updateUserRole error:", error);
         throw error;
@@ -1301,6 +1317,7 @@ export interface UserProfile {
     photo_url: string | null;
     school_id: string;
     role: 'admin' | 'user';
+    admin_code?: string | null;
     created_at: Date | null;
 }
 
@@ -1318,6 +1335,7 @@ export const getAllUserProfiles = async (): Promise<UserProfile[]> => {
                 photo_url: data.photo_url || null,
                 school_id: data.school_id,
                 role: data.role || 'user',
+                admin_code: data.admin_code || null,
                 created_at: data.created_at?.toDate() || null
             } as UserProfile;
         });
@@ -1342,6 +1360,7 @@ export const subscribeToUserProfiles = (callback: (profiles: UserProfile[]) => v
                 photo_url: data.photo_url || null,
                 school_id: data.school_id,
                 role: data.role || 'user',
+                admin_code: data.admin_code || null,
                 created_at: data.created_at?.toDate() || null
             } as UserProfile;
         });
@@ -1349,6 +1368,28 @@ export const subscribeToUserProfiles = (callback: (profiles: UserProfile[]) => v
     }, (error) => {
         console.error("subscribeToUserProfiles Error:", error);
     });
+};
+
+// Récupérer un profil utilisateur par son UID
+export const fetchUserProfileById = async (uid: string): Promise<UserProfile | null> => {
+    try {
+        const profileDoc = await getDoc(doc(db, "profiles", uid));
+        if (!profileDoc.exists()) return null;
+        const data = profileDoc.data();
+        return {
+            uid: profileDoc.id,
+            email: data.email || 'N/A',
+            display_name: data.display_name || null,
+            photo_url: data.photo_url || null,
+            school_id: data.school_id,
+            role: data.role || 'user',
+            admin_code: data.admin_code || null,
+            created_at: data.created_at?.toDate() || null
+        } as UserProfile;
+    } catch (error) {
+        console.error("fetchUserProfileById Error:", error);
+        return null;
+    }
 };
 
 
