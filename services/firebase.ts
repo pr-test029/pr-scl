@@ -913,7 +913,9 @@ const saveConfig = async (key: string, data: any) => {
     });
 
     const docRef = doc(db, "app_config", docId);
-    const firestoreWrite = setDoc(docRef, configData, { merge: true }).catch(err => {
+    // Pour 'cycles' et 'subjects', ne pas faire de merge: true pour permettre la suppression de clés
+    const isFullReplace = key === 'cycles' || key === 'subjects';
+    const firestoreWrite = (isFullReplace ? setDoc(docRef, configData) : setDoc(docRef, configData, { merge: true })).catch(err => {
         console.warn(`[saveConfig] Firestore async write (${key}):`, err?.message || err);
     });
 

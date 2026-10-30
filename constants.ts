@@ -408,7 +408,8 @@ export const INITIAL_SETTINGS: AppSettings = {
   accounting: {
     classFees: {}
   },
-  staff: [] // Initialisation du personnel
+  staff: [], // Initialisation du personnel
+  staffRoles: ['professeur', 'gestionnaire', 'surveillant_general']
 };
 
 // Couleurs Hexadécimales pour les variables CSS

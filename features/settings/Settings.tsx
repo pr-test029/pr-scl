@@ -15,7 +15,7 @@ export const Settings: React.FC = () => {
   }, [settings]);
   
   const [editingCycleId, setEditingCycleId] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<'general' | 'structure' | 'accounting' | 'personnel'>('general');
+  const [activeTab, setActiveTab] = useState<'general' | 'structure' | 'accounting' | 'salaries' | 'personnel'>('general');
   const [modalTab, setModalTab] = useState<'general' | 'structure' | 'subjects' | 'bulletin'>('general');
   const [newCycleName, setNewCycleName] = useState('');
   const [newRoleName, setNewRoleName] = useState('');
@@ -34,7 +34,7 @@ export const Settings: React.FC = () => {
 
   const handleAddRole = () => {
     if (!newRoleName) return;
-    const currentRoles = localSettings.staffRoles || ['professeur', 'gestionnaire'];
+    const currentRoles = localSettings.staffRoles || ['professeur', 'gestionnaire', 'surveillant_general'];
     if (currentRoles.includes(newRoleName)) {
         alert("Ce rôle existe déjà");
         return;
@@ -47,7 +47,7 @@ export const Settings: React.FC = () => {
   };
 
   const removeRole = (role: string) => {
-    if (['professeur', 'gestionnaire'].includes(role.toLowerCase())) {
+    if (['professeur', 'gestionnaire', 'surveillant_general'].includes(role.toLowerCase())) {
         alert("Les rôles de base ne peuvent pas être supprimés.");
         return;
     }
@@ -108,6 +108,7 @@ export const Settings: React.FC = () => {
               <button onClick={() => setActiveTab('general')} className={`px-6 py-3 font-medium transition-colors whitespace-nowrap ${activeTab === 'general' ? 'border-b-2 border-[var(--primary-color)] text-[var(--primary-color)] dark:text-white dark:border-white dark:drop-shadow-[0_0_5px_white]' : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200'}`}>Général</button>
               <button onClick={() => setActiveTab('structure')} className={`px-6 py-3 font-medium transition-colors whitespace-nowrap ${activeTab === 'structure' ? 'border-b-2 border-[var(--primary-color)] text-[var(--primary-color)] dark:text-white dark:border-white dark:drop-shadow-[0_0_5px_white]' : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200'}`}>Cycles & Matières</button>
               <button onClick={() => setActiveTab('accounting')} className={`px-6 py-3 font-medium transition-colors whitespace-nowrap ${activeTab === 'accounting' ? 'border-b-2 border-[var(--primary-color)] text-[var(--primary-color)] dark:text-white dark:border-white dark:drop-shadow-[0_0_5px_white]' : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200'}`}>Comptabilité</button>
+              <button onClick={() => setActiveTab('salaries')} className={`px-6 py-3 font-medium transition-colors whitespace-nowrap ${activeTab === 'salaries' ? 'border-b-2 border-[var(--primary-color)] text-[var(--primary-color)] dark:text-white dark:border-white dark:drop-shadow-[0_0_5px_white]' : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200'}`}>Salaires</button>
               <button onClick={() => setActiveTab('personnel')} className={`px-6 py-3 font-medium transition-colors whitespace-nowrap ${activeTab === 'personnel' ? 'border-b-2 border-[var(--primary-color)] text-[var(--primary-color)] dark:text-white dark:border-white dark:drop-shadow-[0_0_5px_white]' : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200'}`}>Personnel</button>
           </div>
 
@@ -401,6 +402,19 @@ export const Settings: React.FC = () => {
                   </div>
               )}
 
+              {activeTab === 'salaries' && (
+                  <div className="animate-fade-in space-y-6">
+                    <SalarySettingsEditor
+                        cycles={cycles}
+                        settings={localSettings}
+                        onUpdateSettings={setLocalSettings}
+                    />
+                    <div className="mt-8 flex justify-end">
+                        <Button onClick={handleSaveSettings}>Enregistrer les configurations salariales</Button>
+                    </div>
+                  </div>
+              )}
+
               {activeTab === 'personnel' && (
                   <div className="space-y-8 animate-fade-in">
                       <div>
@@ -413,10 +427,12 @@ export const Settings: React.FC = () => {
                           </div>
 
                           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
-                              {(localSettings.staffRoles || ['professeur', 'gestionnaire']).map(role => (
+                              {(localSettings.staffRoles || ['professeur', 'gestionnaire', 'surveillant_general']).map(role => (
                                   <div key={role} className="flex justify-between items-center p-3 bg-gray-50 dark:bg-white/5 border dark:border-white/10 rounded-lg">
-                                      <span className="font-medium dark:text-gray-200 capitalize">{role}</span>
-                                      {!['professeur', 'gestionnaire'].includes(role.toLowerCase()) && (
+                                      <span className="font-medium dark:text-gray-200 capitalize">
+                                          {role === 'surveillant_general' ? 'Surveillant Général' : role}
+                                      </span>
+                                      {!['professeur', 'gestionnaire', 'surveillant_general'].includes(role.toLowerCase()) && (
                                           <button onClick={() => removeRole(role)} className="text-gray-400 hover:text-red-500 transition-colors">
                                               <i className="fas fa-times-circle"></i>
                                           </button>
@@ -853,6 +869,7 @@ const SubjectsEditor: React.FC<{
     const [subName, setSubName] = useState('');
     const [subCoeff, setSubCoeff] = useState(1);
     const [subTeacher, setSubTeacher] = useState('');
+    const [editingSub, setEditingSub] = useState<Subject | null>(null);
 
     const currentSubjects = allSubjects[selectedClass] || [];
 
@@ -868,6 +885,13 @@ const SubjectsEditor: React.FC<{
         setSubName('');
         setSubCoeff(1);
         setSubTeacher('');
+    };
+
+    const handleSaveEditSubject = () => {
+        if (!editingSub || !selectedClass) return;
+        const updatedList = currentSubjects.map(s => s.id === editingSub.id ? editingSub : s);
+        onUpdateSubjects(selectedClass, updatedList);
+        setEditingSub(null);
     };
 
     const removeSubject = (id: string) => {
@@ -961,9 +985,22 @@ const SubjectsEditor: React.FC<{
                                             <td className="px-4 py-2 text-center">{sub.coefficient}</td>
                                             <td className="px-4 py-2 text-gray-500 dark:text-gray-400 text-sm">{sub.teacher || '-'}</td>
                                             <td className="px-4 py-2 text-right">
-                                                <button onClick={() => removeSubject(sub.id)} className="text-red-500 hover:text-red-700 dark:text-red-400">
-                                                    <i className="fas fa-trash"></i>
-                                                </button>
+                                                <div className="flex items-center justify-end gap-2">
+                                                    <button 
+                                                        onClick={() => setEditingSub(sub)} 
+                                                        className="text-blue-500 hover:text-blue-700 dark:text-blue-400 p-1"
+                                                        title="Modifier la matière"
+                                                    >
+                                                        <i className="fas fa-edit"></i>
+                                                    </button>
+                                                    <button 
+                                                        onClick={() => removeSubject(sub.id)} 
+                                                        className="text-red-500 hover:text-red-700 dark:text-red-400 p-1"
+                                                        title="Supprimer la matière"
+                                                    >
+                                                        <i className="fas fa-trash"></i>
+                                                    </button>
+                                                </div>
                                             </td>
                                         </tr>
                                     ))}
@@ -975,6 +1012,41 @@ const SubjectsEditor: React.FC<{
                                 </tbody>
                             </table>
                         </div>
+
+                        {/* Modal d'édition de matière */}
+                        {editingSub && (
+                            <Modal
+                                isOpen={true}
+                                onClose={() => setEditingSub(null)}
+                                title={`Modifier la matière : ${editingSub.nom}`}
+                                maxWidth="max-w-md"
+                            >
+                                <div className="space-y-4">
+                                    <Input
+                                        label="Nom de la matière"
+                                        value={editingSub.nom}
+                                        onChange={e => setEditingSub({ ...editingSub, nom: e.target.value })}
+                                        autoFocus
+                                    />
+                                    <Input
+                                        label="Coefficient"
+                                        type="number"
+                                        min="1"
+                                        value={editingSub.coefficient}
+                                        onChange={e => setEditingSub({ ...editingSub, coefficient: Math.max(1, parseInt(e.target.value) || 1) })}
+                                    />
+                                    <Input
+                                        label="Enseignant (facultatif)"
+                                        value={editingSub.teacher || ''}
+                                        onChange={e => setEditingSub({ ...editingSub, teacher: e.target.value })}
+                                    />
+                                    <div className="flex justify-end gap-2 pt-4 border-t dark:border-white/10">
+                                        <Button variant="secondary" onClick={() => setEditingSub(null)}>Annuler</Button>
+                                        <Button variant="primary" onClick={handleSaveEditSubject} disabled={!editingSub.nom.trim()}>Enregistrer</Button>
+                                    </div>
+                                </div>
+                            </Modal>
+                        )}
                     </>
                 )}
             </div>
@@ -982,7 +1054,266 @@ const SubjectsEditor: React.FC<{
     );
 };
 
-// --- NEW Accounting Settings Component ---
+// --- Salary Settings Component ---
+
+const SalarySettingsEditor: React.FC<{
+    cycles: Record<string, Cycle>;
+    settings: AppSettings;
+    onUpdateSettings: (s: AppSettings) => void;
+}> = ({ cycles, settings, onUpdateSettings }) => {
+    const [selectedCycleId, setSelectedCycleId] = useState<string>(Object.keys(cycles)[0] || '');
+
+    const salarySettings = settings.salarySettings || {};
+    const classSalaries = salarySettings.classSalaries || {};
+    const roleMonthlySalaries = salarySettings.roleMonthlySalaries || {};
+    const staffCustomSalaries = salarySettings.staffCustomSalaries || {};
+
+    const cycle = cycles[selectedCycleId];
+
+    const getClassCombinations = (c: Cycle) => {
+        if (!c) return [];
+        if (c.type === 'simple') return c.levels;
+        const suffixes = c.type === 'series' ? c.series : c.specialites;
+        const combos: string[] = [];
+        c.levels.forEach(lvl => {
+            if (suffixes.length > 0) {
+                suffixes.forEach(s => combos.push(`${lvl} ${s}`));
+            } else {
+                combos.push(lvl);
+            }
+        });
+        return combos;
+    };
+
+    // Vérifie si un cycle relève du préscolaire/primaire (salaires fixes) ou collège/lycée/université (salaires horaires)
+    const isFixedCycle = (c?: Cycle) => {
+        if (!c) return false;
+        const name = (c.name || '').toLowerCase();
+        const id = (c.id || '').toLowerCase();
+        return name.includes('primaire') || name.includes('maternelle') || name.includes('préscolaire') || id.includes('primaire') || id.includes('maternelle');
+    };
+
+    const handleClassSalaryChange = (className: string, field: 'fixed' | 'hourly', value: number) => {
+        const current = classSalaries[className] || { type: isFixedCycle(cycle) ? 'fixed' : 'hourly' };
+        const updated = {
+            ...classSalaries,
+            [className]: {
+                ...current,
+                type: isFixedCycle(cycle) ? 'fixed' : 'hourly',
+                ...(field === 'fixed' ? { fixedMonthlySalary: value } : { hourlyRate: value })
+            }
+        };
+        onUpdateSettings({
+            ...settings,
+            salarySettings: {
+                ...salarySettings,
+                classSalaries: updated
+            }
+        });
+    };
+
+    const handleRoleSalaryChange = (role: string, amount: number) => {
+        const updated = { ...roleMonthlySalaries, [role]: amount };
+        onUpdateSettings({
+            ...settings,
+            salarySettings: {
+                ...salarySettings,
+                roleMonthlySalaries: updated
+            }
+        });
+    };
+
+    const handleStaffCustomSalaryChange = (staffMatricule: string, amount: number) => {
+        const updated = { ...staffCustomSalaries, [staffMatricule]: amount };
+        onUpdateSettings({
+            ...settings,
+            salarySettings: {
+                ...salarySettings,
+                staffCustomSalaries: updated
+            }
+        });
+    };
+
+    const availableRoles = useMemo(() => {
+        const base = ['gestionnaire', 'surveillant_general', 'directeur', 'professeur'];
+        const custom = settings.staffRoles || [];
+        return Array.from(new Set([...base, ...custom]));
+    }, [settings.staffRoles]);
+
+    const formatRoleLabel = (r: string) => {
+        if (r === 'surveillant_general') return 'Surveillant Général';
+        if (r === 'gestionnaire') return 'Gestionnaire';
+        if (r === 'directeur') return 'Directeur';
+        if (r === 'professeur') return 'Professeur Titulaire (Fixe mensuel)';
+        return r.charAt(0).toUpperCase() + r.slice(1);
+    };
+
+    return (
+        <div className="space-y-8">
+            {/* Section 1 : Tarifs par classe (Fixe vs Taux horaire) */}
+            <div className="bg-white dark:bg-white/5 p-6 rounded-2xl border dark:border-white/10 shadow-sm space-y-4">
+                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+                    <div>
+                        <h4 className="font-bold text-lg dark:text-white flex items-center gap-2">
+                            <i className="fas fa-chalkboard-teacher text-blue-600"></i> Grille Salariale des Enseignants par Classe
+                        </h4>
+                        <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                            Cycle Préscolaire & Primaire = Salaire fixe mensuel • Cycle Collège, Lycée & Université = Taux horaire (paiement par heure effectuée)
+                        </p>
+                    </div>
+                    {/* Choix du cycle */}
+                    <div className="flex gap-2 flex-wrap">
+                        {Object.values(cycles).map(c => (
+                            <button
+                                key={c.id}
+                                onClick={() => setSelectedCycleId(c.id)}
+                                className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all border ${
+                                    selectedCycleId === c.id
+                                        ? 'bg-blue-600 text-white border-blue-600 shadow'
+                                        : 'bg-gray-100 dark:bg-white/10 text-gray-700 dark:text-gray-300 border-gray-200 dark:border-white/10 hover:bg-gray-200'
+                                }`}
+                            >
+                                {c.name}
+                            </button>
+                        ))}
+                    </div>
+                </div>
+
+                {cycle && (
+                    <div className="mt-4">
+                        <div className="p-3 bg-blue-50 dark:bg-blue-950/30 rounded-xl mb-4 border border-blue-200 dark:border-blue-900/50 flex items-center gap-2 text-xs text-blue-800 dark:text-blue-300">
+                            <i className="fas fa-info-circle text-sm"></i>
+                            {isFixedCycle(cycle) ? (
+                                <span>Cycle <strong>{cycle.name}</strong> : Les enseignants perçoivent un <strong>salaire fixe mensuel</strong> par classe.</span>
+                            ) : (
+                                <span>Cycle <strong>{cycle.name}</strong> : Enseignants prestataires rémunérés au <strong>taux horaire (FCFA / heure)</strong>. (ex: 1h30 = tarif + 50%).</span>
+                            )}
+                        </div>
+
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                            {getClassCombinations(cycle).map(cls => {
+                                const conf = classSalaries[cls] || {};
+                                return (
+                                    <div key={cls} className="p-4 bg-gray-50 dark:bg-white/5 rounded-xl border dark:border-white/10 space-y-2">
+                                        <div className="flex justify-between items-center">
+                                            <span className="font-bold text-sm dark:text-white">{cls}</span>
+                                            <span className="text-[10px] font-semibold uppercase px-2 py-0.5 rounded bg-blue-100 text-blue-800 dark:bg-blue-900/50 dark:text-blue-200">
+                                                {isFixedCycle(cycle) ? 'Fixe mensuel' : 'Taux horaire'}
+                                            </span>
+                                        </div>
+                                        {isFixedCycle(cycle) ? (
+                                            <Input
+                                                label="Salaire fixe (FCFA / mois)"
+                                                type="number"
+                                                min="0"
+                                                value={conf.fixedMonthlySalary || ''}
+                                                onChange={e => handleClassSalaryChange(cls, 'fixed', Math.max(0, parseInt(e.target.value) || 0))}
+                                                placeholder="Ex: 80000"
+                                            />
+                                        ) : (
+                                            <Input
+                                                label="Prix par heure (FCFA / h)"
+                                                type="number"
+                                                min="0"
+                                                value={conf.hourlyRate || ''}
+                                                onChange={e => handleClassSalaryChange(cls, 'hourly', Math.max(0, parseInt(e.target.value) || 0))}
+                                                placeholder="Ex: 2500"
+                                            />
+                                        )}
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    </div>
+                )}
+            </div>
+
+            {/* Section 2 : Salaires mensuels par rôle administratif & surveillant */}
+            <div className="bg-white dark:bg-white/5 p-6 rounded-2xl border dark:border-white/10 shadow-sm space-y-4">
+                <div>
+                    <h4 className="font-bold text-lg dark:text-white flex items-center gap-2">
+                        <i className="fas fa-users-cog text-emerald-600"></i> Salaires Mensuels par Rôle du Personnel
+                    </h4>
+                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                        Définissez le salaire mensuel de base attribué à chaque fonction de l'école (Surveillant Général, Gestionnaire, etc.).
+                    </p>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                    {availableRoles.map(role => (
+                        <div key={role} className="p-4 bg-gray-50 dark:bg-white/5 rounded-xl border dark:border-white/10 space-y-2">
+                            <div className="flex justify-between items-center">
+                                <span className="font-bold text-sm dark:text-white">{formatRoleLabel(role)}</span>
+                                <span className="text-[10px] text-gray-400 font-mono">Mensuel</span>
+                            </div>
+                            <Input
+                                label="Salaire mensuel (FCFA)"
+                                type="number"
+                                min="0"
+                                value={roleMonthlySalaries[role] || ''}
+                                onChange={e => handleRoleSalaryChange(role, Math.max(0, parseInt(e.target.value) || 0))}
+                                placeholder="Ex: 100000"
+                            />
+                        </div>
+                    ))}
+                </div>
+            </div>
+
+            {/* Section 3 : Salaires personnalisés nominatifs par membre du personnel */}
+            {settings.staff && settings.staff.length > 0 && (
+                <div className="bg-white dark:bg-white/5 p-6 rounded-2xl border dark:border-white/10 shadow-sm space-y-4">
+                    <div>
+                        <h4 className="font-bold text-lg dark:text-white flex items-center gap-2">
+                            <i className="fas fa-id-card text-purple-600"></i> Rémunération Nominative Spécifique (Optionnelle)
+                        </h4>
+                        <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                            Personnalisez le salaire mensuel fixe d'un employé particulier si celui-ci diffère du salaire standard de son rôle.
+                        </p>
+                    </div>
+
+                    <div className="overflow-x-auto">
+                        <table className="w-full text-left text-xs">
+                            <thead className="bg-gray-100 dark:bg-white/10 text-gray-600 dark:text-gray-300 uppercase">
+                                <tr>
+                                    <th className="py-2.5 px-3">Matricule</th>
+                                    <th className="py-2.5 px-3">Nom & Prénom</th>
+                                    <th className="py-2.5 px-3">Rôle</th>
+                                    <th className="py-2.5 px-3">Salaire Standard Rôle</th>
+                                    <th className="py-2.5 px-3">Salaire Spécifique (FCFA)</th>
+                                </tr>
+                            </thead>
+                            <tbody className="divide-y divide-gray-200 dark:divide-white/10">
+                                {settings.staff.map(member => {
+                                    const defaultRoleSalary = roleMonthlySalaries[member.role] || 0;
+                                    const custom = staffCustomSalaries[member.matricule] || '';
+                                    return (
+                                        <tr key={member.id} className="hover:bg-gray-50 dark:hover:bg-white/5">
+                                            <td className="py-2.5 px-3 font-mono font-bold text-blue-600">{member.matricule}</td>
+                                            <td className="py-2.5 px-3 font-semibold dark:text-white">{member.prenom} {member.nom}</td>
+                                            <td className="py-2.5 px-3 capitalize text-gray-500 dark:text-gray-400">{formatRoleLabel(member.role)}</td>
+                                            <td className="py-2.5 px-3 text-gray-500">{defaultRoleSalary.toLocaleString()} FCFA</td>
+                                            <td className="py-2.5 px-3">
+                                                <input
+                                                    type="number"
+                                                    min="0"
+                                                    value={custom}
+                                                    onChange={e => handleStaffCustomSalaryChange(member.matricule, Math.max(0, parseInt(e.target.value) || 0))}
+                                                    placeholder={`Par défaut (${defaultRoleSalary.toLocaleString()} FCFA)`}
+                                                    className="w-48 px-3 py-1.5 rounded-lg border dark:border-white/10 bg-white dark:bg-white/5 text-xs font-bold"
+                                                />
+                                            </td>
+                                        </tr>
+                                    );
+                                })}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            )}
+        </div>
+    );
+};
+
 
 const AccountingSettingsEditor: React.FC<{ 
     cycles: Record<string, Cycle>; 

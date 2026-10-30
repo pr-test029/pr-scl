@@ -24,6 +24,7 @@ import { StaffProfile } from './features/staff/StaffProfile';
 import { PersonnelManagement } from './features/staff/PersonnelManagement';
 import { Evaluation } from './features/evaluation/Evaluation';
 import { AcademicResults } from './features/evaluation/AcademicResults';
+import { TimetableManagement } from './features/timetable/TimetableManagement';
 import { Button } from './components/ui/Common';
 import { HelpGuide } from './components/ui/HelpGuide';
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
@@ -234,6 +235,8 @@ const App: React.FC = () => {
     // Redirection basée sur le rôle
     if (newSession.role === 'admin') {
       setCurrentView('admin');
+    } else if (newSession.role === 'surveillant_general') {
+      setCurrentView('timetable');
     } else if (newSession.role === 'eleve') {
       setCurrentView('student_portal');
     } else if (newSession.role === 'professeur') {
@@ -395,6 +398,11 @@ const App: React.FC = () => {
     if (session) {
       if (effectiveRole === 'eleve' && currentView !== 'student_portal' && currentView !== 'profile') {
         setCurrentView('student_portal');
+      } else if (effectiveRole === 'surveillant_general') {
+        // Le surveillant général a accès à Emploi du Temps et Mon Profil
+        if (currentView !== 'timetable' && currentView !== 'profile') {
+          setCurrentView('timetable');
+        }
       } else if (effectiveRole === 'gestionnaire') {
         // Le gestionnaire a accès à Inscription, Comptabilité, Suivi & Évaluation et Mon Profil
         if (currentView !== 'inscription' && currentView !== 'accounting' && currentView !== 'evaluation' && currentView !== 'profile') {
@@ -632,11 +640,15 @@ const App: React.FC = () => {
                     <NavItem icon="fa-users-cog" label="Personnel" active={currentView === 'personnel'} collapsed={isSidebarCollapsed} onClick={() => setCurrentView('personnel')} />
                   )}
                   
+                  {['dirigeant', 'directeur', 'admin', 'surveillant_general', 'professeur'].includes(effectiveRole || '') && (
+                    <NavItem icon="fa-calendar-alt" label="Emploi du Temps" active={currentView === 'timetable'} collapsed={isSidebarCollapsed} onClick={() => setCurrentView('timetable')} />
+                  )}
+                  
                   {(effectiveRole === 'dirigeant' || effectiveRole === 'admin' || effectiveRole === 'directeur') && (
                     <NavItem icon="fa-cogs" label="Paramètres" active={currentView === 'settings'} collapsed={isSidebarCollapsed} onClick={() => setCurrentView('settings')} />
                   )}
 
-                  {effectiveRole !== 'eleve' && effectiveRole !== 'admin' && effectiveRole !== 'dirigeant' && effectiveRole !== 'directeur' && (
+                  {effectiveRole !== 'eleve' && effectiveRole !== 'admin' && effectiveRole !== 'dirigeant' && effectiveRole !== 'directeur' && effectiveRole !== 'surveillant_general' && (
                     <NavItem icon="fa-user-circle" label="Mon Profil" active={currentView === 'profile'} collapsed={isSidebarCollapsed} onClick={() => setCurrentView('profile')} />
                   )}
 
@@ -752,6 +764,7 @@ const App: React.FC = () => {
                     {currentView === 'admin' && isAdmin && <AdminPanel onBack={() => setCurrentView('dashboard')} userRole={effectiveRole} />}
                     {currentView === 'evaluation' && <Evaluation />}
                     {currentView === 'academic_results' && effectiveRole !== 'gestionnaire' && <AcademicResults />}
+                    {currentView === 'timetable' && ['dirigeant', 'directeur', 'admin', 'surveillant_general', 'professeur'].includes(effectiveRole || '') && <TimetableManagement />}
                   </div>
                 </div>
               </main>

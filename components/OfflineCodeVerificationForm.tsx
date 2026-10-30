@@ -30,6 +30,8 @@ export const OfflineCodeVerificationForm: React.FC<OfflineCodeVerificationFormPr
         return 'Dirigeant';
       case 'directeur':
         return 'Directeur de cycle';
+      case 'surveillant_general':
+        return 'Surveillant Général';
       case 'gestionnaire':
         return 'Gestionnaire';
       case 'professeur':
@@ -49,6 +51,8 @@ export const OfflineCodeVerificationForm: React.FC<OfflineCodeVerificationFormPr
         return 'user-tie';
       case 'directeur':
         return 'building-columns';
+      case 'surveillant_general':
+        return 'user-shield';
       case 'gestionnaire':
         return 'user-cog';
       case 'professeur':

@@ -22,7 +22,7 @@ export const PersonnelManagement: React.FC = () => {
     });
 
     const roles = useMemo(() => {
-        const base = ['gestionnaire', 'professeur', 'directeur', 'dirigeant'];
+        const base = ['gestionnaire', 'professeur', 'directeur', 'dirigeant', 'surveillant_general'];
         const custom = settings.staffRoles || [];
         return Array.from(new Set([...base, ...custom]));
     }, [settings.staffRoles]);

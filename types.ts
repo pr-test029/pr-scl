@@ -135,7 +135,7 @@ export interface AccountingSettings {
   classSpecialFees?: Record<string, number>; // Montant mensuel spécial par classe
 }
 
-export type UserRole = 'dirigeant' | 'gestionnaire' | 'eleve' | 'professeur' | 'directeur' | 'admin';
+export type UserRole = 'dirigeant' | 'gestionnaire' | 'eleve' | 'professeur' | 'directeur' | 'admin' | 'surveillant_general';
 
 export interface TeacherAssignment {
   classe: string; // Ex: "6ème" or "Terminale C"
@@ -159,6 +159,70 @@ export interface StaffMember {
   assignedCycles?: string[]; // IDs des cycles gérés (pour les rôles directeur et gestionnaire)
 }
 
+export interface ClassSalaryConfig {
+  type: 'fixed' | 'hourly'; // fixed pour préscolaire/primaire, hourly pour collège/lycée/université
+  fixedMonthlySalary?: number; // Pour classes préscolaire / primaire
+  hourlyRate?: number; // Prix par heure pour cette classe (ex: 3000 FCFA/h)
+}
+
+export interface SalarySettings {
+  classSalaries?: Record<string, ClassSalaryConfig>; // Clé: nom de la classe
+  roleMonthlySalaries?: Record<string, number>; // Clé: rôle (ex: surveillant_general, gestionnaire, etc.)
+  staffCustomSalaries?: Record<string, number>; // Clé: matricule ou staffId (salaire mensuel spécifique)
+}
+
+export interface TimetableSlot {
+  id: string;
+  day: 'Lundi' | 'Mardi' | 'Mercredi' | 'Jeudi' | 'Vendredi' | 'Samedi';
+  startTime: string; // Ex: "08:00"
+  endTime: string; // Ex: "10:00"
+  classe: string; // Ex: "6ème"
+  subject: string; // Ex: "Français"
+  teacherMatricule: string; // Trouvé via les assignments de classe/matière
+  teacherName: string;
+  room?: string;
+}
+
+export interface AttendanceRecord {
+  id: string; // slotId_date (YYYY-MM-DD)
+  slotId: string;
+  date: string; // YYYY-MM-DD
+  classe: string;
+  subject: string;
+  teacherMatricule: string;
+  teacherName: string;
+  present: boolean;
+  durationMinutes: number; // Ex: 90 min (1h30)
+  markedAt: string; // ISO String
+  markedBy: string; // Nom du surveillant
+}
+
+export interface GeneralNote {
+  id: string;
+  title: string;
+  content: string;
+  authorMatricule?: string;
+  authorName: string;
+  createdAt: string; // ISO
+  updatedAt: string; // ISO (dernière modification)
+}
+
+export interface SalaryPayment {
+  id: string;
+  staffId: string;
+  staffMatricule: string;
+  staffName: string;
+  role: string;
+  periodMonth: string; // YYYY-MM
+  amount: number;
+  paymentDate: string; // YYYY-MM-DD
+  paymentMethod: 'cash' | 'transfer' | 'cheque' | 'mobile_money';
+  notes?: string;
+  recordedBy: string;
+  recordedAt: string;
+  hoursWorked?: number; // Pour les prestataires
+}
+
 export interface AppSettings {
   appName: string;
   currentAcademicYear: string; // Année scolaire par défaut (ex: '2025-2026')
@@ -168,13 +232,17 @@ export interface AppSettings {
   logo?: string;
   bulletin: BulletinSettings;
   accounting: AccountingSettings;
+  salarySettings?: SalarySettings; // Configuration salariale (tarifs horaires par classe et salaires fixes)
+  timetable?: TimetableSlot[]; // Créneaux d'emploi du temps
+  attendance?: AttendanceRecord[]; // Pointages de présence
+  notes?: GeneralNote[]; // Notes et remarques du surveillant
   staff: StaffMember[]; // Liste du personnel de l'école
   staffRoles?: string[]; // Liste des rôles personnalisés (ex: Surveillant, Comptable, etc.)
   gradeWeights?: Record<string, { devoir: number; composition: number }>;
   managerPassword?: string; // Mot de passe pour le rôle Dirigeant
 }
 
-export type View = 'dashboard' | 'students' | 'inscription' | 'settings' | 'admin' | 'accounting' | 'student_portal' | 'personnel' | 'profile' | 'evaluation' | 'academic_results';
+export type View = 'dashboard' | 'students' | 'inscription' | 'settings' | 'admin' | 'accounting' | 'student_portal' | 'personnel' | 'profile' | 'evaluation' | 'academic_results' | 'timetable';
 
 // Nouveau type pour la session utilisateur
 export interface UserSession {

@@ -300,10 +300,11 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess }) => {
                 
                 // Verify role match
                 if (role === 'eleve' && result.type !== 'eleve') throw new Error("Ce matricule n'appartient pas à un élève.");
-                if ((role === 'professeur' || role === 'gestionnaire' || role === 'directeur') && result.type !== 'staff') throw new Error("Ce matricule n'appartient pas au personnel.");
+                if ((role === 'professeur' || role === 'gestionnaire' || role === 'directeur' || role === 'surveillant_general') && result.type !== 'staff') throw new Error("Ce matricule n'appartient pas au personnel.");
                 if (role === 'gestionnaire' && result.data.role !== 'gestionnaire') throw new Error("Ce matricule n'appartient pas à un gestionnaire.");
                 if (role === 'professeur' && result.data.role !== 'professeur') throw new Error("Ce matricule n'appartient pas à un professeur.");
                 if (role === 'directeur' && result.data.role !== 'directeur') throw new Error("Ce matricule n'appartient pas à un directeur.");
+                if (role === 'surveillant_general' && result.data.role !== 'surveillant_general') throw new Error("Ce matricule n'appartient pas à un surveillant général.");
 
                 setIdentity(result);
                 setShowConfirmation(true);
@@ -570,7 +571,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess }) => {
                         <p className="text-gray-500 mt-2">Sélectionnez votre rôle pour continuer</p>
                     </div>
 
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-6">
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-7 gap-6">
                         {/* La carte Admin est INVISIBLE pour les utilisateurs ordinaires */}
                         {currentUserIsAdmin && (
                             <RoleCard icon="shield-alt" title="Admin" desc="Administration globale" onClick={() => handleRoleSelect('admin')} />
@@ -578,6 +579,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess }) => {
                         <RoleCard icon="user-tie" title="Dirigeant" desc="Gestion totale" onClick={() => handleRoleSelect('dirigeant')} />
                         <RoleCard icon="building-columns" title="Directeur" desc="Gestion par cycle" onClick={() => handleRoleSelect('directeur')} />
                         <RoleCard icon="user-cog" title="Gestionnaire" desc="Inscriptions" onClick={() => handleRoleSelect('gestionnaire')} />
+                        <RoleCard icon="user-shield" title="Surveillant" desc="Emploi du temps" onClick={() => handleRoleSelect('surveillant_general')} />
                         <RoleCard icon="chalkboard-teacher" title="Professeur" desc="Suivi classes" onClick={() => handleRoleSelect('professeur')} />
                         <RoleCard icon="user-graduate" title="Élève" desc="Espace élève" onClick={() => handleRoleSelect('eleve')} />
                     </div>

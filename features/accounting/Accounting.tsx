@@ -5,12 +5,13 @@ import { useSchool } from '../../App';
 import { Student, Payment, Expense } from '../../types';
 import { ReceiptGenerator, ReceiptData, ReceiptGeneratorRef } from './ReceiptGenerator';
 import { DetailedAccounting } from './DetailedAccounting';
+import { SalaryManagement } from './SalaryManagement';
 
 export const Accounting: React.FC = () => {
-    const { students, payments, expenses, cycles, settings, addPayment, addExpense, deleteExpense, session, selectedAcademicYear, updateStudent } = useSchool();
+    const { students, payments, expenses, cycles, settings, addPayment, addExpense, session, selectedAcademicYear, updateStudent } = useSchool();
     
     // Tabs
-    const [activeTab, setActiveTab] = useState<'encaissements' | 'historique_encaissements' | 'decaissements' | 'analyses'>('encaissements');
+    const [activeTab, setActiveTab] = useState<'encaissements' | 'historique_encaissements' | 'decaissements' | 'salaires' | 'analyses'>('encaissements');
 
     // -- ENCAISSEMENTS STATE --
     const [searchQuery, setSearchQuery] = useState('');
@@ -346,6 +347,12 @@ export const Accounting: React.FC = () => {
                 <i className="fas fa-file-invoice-dollar mr-2"></i> Décaissements (Dépenses)
               </button>
               <button
+                className={`px-6 py-2 rounded-xl font-bold transition-all ${activeTab === 'salaires' ? 'bg-emerald-600 text-white shadow-lg shadow-emerald-500/30' : 'bg-white dark:bg-white/5 text-gray-600 dark:text-gray-300'}`}
+                onClick={() => setActiveTab('salaires')}
+              >
+                <i className="fas fa-money-check-alt mr-2"></i> Salaires & Rémunérations
+              </button>
+              <button
                 className={`px-6 py-2 rounded-xl font-bold transition-all ${activeTab === 'analyses' ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-500/30' : 'bg-white dark:bg-white/5 text-gray-600 dark:text-gray-300'}`}
                 onClick={() => setActiveTab('analyses')}
               >
@@ -584,17 +591,6 @@ export const Accounting: React.FC = () => {
                                         >
                                             <i className="fas fa-file-pdf"></i>
                                         </button>
-                                        <button 
-                                            onClick={() => {
-                                                if(confirm('Supprimer cette dépense ?')) {
-                                                    deleteExpense(e.id);
-                                                }
-                                            }}
-                                            className="w-10 h-10 flex items-center justify-center bg-red-50 hover:bg-red-100 text-red-500 rounded-lg transition-colors"
-                                            title="Supprimer"
-                                        >
-                                            <i className="fas fa-trash"></i>
-                                        </button>
                                     </div>
                                 </div>
                             ))}
@@ -607,6 +603,11 @@ export const Accounting: React.FC = () => {
                         </div>
                     </Card>
                 </div>
+            )}
+
+            {/* TAB CONTENT: SALAIRES ET RÉMUNÉRATIONS */}
+            {activeTab === 'salaires' && (
+                <SalaryManagement />
             )}
 
             {/* TAB CONTENT: ANALYSES & STATISTIQUES AVANCÉES (4ème ONGLET) */}
