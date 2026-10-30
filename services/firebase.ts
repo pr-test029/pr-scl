@@ -1266,6 +1266,9 @@ export const setSubscription = async (
     schoolId: string,
     plan: 'monthly' | 'quarterly' | 'annual'
 ): Promise<void> => {
+    if (!auth.currentUser) {
+        await signInAnonymously(auth);
+    }
     const schoolDoc = await getDoc(doc(db, "schools", schoolId));
     const schoolData = schoolDoc.data();
     

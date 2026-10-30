@@ -97,7 +97,11 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBack, userRole }) => {
             alert(`Abonnement de ${months} mois accordé avec succès à "${school.name}".`);
         } catch (error: any) {
             console.error('Erreur lors de la mise à jour:', error);
-            alert(`Erreur lors de l'octroi de l'abonnement: ${error?.message || error}`);
+            let msg = error?.message || error;
+            if (typeof msg === 'string' && (msg.includes('Missing or insufficient permissions') || msg.includes('permission-denied'))) {
+                msg = "Permissions Firestore insuffisantes. Veuillez publier les règles 'firestore.rules' dans la console Firebase (Firestore Database > Onglet Règles > Publier).";
+            }
+            alert(`Erreur lors de l'octroi de l'abonnement: ${msg}`);
         } finally {
             setProcessing(false);
         }
