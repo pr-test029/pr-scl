@@ -5,6 +5,19 @@ import { HelpGuide } from '../../components/ui/HelpGuide';
 import { useSchool } from '../../App';
 import { AppSettings, Cycle, StaffMember, TeacherAssignment, Subject } from '../../types';
 
+export const formatRoleLabel = (role: string) => {
+    switch (role) {
+        case 'directeur': return 'Direction';
+        case 'gestionnaire': return 'Gestion';
+        case 'surveillant_general': return 'Surveillance';
+        case 'professeur': return 'Enseignement';
+        case 'dirigeant': return 'Direction Générale';
+        case 'admin': return 'Administration';
+        case 'eleve': return 'Élève';
+        default: return role.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+    }
+};
+
 export const PersonnelManagement: React.FC = () => {
     const { settings, updateSettings, cycles, subjects, session } = useSchool();
     const [activeTab, setActiveTab] = useState<'liste' | 'inscription'>('liste');
@@ -312,9 +325,10 @@ export const PersonnelManagement: React.FC = () => {
                                                             s.role === 'gestionnaire' ? 'bg-amber-100 text-amber-700' : 
                                                             s.role === 'professeur' ? 'bg-indigo-100 text-indigo-700' : 
                                                             s.role === 'directeur' ? 'bg-purple-100 text-purple-700' :
+                                                            s.role === 'surveillant_general' ? 'bg-blue-100 text-blue-700' :
                                                             'bg-emerald-100 text-emerald-700'
                                                         }`}>
-                                                            {s.role}
+                                                            {formatRoleLabel(s.role)}
                                                         </span>
                                                         {(s.role === 'directeur' || s.role === 'gestionnaire') && s.assignedCycles && s.assignedCycles.length > 0 && (
                                                             <div className="flex flex-wrap gap-1.5">
@@ -480,7 +494,7 @@ const StaffForm: React.FC<{
                     label="Rôle"
                     value={staff.role}
                     onChange={e => setStaff({...staff, role: e.target.value})}
-                    options={roles.map(r => ({ value: r, label: r.charAt(0).toUpperCase() + r.slice(1) }))}
+                    options={roles.map(r => ({ value: r, label: formatRoleLabel(r) }))}
                 />
                 <Input label="Date de Naissance" type="date" value={staff.dateNaissance || ''} onChange={e => setStaff({...staff, dateNaissance: e.target.value})} />
                 <Input label="Nationalité" value={staff.nationalite || ''} onChange={e => setStaff({...staff, nationalite: e.target.value})} />

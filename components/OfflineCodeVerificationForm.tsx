@@ -25,17 +25,17 @@ export const OfflineCodeVerificationForm: React.FC<OfflineCodeVerificationFormPr
   const getRoleTitle = () => {
     switch (role) {
       case 'admin':
-        return 'Administrateur';
+        return 'Administration';
       case 'dirigeant':
-        return 'Dirigeant';
+        return 'Direction Générale';
       case 'directeur':
-        return 'Directeur de cycle';
+        return 'Direction';
       case 'surveillant_general':
-        return 'Surveillant Général';
+        return 'Surveillance';
       case 'gestionnaire':
-        return 'Gestionnaire';
+        return 'Gestion';
       case 'professeur':
-        return 'Professeur';
+        return 'Enseignement';
       case 'eleve':
         return 'Élève';
       default:

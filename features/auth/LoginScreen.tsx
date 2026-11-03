@@ -14,6 +14,19 @@ interface LoginScreenProps {
 
 type AuthStep = 'school_login' | 'role_selection' | 'identity_verification' | 'manager_password' | 'offline_code_verification';
 
+export const getRoleDisplayName = (r?: string) => {
+    switch (r) {
+        case 'dirigeant': return 'Direction Générale';
+        case 'directeur': return 'Direction';
+        case 'gestionnaire': return 'Gestion';
+        case 'surveillant_general': return 'Surveillance';
+        case 'professeur': return 'Enseignement';
+        case 'eleve': return 'Élève';
+        case 'admin': return 'Administration';
+        default: return r || '';
+    }
+};
+
 export const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess }) => {
     const [step, setStep] = useState<AuthStep>('school_login');
     const [role, setRole] = useState<UserRole | null>(null);
@@ -574,13 +587,13 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess }) => {
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-7 gap-6">
                         {/* La carte Admin est INVISIBLE pour les utilisateurs ordinaires */}
                         {currentUserIsAdmin && (
-                            <RoleCard icon="shield-alt" title="Admin" desc="Administration globale" onClick={() => handleRoleSelect('admin')} />
+                            <RoleCard icon="shield-alt" title="Administration" desc="Administration globale" onClick={() => handleRoleSelect('admin')} />
                         )}
-                        <RoleCard icon="user-tie" title="Dirigeant" desc="Gestion totale" onClick={() => handleRoleSelect('dirigeant')} />
-                        <RoleCard icon="building-columns" title="Directeur" desc="Gestion par cycle" onClick={() => handleRoleSelect('directeur')} />
-                        <RoleCard icon="user-cog" title="Gestionnaire" desc="Inscriptions" onClick={() => handleRoleSelect('gestionnaire')} />
-                        <RoleCard icon="user-shield" title="Surveillant" desc="Emploi du temps" onClick={() => handleRoleSelect('surveillant_general')} />
-                        <RoleCard icon="chalkboard-teacher" title="Professeur" desc="Suivi classes" onClick={() => handleRoleSelect('professeur')} />
+                        <RoleCard icon="user-tie" title="Direction Générale" desc="Gestion totale" onClick={() => handleRoleSelect('dirigeant')} />
+                        <RoleCard icon="building-columns" title="Direction" desc="Gestion par cycle" onClick={() => handleRoleSelect('directeur')} />
+                        <RoleCard icon="user-cog" title="Gestion" desc="Inscriptions & Scolarité" onClick={() => handleRoleSelect('gestionnaire')} />
+                        <RoleCard icon="user-shield" title="Surveillance" desc="Emploi du temps & Présences" onClick={() => handleRoleSelect('surveillant_general')} />
+                        <RoleCard icon="chalkboard-teacher" title="Enseignement" desc="Suivi classes & Notes" onClick={() => handleRoleSelect('professeur')} />
                         <RoleCard icon="user-graduate" title="Élève" desc="Espace élève" onClick={() => handleRoleSelect('eleve')} />
                     </div>
 
@@ -632,9 +645,9 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess }) => {
                             <div className="w-20 h-20 bg-amber-100 dark:bg-amber-900/30 text-amber-600 rounded-full flex items-center justify-center text-3xl mx-auto mb-4 shadow-lg">
                                 <i className="fas fa-key"></i>
                             </div>
-                            <h2 className="text-2xl font-black dark:text-white">Accès Dirigeant</h2>
+                            <h2 className="text-2xl font-black dark:text-white">Accès Direction Générale</h2>
                             <p className="text-gray-500 mt-1 text-sm">
-                                <span className="font-bold text-amber-600">{schoolInfo?.name}</span> — Saisissez votre mot de passe administrateur ou votre matricule dirigeant
+                                <span className="font-bold text-amber-600">{schoolInfo?.name}</span> — Saisissez votre mot de passe administrateur ou votre matricule de Direction Générale
                             </p>
                         </div>
 
@@ -683,7 +696,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess }) => {
                         <div className="w-16 h-16 bg-blue-100 dark:bg-blue-900/30 text-blue-600 rounded-full flex items-center justify-center text-2xl mx-auto mb-4">
                             <i className={`fas fa-${role === 'eleve' ? 'user-graduate' : 'user-cog'}`}></i>
                         </div>
-                        <h2 className="text-2xl font-bold dark:text-white capitalize">Accès {role}</h2>
+                        <h2 className="text-2xl font-bold dark:text-white">Accès {getRoleDisplayName(role)}</h2>
                         <p className="text-gray-500">Veuillez vous identifier</p>
                     </div>
 

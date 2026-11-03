@@ -243,6 +243,8 @@ const App: React.FC = () => {
       setCurrentView('students');
     } else if (newSession.role === 'gestionnaire') {
       setCurrentView('inscription');
+    } else if (newSession.role === 'directeur') {
+      setCurrentView('students');
     } else {
       setCurrentView('dashboard');
     }
@@ -407,6 +409,11 @@ const App: React.FC = () => {
         // Le gestionnaire a accès à Inscription, Comptabilité, Suivi & Évaluation et Mon Profil
         if (currentView !== 'inscription' && currentView !== 'accounting' && currentView !== 'evaluation' && currentView !== 'profile') {
           setCurrentView('accounting');
+        }
+      } else if (effectiveRole === 'directeur') {
+        // La Direction n'a pas accès au tableau de bord
+        if (currentView === 'dashboard') {
+          setCurrentView('students');
         }
       }
     }
@@ -612,7 +619,7 @@ const App: React.FC = () => {
                     <NavItem icon="fa-user-graduate" label="Mon Portail" active={currentView === 'student_portal'} collapsed={isSidebarCollapsed} onClick={() => setCurrentView('student_portal')} />
                   )}
                   
-                  {(effectiveRole === 'dirigeant' || effectiveRole === 'directeur' || effectiveRole === 'admin') && (
+                  {(effectiveRole === 'dirigeant' || effectiveRole === 'admin') && (
                     <NavItem icon="fa-chart-pie" label="Tableau de bord" active={currentView === 'dashboard'} collapsed={isSidebarCollapsed} onClick={() => setCurrentView('dashboard')} />
                   )}
                   
@@ -751,7 +758,7 @@ const App: React.FC = () => {
                   )}
 
                   <div className="animate-fade-in" style={{ animationDelay: '0.1s' }}>
-                    {currentView === 'dashboard' && (effectiveRole === 'dirigeant' || effectiveRole === 'directeur' || effectiveRole === 'admin') && <Dashboard />}
+                    {currentView === 'dashboard' && (effectiveRole === 'dirigeant' || effectiveRole === 'admin') && <Dashboard />}
                     {currentView === 'inscription' && (
                       <StudentForm onSuccess={() => setCurrentView('accounting')} />
                     )}

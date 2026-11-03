@@ -27,7 +27,13 @@ export interface Student {
   salle?: string; // Nom ou ID de la salle attribuée à l'élève
   isSpecial?: boolean; // Élève à statut spécial (tarif mensuel personnalisé)
   specialMonthlyFee?: number; // Montant mensuel spécial optionnel spécifique à l'élève
+  customMonthlyFee?: number; // Montant mensuel personnalisé spécifique à cet élève (montant extra)
 }
+
+export const SCHOOL_MONTHS = [
+  'Octobre', 'Novembre', 'Décembre', 'Janvier', 'Février', 'Mars', 'Avril', 'Mai', 'Juin'
+] as const;
+export type SchoolMonth = typeof SCHOOL_MONTHS[number];
 
 export interface Payment {
   id: string;
@@ -38,6 +44,7 @@ export interface Payment {
   method: 'cash' | 'card' | 'wave' | 'mobile_money' | 'check';
   notes?: string;
   type?: 'tuition' | 'registration' | 're_registration' | 'other'; // Type de paiement (scolarité vs inscription)
+  targetMonths?: string[]; // Mois scolaires auxquels ce versement est attribué
   recorded_by?: string; // UID de celui qui a encaissé
   recorded_by_name?: string; // Nom de celui qui a encaissé
 }

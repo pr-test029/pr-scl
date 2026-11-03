@@ -22,6 +22,12 @@ export const Accounting: React.FC = () => {
     const [paymentAmount, setPaymentAmount] = useState<number>(0);
     const [paymentMethod, setPaymentMethod] = useState<Payment['method']>('cash');
     const [paymentNotes, setPaymentNotes] = useState('');
+    const [selectedTargetMonths, setSelectedTargetMonths] = useState<string[]>([]);
+
+    // -- MONTANT MENSUEL EXTRA / PERSONNALISÉ --
+    const [customFeeModalOpen, setCustomFeeModalOpen] = useState(false);
+    const [customFeeStudent, setCustomFeeStudent] = useState<Student | null>(null);
+    const [customFeeInput, setCustomFeeInput] = useState<string>('');
     // -- ENCAISSEMENT DIVERS STATE --
     const [isOtherPaymentModalOpen, setIsOtherPaymentModalOpen] = useState(false);
     const [otherPaymentAmount, setOtherPaymentAmount] = useState<number>(0);
@@ -49,6 +55,10 @@ export const Accounting: React.FC = () => {
     }, [students, searchQuery, selectedCycle, selectedClass]);
 
     const getStudentMonthlyFee = (student: Student) => {
+        // Priorité 1 : Montant mensuel personnalisé spécifique à cet élève (montant extra)
+        if (student.customMonthlyFee !== undefined && student.customMonthlyFee !== null && student.customMonthlyFee >= 0) {
+            return student.customMonthlyFee;
+        }
         const fullClassName = student.serie ? `${student.classe} ${student.serie}` : student.classe;
         if (student.isSpecial) {
             if (student.specialMonthlyFee !== undefined && student.specialMonthlyFee >= 0) {
@@ -158,6 +168,76 @@ export const Accounting: React.FC = () => {
         };
     }, [currentStudent, payments, settings.accounting]);
 
+    const SCHOOL_MONTHS_ORDER = useMemo(() => [
+        'Octobre', 'Novembre', 'Décembre', 'Janvier', 'Février', 'Mars', 'Avril', 'Mai', 'Juin'
+    ], []);
+
+    // Décomposition mensuelle des paiements de l'élève (prend en compte les mois ciblés précisément)
+    const currentStudentMonthsBreakdown = useMemo(() => {
+        if (!currentStudent) return [];
+        const monthlyFee = currentStudentStats.monthlyFee;
+        const monthPaidMap: Record<string, number> = {};
+        SCHOOL_MONTHS_ORDER.forEach(m => {
+            monthPaidMap[m] = 0;
+        });
+
+        const tuitionPayments = payments.filter(p => {
+            if (p.studentId !== currentStudent.id) return false;
+            if (p.type === 'registration' || p.type === 're_registration') return false;
+            if (p.notes && /inscription/i.test(p.notes)) return false;
+            return true;
+        });
+
+        // 1. Allouer les paiements avec targetMonths explicites
+        const unallocatedAmounts: number[] = [];
+        tuitionPayments.forEach(p => {
+            const targeted = p.targetMonths && p.targetMonths.length > 0
+                ? p.targetMonths.filter(m => SCHOOL_MONTHS_ORDER.includes(m))
+                : [];
+
+            if (targeted.length > 0) {
+                const portion = Math.round(p.amount / targeted.length);
+                targeted.forEach(m => {
+                    monthPaidMap[m] = (monthPaidMap[m] || 0) + portion;
+                });
+            } else {
+                unallocatedAmounts.push(p.amount);
+            }
+        });
+
+        // 2. Allouer les paiements sans mois ciblé aux mois non encore soldés dans l'ordre chronologique
+        let pool = unallocatedAmounts.reduce((acc, a) => acc + a, 0);
+        if (pool > 0 && monthlyFee > 0) {
+            for (const m of SCHOOL_MONTHS_ORDER) {
+                const currentPaid = monthPaidMap[m] || 0;
+                const needed = Math.max(0, monthlyFee - currentPaid);
+                if (needed > 0) {
+                    const add = Math.min(pool, needed);
+                    monthPaidMap[m] += add;
+                    pool -= add;
+                    if (pool <= 0) break;
+                }
+            }
+            if (pool > 0) {
+                const last = SCHOOL_MONTHS_ORDER[SCHOOL_MONTHS_ORDER.length - 1];
+                monthPaidMap[last] += pool;
+            }
+        }
+
+        return SCHOOL_MONTHS_ORDER.map((name, idx) => {
+            const paid = monthPaidMap[name] || 0;
+            const pct = monthlyFee > 0 ? Math.min(100, Math.round((paid / monthlyFee) * 100)) : 0;
+            return {
+                id: idx + 1,
+                name,
+                paidAmount: paid,
+                monthlyFee,
+                pct,
+                isCompleted: monthlyFee > 0 ? paid >= monthlyFee : false
+            };
+        });
+    }, [currentStudent, currentStudentStats.monthlyFee, payments, SCHOOL_MONTHS_ORDER]);
+
     const handleRecordPayment = () => {
         if (!currentStudent || paymentAmount <= 0) return;
         
@@ -168,6 +248,9 @@ export const Accounting: React.FC = () => {
             return;
         }
 
+        const monthsText = selectedTargetMonths.length > 0 ? ` [Mois: ${selectedTargetMonths.join(', ')}]` : '';
+        const finalNotes = paymentNotes ? `${paymentNotes}${monthsText}` : (selectedTargetMonths.length > 0 ? `Frais scolarité : ${selectedTargetMonths.join(', ')}` : '');
+
         const p: Payment = {
             id: Date.now().toString(),
             studentId: currentStudent.id,
@@ -175,7 +258,8 @@ export const Accounting: React.FC = () => {
             amount: paymentAmount,
             date: new Date().toISOString(),
             method: paymentMethod,
-            notes: paymentNotes,
+            notes: finalNotes,
+            targetMonths: selectedTargetMonths.length > 0 ? selectedTargetMonths : undefined,
             recorded_by: session?.user_id,
             recorded_by_name: session?.display_name || 'Inconnu'
         };
@@ -183,7 +267,18 @@ export const Accounting: React.FC = () => {
         addPayment(p);
         setPaymentAmount(0);
         setPaymentNotes('');
+        setSelectedTargetMonths([]);
         alert("Paiement enregistré avec succès !");
+    };
+
+    const handleSaveCustomFee = (student: Student, newFee: number | undefined) => {
+        const updatedStudent: Student = {
+            ...student,
+            customMonthlyFee: newFee
+        };
+        updateStudent(updatedStudent);
+        setCustomFeeModalOpen(false);
+        setCustomFeeStudent(null);
     };
 
     const handleGenerateReceipt = (type: 'ENCAISSEMENT' | 'DÉCAISSEMENT', item: Payment | Expense, student?: Student) => {
@@ -430,7 +525,14 @@ export const Accounting: React.FC = () => {
                                                 <td className="px-4 py-4 whitespace-nowrap">
                                                     <div className="flex items-center gap-3">
                                                         {s.photo ? <img src={s.photo} className="w-8 h-8 rounded-full object-cover" /> : <div className="w-8 h-8 rounded-full bg-gray-200 dark:bg-gray-700 flex items-center justify-center text-xs font-bold">{s.nom[0]}</div>}
-                                                        <span className="text-sm font-medium dark:text-white">{s.nom} {s.prenom}</span>
+                                                        <div>
+                                                            <div className="text-sm font-medium dark:text-white">{s.nom} {s.prenom}</div>
+                                                            {s.customMonthlyFee !== undefined && s.customMonthlyFee >= 0 && (
+                                                                <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] bg-indigo-100 text-indigo-700 dark:bg-indigo-950/60 dark:text-indigo-300 font-black border border-indigo-200 dark:border-indigo-800/40">
+                                                                    <i className="fas fa-coins text-[8px]"></i> Extra: {s.customMonthlyFee.toLocaleString()} F/m
+                                                                </span>
+                                                            )}
+                                                        </div>
                                                     </div>
                                                 </td>
                                                 <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-600 dark:text-gray-300">
@@ -457,6 +559,24 @@ export const Accounting: React.FC = () => {
                                                     <button
                                                         type="button"
                                                         onClick={() => {
+                                                            setCustomFeeStudent(s);
+                                                            const monthly = getStudentMonthlyFee(s);
+                                                            setCustomFeeInput(s.customMonthlyFee !== undefined ? s.customMonthlyFee.toString() : monthly.toString());
+                                                            setCustomFeeModalOpen(true);
+                                                        }}
+                                                        className={`px-2.5 py-1.5 rounded-lg text-xs font-bold transition-all border ${
+                                                            s.customMonthlyFee !== undefined
+                                                                ? 'bg-indigo-100 text-indigo-800 border-indigo-300 dark:bg-indigo-900/40 dark:text-indigo-300 dark:border-indigo-700 hover:bg-indigo-200 shadow-sm'
+                                                                : 'bg-gray-100 text-gray-600 border-gray-200 dark:bg-white/5 dark:text-gray-300 dark:border-white/10 hover:bg-indigo-50 hover:text-indigo-600'
+                                                        }`}
+                                                        title={s.customMonthlyFee !== undefined ? `Tarif personnalisé : ${s.customMonthlyFee.toLocaleString()} FCFA/mois` : "Définir un montant mensuel personnalisé (Extra)"}
+                                                    >
+                                                        <i className="fas fa-coins mr-1 text-indigo-500"></i>
+                                                        {s.customMonthlyFee !== undefined ? `${s.customMonthlyFee.toLocaleString()} F/m` : 'Tarif Extra'}
+                                                    </button>
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => {
                                                             const willBeSpecial = !s.isSpecial;
                                                             const updatedStudent = { ...s, isSpecial: willBeSpecial };
                                                             updateStudent(updatedStudent);
@@ -474,7 +594,7 @@ export const Accounting: React.FC = () => {
                                                     <Button 
                                                         size="sm" 
                                                         variant={remaining === 0 && annual > 0 ? "secondary" : "primary"}
-                                                        onClick={() => { setSelectedStudent(s); setIsPaymentModalOpen(true); }}
+                                                        onClick={() => { setSelectedStudent(s); setSelectedTargetMonths([]); setIsPaymentModalOpen(true); }}
                                                     >
                                                         <i className="fas fa-receipt mr-2"></i> Gérer
                                                     </Button>
@@ -663,11 +783,34 @@ export const Accounting: React.FC = () => {
                                             {currentStudent.isSpecial ? 'Activé (Tarif Spécial)' : 'Désactivé (Tarif Standard)'}
                                         </button>
                                     </div>
-                                    <div className="flex justify-between text-sm">
-                                        <span className="text-gray-500 dark:text-gray-400">{currentStudent.isSpecial ? 'Mensualité Spéciale :' : 'Mensualité Normale :'}</span>
-                                        <span className={`font-bold ${currentStudent.isSpecial ? 'text-amber-600 dark:text-amber-400' : 'text-gray-800 dark:text-gray-200'}`}>
-                                            {currentStudentStats.monthlyFee.toLocaleString()} FCFA
-                                        </span>
+                                    <div className="flex justify-between items-center text-sm p-2 rounded-xl bg-indigo-50/60 dark:bg-indigo-900/10 border border-indigo-200 dark:border-indigo-800/30">
+                                        <div>
+                                            <span className="font-bold text-indigo-900 dark:text-indigo-300 flex items-center gap-1.5">
+                                                <i className="fas fa-coins text-indigo-500"></i> Tarif Mensuel :
+                                            </span>
+                                            <span className="text-[10px] text-gray-500 block">
+                                                {currentStudent.customMonthlyFee !== undefined && currentStudent.customMonthlyFee >= 0 
+                                                    ? 'Montant Extra Personnalisé' 
+                                                    : currentStudent.isSpecial ? 'Tarif Spécial' : 'Tarif Standard'}
+                                            </span>
+                                        </div>
+                                        <div className="flex items-center gap-2">
+                                            <span className="font-black text-indigo-700 dark:text-indigo-300">
+                                                {currentStudentStats.monthlyFee.toLocaleString()} FCFA
+                                            </span>
+                                            <button
+                                                type="button"
+                                                onClick={() => {
+                                                    setCustomFeeStudent(currentStudent);
+                                                    setCustomFeeInput(currentStudent.customMonthlyFee !== undefined ? currentStudent.customMonthlyFee.toString() : currentStudentStats.monthlyFee.toString());
+                                                    setCustomFeeModalOpen(true);
+                                                }}
+                                                className="px-2 py-1 rounded-lg text-[10px] font-bold bg-indigo-600 text-white hover:bg-indigo-700 shadow-sm transition-all flex items-center gap-1"
+                                                title="Définir un montant mensuel personnalisé (Extra)"
+                                            >
+                                                <i className="fas fa-sliders-h"></i> {currentStudent.customMonthlyFee !== undefined ? 'Modifier Extra' : 'Extra'}
+                                            </button>
+                                        </div>
                                     </div>
                                     <div className="flex justify-between text-sm">
                                         <span className="text-gray-500 dark:text-gray-400">Total Annuel :</span>
@@ -743,32 +886,18 @@ export const Accounting: React.FC = () => {
                                         <p className="text-xs text-orange-500 italic py-2">Frais mensuels non configurés pour cette classe.</p>
                                     ) : (
                                         <div className="grid grid-cols-1 gap-2.5 max-h-56 overflow-y-auto pr-1 custom-scrollbar">
-                                            {[
-                                                { id: 1, label: 'Octobre' },
-                                                { id: 2, label: 'Novembre' },
-                                                { id: 3, label: 'Décembre' },
-                                                { id: 4, label: 'Janvier' },
-                                                { id: 5, label: 'Février' },
-                                                { id: 6, label: 'Mars' },
-                                                { id: 7, label: 'Avril' },
-                                                { id: 8, label: 'Mai' },
-                                                { id: 9, label: 'Juin' }
-                                            ].map((m, idx) => {
-                                                const monthlyFee = currentStudentStats.monthlyFee;
-                                                const totalPaid = currentStudentStats.paidAmount;
-                                                // Montant alloué à ce mois
-                                                const coveredBefore = idx * monthlyFee;
-                                                const paidForThisMonth = Math.max(0, Math.min(monthlyFee, totalPaid - coveredBefore));
-                                                const pct = monthlyFee > 0 ? Math.min(100, Math.round((paidForThisMonth / monthlyFee) * 100)) : 0;
-                                                const isCompleted = pct === 100;
-                                                const isPending = pct === 0;
+                                            {currentStudentMonthsBreakdown.map((m) => {
+                                                const monthlyFee = m.monthlyFee;
+                                                const paidForThisMonth = m.paidAmount;
+                                                const pct = m.pct;
+                                                const isCompleted = m.isCompleted;
 
                                                 return (
-                                                    <div key={m.id} className="p-2 bg-white dark:bg-white/5 rounded-xl border border-gray-100 dark:border-white/5 text-xs shadow-sm">
+                                                    <div key={m.name} className="p-2 bg-white dark:bg-white/5 rounded-xl border border-gray-100 dark:border-white/5 text-xs shadow-sm">
                                                         <div className="flex items-center justify-between mb-1">
                                                             <span className="font-bold text-gray-800 dark:text-gray-200 flex items-center gap-1.5">
                                                                 <span className={`w-2 h-2 rounded-full ${isCompleted ? 'bg-green-500' : pct > 0 ? 'bg-amber-500 animate-pulse' : 'bg-gray-300 dark:bg-gray-600'}`}></span>
-                                                                {m.label}
+                                                                {m.name}
                                                             </span>
                                                             <div className="flex items-center gap-2">
                                                                 <span className="text-[10px] text-gray-500 dark:text-gray-400">
@@ -779,7 +908,7 @@ export const Accounting: React.FC = () => {
                                                                     pct > 0 ? 'bg-amber-100 text-amber-700 dark:bg-amber-950/60 dark:text-amber-300' :
                                                                     'bg-gray-100 text-gray-500 dark:bg-white/10 dark:text-gray-400'
                                                                 }`}>
-                                                                    {pct}%
+                                                                    {isCompleted ? 'SOLDÉ' : `${pct}%`}
                                                                 </span>
                                                             </div>
                                                         </div>
@@ -843,6 +972,71 @@ export const Accounting: React.FC = () => {
                                     </div>
                                 ) : (
                                     <div className="space-y-4">
+                                        {/* Sélection des mois ciblés par ce versement */}
+                                        <div className="bg-white dark:bg-white/5 p-4 rounded-xl border border-blue-200/60 dark:border-white/10 space-y-2">
+                                            <div className="flex items-center justify-between">
+                                                <label className="text-xs font-bold text-gray-700 dark:text-gray-200 flex items-center gap-1.5">
+                                                    <i className="fas fa-calendar-check text-blue-600"></i>
+                                                    Attribuer à des mois spécifiques :
+                                                </label>
+                                                {selectedTargetMonths.length > 0 && (
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => setSelectedTargetMonths([])}
+                                                        className="text-[10px] text-red-500 hover:underline font-bold"
+                                                    >
+                                                        Effacer la sélection
+                                                    </button>
+                                                )}
+                                            </div>
+                                            <p className="text-[11px] text-gray-500 dark:text-gray-400">
+                                                Vous pouvez choisir n'importe quel mois (ex: Avril ou Juin) même si les mois précédents ne sont pas encore soldés.
+                                            </p>
+                                            <div className="grid grid-cols-3 gap-1.5 pt-1">
+                                                {currentStudentMonthsBreakdown.map(m => {
+                                                    const isSelected = selectedTargetMonths.includes(m.name);
+                                                    return (
+                                                        <button
+                                                            key={m.name}
+                                                            type="button"
+                                                            onClick={() => {
+                                                                const updated = isSelected
+                                                                    ? selectedTargetMonths.filter(x => x !== m.name)
+                                                                    : [...selectedTargetMonths, m.name];
+                                                                setSelectedTargetMonths(updated);
+                                                                if (currentStudentStats.monthlyFee > 0) {
+                                                                    setPaymentAmount(updated.length * currentStudentStats.monthlyFee);
+                                                                }
+                                                            }}
+                                                            className={`p-2 rounded-xl text-xs font-bold transition-all border flex flex-col items-center justify-center relative ${
+                                                                isSelected 
+                                                                    ? 'bg-blue-600 text-white border-blue-600 shadow-md scale-102 ring-2 ring-blue-300' 
+                                                                    : m.isCompleted
+                                                                        ? 'bg-green-50 text-green-700 border-green-200 dark:bg-green-950/30 dark:border-green-800/40 hover:border-green-400'
+                                                                        : m.pct > 0
+                                                                            ? 'bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950/30 dark:border-amber-800/40 hover:border-amber-400'
+                                                                            : 'bg-white dark:bg-white/5 text-gray-700 dark:text-gray-300 border-gray-200 dark:border-white/10 hover:border-blue-300'
+                                                            }`}
+                                                        >
+                                                            <span className="flex items-center gap-1">
+                                                                {isSelected && <i className="fas fa-check-circle text-[10px]"></i>}
+                                                                {m.name}
+                                                            </span>
+                                                            <span className={`text-[9px] font-semibold mt-0.5 ${isSelected ? 'text-blue-100' : m.isCompleted ? 'text-green-600 dark:text-green-400 font-bold' : m.pct > 0 ? 'text-amber-600 dark:text-amber-400' : 'text-gray-400'}`}>
+                                                                {m.isCompleted ? 'Soldé' : m.pct > 0 ? `${m.pct}%` : 'Non payé'}
+                                                            </span>
+                                                        </button>
+                                                    );
+                                                })}
+                                            </div>
+                                            {selectedTargetMonths.length > 0 && (
+                                                <div className="text-[11px] bg-blue-50 dark:bg-blue-950/40 text-blue-700 dark:text-blue-300 p-2 rounded-lg border border-blue-200 dark:border-blue-800/40 font-medium flex items-center justify-between">
+                                                    <span>Mois attribué(s) : <strong>{selectedTargetMonths.join(', ')}</strong></span>
+                                                    <span>({selectedTargetMonths.length} × {currentStudentStats.monthlyFee.toLocaleString()} F)</span>
+                                                </div>
+                                            )}
+                                        </div>
+
                                         <Input 
                                             label="Montant du versement (FCFA)" 
                                             type="number" 
@@ -946,6 +1140,90 @@ export const Accounting: React.FC = () => {
                             >
                                 <i className="fas fa-check-circle mr-2"></i> Valider l'encaissement
                             </Button>
+                        </div>
+                    </div>
+                </div>
+            </Modal>
+        )}
+
+        {/* Custom Monthly Fee Modal (Montant Extra Élève) */}
+        {customFeeModalOpen && customFeeStudent && (
+            <Modal
+                isOpen={true}
+                onClose={() => { setCustomFeeModalOpen(false); setCustomFeeStudent(null); }}
+                title="Montant Mensuel Personnalisé (Tarif Extra)"
+                maxWidth="max-w-md"
+            >
+                <div className="space-y-5 p-2">
+                    <div className="bg-indigo-50 dark:bg-indigo-950/30 p-4 rounded-2xl border border-indigo-200 dark:border-indigo-800/40">
+                        <div className="flex items-center gap-3">
+                            <div className="w-10 h-10 rounded-full bg-indigo-100 dark:bg-indigo-800/50 flex items-center justify-center text-indigo-600 dark:text-indigo-300 font-bold">
+                                <i className="fas fa-coins text-lg"></i>
+                            </div>
+                            <div>
+                                <h4 className="font-bold text-gray-900 dark:text-white text-base">
+                                    {customFeeStudent.nom} {customFeeStudent.prenom}
+                                </h4>
+                                <p className="text-xs text-gray-500 font-mono">
+                                    {customFeeStudent.matricule} • Classe : {customFeeStudent.classe}
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div className="bg-amber-50 dark:bg-amber-950/20 p-3 rounded-xl border border-amber-200 dark:border-amber-800/30 text-xs text-amber-800 dark:text-amber-300">
+                        <i className="fas fa-info-circle mr-1.5"></i>
+                        Ce montant mensuel s'applique <strong>exclusivement à cet élève</strong> et remplace le tarif standard de sa classe dans le calcul annuel (9 mois).
+                    </div>
+
+                    <div className="space-y-4">
+                        <Input
+                            label="Montant mensuel à payer (FCFA) *"
+                            type="number"
+                            value={customFeeInput}
+                            onChange={e => setCustomFeeInput(e.target.value)}
+                            placeholder="Ex: 25000"
+                            className="text-xl font-bold text-indigo-700"
+                        />
+
+                        {parseInt(customFeeInput) > 0 && (
+                            <div className="p-3 bg-gray-50 dark:bg-white/5 rounded-xl text-xs space-y-1">
+                                <div className="flex justify-between">
+                                    <span className="text-gray-500">Mensualité :</span>
+                                    <span className="font-bold">{(parseInt(customFeeInput) || 0).toLocaleString()} FCFA</span>
+                                </div>
+                                <div className="flex justify-between border-t dark:border-white/10 pt-1 font-bold text-indigo-700 dark:text-indigo-300">
+                                    <span>Total Annuel (9 mois) :</span>
+                                    <span>{((parseInt(customFeeInput) || 0) * 9).toLocaleString()} FCFA</span>
+                                </div>
+                            </div>
+                        )}
+
+                        <div className="pt-2 space-y-2">
+                            <Button
+                                variant="primary"
+                                className="w-full h-11 !bg-indigo-600 hover:!bg-indigo-700 text-base shadow-md shadow-indigo-500/20"
+                                onClick={() => {
+                                    const val = parseInt(customFeeInput);
+                                    if (isNaN(val) || val < 0) {
+                                        alert("Veuillez saisir un montant valide (supérieur ou égal à 0).");
+                                        return;
+                                    }
+                                    handleSaveCustomFee(customFeeStudent, val);
+                                }}
+                            >
+                                <i className="fas fa-check-circle mr-2"></i> Appliquer ce montant extra
+                            </Button>
+
+                            {customFeeStudent.customMonthlyFee !== undefined && (
+                                <button
+                                    type="button"
+                                    onClick={() => handleSaveCustomFee(customFeeStudent, undefined)}
+                                    className="w-full py-2.5 text-xs font-bold text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/20 rounded-xl transition-all border border-rose-200 dark:border-rose-800/40"
+                                >
+                                    <i className="fas fa-undo mr-1.5"></i> Rétablir le tarif par défaut de la classe
+                                </button>
+                            )}
                         </div>
                     </div>
                 </div>

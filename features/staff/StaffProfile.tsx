@@ -78,7 +78,15 @@ export const StaffProfile: React.FC = () => {
                         </div>
                         <div className="text-center">
                             <h2 className="text-2xl font-black dark:text-white">{localInfo.prenom} {localInfo.nom}</h2>
-                            <p className="text-blue-600 font-bold uppercase tracking-widest text-xs mt-1">{session?.role}</p>
+                            <p className="text-blue-600 font-bold uppercase tracking-widest text-xs mt-1">
+                                {session?.role === 'dirigeant' ? 'Direction Générale' :
+                                 session?.role === 'directeur' ? 'Direction' :
+                                 session?.role === 'gestionnaire' ? 'Gestion' :
+                                 session?.role === 'surveillant_general' ? 'Surveillance' :
+                                 session?.role === 'professeur' ? 'Enseignement' :
+                                 session?.role === 'admin' ? 'Administration' :
+                                 session?.role}
+                            </p>
                             <p className="text-gray-400 font-mono text-sm mt-2">{session?.matricule}</p>
                         </div>
                     </div>
