@@ -19,7 +19,7 @@ export const StaffProfile: React.FC = () => {
     });
     const [loading, setLoading] = useState(false);
 
-    if (!currentStaff && session?.role !== 'dirigeant') {
+    if (!currentStaff && session?.role !== 'dirigeant' && !session?.matricule) {
         return (
             <div className="p-8 text-center">
                 <p className="text-red-500">Profil introuvable. Veuillez contacter l'administrateur.</p>
@@ -31,9 +31,26 @@ export const StaffProfile: React.FC = () => {
     const handleUpdate = async () => {
         setLoading(true);
         try {
-            const updatedStaffList = settings.staff.map(s => 
-                s.matricule === session?.matricule ? { ...s, ...localInfo } : s
-            );
+            let updatedStaffList = settings.staff || [];
+            if (currentStaff) {
+                updatedStaffList = updatedStaffList.map(s => 
+                    s.matricule === session?.matricule ? { ...s, ...localInfo } : s
+                );
+            } else if (session?.matricule) {
+                const newMember: StaffMember = {
+                    id: `staff_${Date.now()}`,
+                    matricule: session.matricule,
+                    nom: localInfo.nom || session.display_name?.split(' ')[1] || 'Nom',
+                    prenom: localInfo.prenom || session.display_name?.split(' ')[0] || 'Prénom',
+                    role: session.role || 'surveillant_general',
+                    email: localInfo.email || session.email || '',
+                    telephone: localInfo.telephone || '',
+                    photo: localInfo.photo || session.photo_url || '',
+                    assignedClasses: [],
+                    assignments: []
+                };
+                updatedStaffList = [...updatedStaffList, newMember];
+            }
             const updatedSettings = { ...settings, staff: updatedStaffList };
             
             updateSettings(updatedSettings);

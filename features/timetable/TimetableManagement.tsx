@@ -4,7 +4,7 @@ import { useSchool } from '../../App';
 import { TimetableSlot, AttendanceRecord, GeneralNote } from '../../types';
 
 export const TimetableManagement: React.FC = () => {
-    const { settings, updateSettings, cycles, subjects, session } = useSchool();
+    const { settings, updateSettings, cycles, subjects, session, selectedAcademicYear } = useSchool();
     const [activeTab, setActiveTab] = useState<'presence' | 'planning' | 'notes'>('presence');
 
     const timetable: TimetableSlot[] = settings.timetable || [];
@@ -15,6 +15,8 @@ export const TimetableManagement: React.FC = () => {
     const [selectedCycleId, setSelectedCycleId] = useState<string>(Object.keys(cycles)[0] || '');
     const [selectedClass, setSelectedClass] = useState<string>('');
     const [attendanceDate, setAttendanceDate] = useState<string>(() => new Date().toISOString().split('T')[0]);
+    const [presenceCycle, setPresenceCycle] = useState<string>('all');
+    const [presenceClass, setPresenceClass] = useState<string>('');
 
     // Timetable slot form state
     const [isSlotModalOpen, setIsSlotModalOpen] = useState(false);
@@ -23,6 +25,7 @@ export const TimetableManagement: React.FC = () => {
     const [slotStartTime, setSlotStartTime] = useState('08:00');
     const [slotEndTime, setSlotEndTime] = useState('10:00');
     const [slotSubject, setSlotSubject] = useState('');
+    const [slotTeacherMatricule, setSlotTeacherMatricule] = useState('');
     const [slotRoom, setSlotRoom] = useState('');
     const [slotConflictError, setSlotConflictError] = useState<string>('');
 
@@ -63,35 +66,49 @@ export const TimetableManagement: React.FC = () => {
         return subjects[selectedClass] || [];
     }, [subjects, selectedClass]);
 
+    // Enseignants actifs réels du personnel de l'établissement pour cette année scolaire
+    const activeStaffTeachers = useMemo(() => {
+        return (settings.staff || []).filter(st => {
+            if (selectedAcademicYear && st.activeYears && st.activeYears.length > 0) {
+                if (!st.activeYears.includes(selectedAcademicYear)) return false;
+            }
+            const isProf = st.role === 'professeur' || st.role === 'enseignant';
+            const hasAssigned = (st.assignedClasses && st.assignedClasses.length > 0) || (st.assignments && st.assignments.length > 0);
+            return isProf || hasAssigned;
+        });
+    }, [settings.staff, selectedAcademicYear]);
+
     // Trouver automatiquement le professeur assigné à la matière pour la classe
     const getTeacherForSubject = (className: string, subjectName: string) => {
-        // 1. Chercher dans les matières de la classe
+        // 1. Chercher dans les assignments détaillés du personnel réel actif
+        for (const st of activeStaffTeachers) {
+            if (st.assignments && st.assignments.some(a => a.classe === className && (a.subjects.length === 0 || a.subjects.includes(subjectName)))) {
+                return { name: `${st.prenom} ${st.nom}`, matricule: st.matricule, staff: st };
+            }
+        }
+
+        // 2. Chercher dans les matières de la classe UNIQUEMENT si le nom correspond à un vrai membre actif du personnel
         const subs = subjects[className] || [];
         const foundSub = subs.find(s => s.nom.toLowerCase() === subjectName.toLowerCase());
         if (foundSub?.teacher) {
-            // Chercher dans staff pour avoir le matricule
-            const staffMem = (settings.staff || []).find(st => 
+            const staffMem = activeStaffTeachers.find(st => 
                 `${st.prenom} ${st.nom}`.toLowerCase() === foundSub.teacher?.toLowerCase() ||
                 st.nom.toLowerCase() === foundSub.teacher?.toLowerCase() ||
                 st.matricule.toLowerCase() === foundSub.teacher?.toLowerCase()
             );
             if (staffMem) {
-                return { name: `${staffMem.prenom} ${staffMem.nom}`, matricule: staffMem.matricule };
+                return { name: `${staffMem.prenom} ${staffMem.nom}`, matricule: staffMem.matricule, staff: staffMem };
             }
-            return { name: foundSub.teacher, matricule: foundSub.teacher };
         }
 
-        // 2. Chercher dans les assignments du personnel
-        for (const st of (settings.staff || [])) {
-            if (st.assignments && st.assignments.some(a => a.classe === className && (a.subjects.length === 0 || a.subjects.includes(subjectName)))) {
-                return { name: `${st.prenom} ${st.nom}`, matricule: st.matricule };
-            }
+        // 3. Chercher dans assignedClasses du personnel réel
+        for (const st of activeStaffTeachers) {
             if (st.assignedClasses && st.assignedClasses.includes(className)) {
-                return { name: `${st.prenom} ${st.nom}`, matricule: st.matricule };
+                return { name: `${st.prenom} ${st.nom}`, matricule: st.matricule, staff: st };
             }
         }
 
-        return { name: 'Non assigné', matricule: 'NA' };
+        return { name: 'Non assigné', matricule: 'NA', staff: null };
     };
 
     // Helper: conversion heure HH:MM en minutes
@@ -140,10 +157,23 @@ export const TimetableManagement: React.FC = () => {
             return;
         }
 
-        const teacher = getTeacherForSubject(selectedClass, slotSubject);
+        let teacherName = 'Non assigné';
+        let teacherMatricule = 'NA';
+
+        if (slotTeacherMatricule && slotTeacherMatricule !== 'NA') {
+            const found = activeStaffTeachers.find(t => t.matricule === slotTeacherMatricule);
+            if (found) {
+                teacherName = `${found.prenom} ${found.nom}`;
+                teacherMatricule = found.matricule;
+            }
+        } else {
+            const auto = getTeacherForSubject(selectedClass, slotSubject);
+            teacherName = auto.name;
+            teacherMatricule = auto.matricule;
+        }
 
         // Vérification de conflit enseignant
-        const conflict = checkSlotConflict(slotDay, slotStartTime, slotEndTime, teacher.matricule, editingSlotId);
+        const conflict = checkSlotConflict(slotDay, slotStartTime, slotEndTime, teacherMatricule, editingSlotId);
         if (conflict) {
             setSlotConflictError(conflict);
             return;
@@ -156,8 +186,8 @@ export const TimetableManagement: React.FC = () => {
             endTime: slotEndTime,
             classe: selectedClass,
             subject: slotSubject,
-            teacherMatricule: teacher.matricule,
-            teacherName: teacher.name,
+            teacherMatricule: teacherMatricule,
+            teacherName: teacherName,
             room: slotRoom || undefined
         };
 
@@ -173,6 +203,7 @@ export const TimetableManagement: React.FC = () => {
         setIsSlotModalOpen(false);
         setEditingSlotId(null);
         setSlotSubject('');
+        setSlotTeacherMatricule('');
         setSlotRoom('');
     };
 
@@ -187,6 +218,18 @@ export const TimetableManagement: React.FC = () => {
 
     // Pointage de présence facile pour le surveillant général
     const handleToggleAttendance = (slot: TimetableSlot) => {
+        // Vérification de sécurité : enseignant actif réel
+        const verifiedTeacher = activeStaffTeachers.find(t => t.matricule === slot.teacherMatricule) ||
+            activeStaffTeachers.find(t => `${t.prenom} ${t.nom}`.toLowerCase() === slot.teacherName?.toLowerCase());
+
+        if (!verifiedTeacher && (!slot.teacherMatricule || slot.teacherMatricule === 'NA')) {
+            alert("Impossible d'effectuer le pointage : ce cours n'a aucun enseignant réel assigné. Veuillez modifier ce créneau dans la grille d'emploi du temps pour lui assigner un enseignant de l'établissement.");
+            return;
+        }
+
+        const effectiveMatricule = verifiedTeacher ? verifiedTeacher.matricule : slot.teacherMatricule;
+        const effectiveName = verifiedTeacher ? `${verifiedTeacher.prenom} ${verifiedTeacher.nom}` : slot.teacherName;
+
         const recordId = `${slot.id}_${attendanceDate}`;
         const existingRecord = attendanceList.find(r => r.id === recordId);
         const duration = calculateDurationMinutes(slot.startTime, slot.endTime);
@@ -208,8 +251,8 @@ export const TimetableManagement: React.FC = () => {
                 date: attendanceDate,
                 classe: slot.classe,
                 subject: slot.subject,
-                teacherMatricule: slot.teacherMatricule,
-                teacherName: slot.teacherName,
+                teacherMatricule: effectiveMatricule,
+                teacherName: effectiveName,
                 present: true,
                 durationMinutes: duration,
                 markedAt: new Date().toISOString(),
@@ -293,12 +336,58 @@ export const TimetableManagement: React.FC = () => {
 
     const currentAttendanceDay = getDayNameFromDate(attendanceDate);
 
+    // Helper pour savoir si une classe appartient à un cycle
+    const isClassInCycle = (className: string, cycleKey: string) => {
+        if (!cycleKey || cycleKey === 'all') return true;
+        const c = cycles[cycleKey];
+        if (!c) return false;
+        if (c.classes?.includes(className)) return true;
+        if (c.levels?.some(lvl => className.toLowerCase().startsWith(lvl.toLowerCase()))) return true;
+        return false;
+    };
+
+    // Classes disponibles pour le filtre dans Pointage Présences
+    const presenceClasses = useMemo(() => {
+        if (presenceCycle === 'all') {
+            const allClasses: string[] = [];
+            Object.values(cycles).forEach(c => {
+                if (c.type === 'simple') allClasses.push(...c.levels);
+                else {
+                    const suffixes = c.type === 'series' ? c.series : c.specialites;
+                    c.levels.forEach(lvl => {
+                        if (suffixes.length > 0) suffixes.forEach(s => allClasses.push(`${lvl} ${s}`));
+                        else allClasses.push(lvl);
+                    });
+                }
+            });
+            timetable.forEach(s => {
+                if (s.classe && !allClasses.includes(s.classe)) allClasses.push(s.classe);
+            });
+            return Array.from(new Set(allClasses)).sort();
+        }
+        const c = cycles[presenceCycle];
+        if (!c) return [];
+        if (c.type === 'simple') return c.levels;
+        const suffixes = c.type === 'series' ? c.series : c.specialites;
+        const combos: string[] = [];
+        c.levels.forEach(lvl => {
+            if (suffixes.length > 0) suffixes.forEach(s => combos.push(`${lvl} ${s}`));
+            else combos.push(lvl);
+        });
+        return combos;
+    }, [presenceCycle, cycles, timetable]);
+
     // Créneaux prévus pour le jour d'appel
     const slotsForAttendanceDay = useMemo(() => {
         return timetable
-            .filter(s => s.day === currentAttendanceDay && (!selectedClass || s.classe === selectedClass))
+            .filter(s => {
+                const matchesDay = s.day === currentAttendanceDay;
+                const matchesClass = !presenceClass || s.classe === presenceClass;
+                const matchesCycle = isClassInCycle(s.classe, presenceCycle);
+                return matchesDay && matchesClass && matchesCycle;
+            })
             .sort((a, b) => timeToMinutes(a.startTime) - timeToMinutes(b.startTime));
-    }, [timetable, currentAttendanceDay, selectedClass]);
+    }, [timetable, currentAttendanceDay, presenceClass, presenceCycle, cycles]);
 
     return (
         <div className="space-y-6 max-w-7xl mx-auto pb-12">
@@ -360,38 +449,70 @@ export const TimetableManagement: React.FC = () => {
             {activeTab === 'presence' && (
                 <div className="space-y-6">
                     <Card>
-                        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 pb-4 border-b dark:border-white/10">
-                            <div>
-                                <h3 className="font-bold text-lg dark:text-white flex items-center gap-2">
-                                    <i className="fas fa-user-check text-emerald-600"></i> Pointage Quotidien des Enseignants
-                                </h3>
-                                <p className="text-xs text-gray-500 dark:text-gray-400">
-                                    Cochez facilement la présence des professeurs pour la date sélectionnée. Les heures validées alimentent automatiquement le calcul des salaires des prestataires.
-                                </p>
+                        <div className="space-y-4 pb-4 border-b dark:border-white/10">
+                            <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+                                <div>
+                                    <h3 className="font-bold text-lg dark:text-white flex items-center gap-2">
+                                        <i className="fas fa-user-check text-emerald-600"></i> Pointage Quotidien des Enseignants
+                                    </h3>
+                                    <p className="text-xs text-gray-500 dark:text-gray-400">
+                                        Cochez facilement la présence des professeurs pour la date sélectionnée. Les heures validées alimentent automatiquement le calcul des salaires des prestataires.
+                                    </p>
+                                </div>
+                                <div className="flex flex-wrap items-center gap-3">
+                                    <div className="flex items-center gap-2">
+                                        <label className="text-xs font-bold text-gray-600 dark:text-gray-300">Date :</label>
+                                        <input
+                                            type="date"
+                                            value={attendanceDate}
+                                            onChange={e => setAttendanceDate(e.target.value)}
+                                            className="px-3 py-1.5 rounded-xl border dark:border-white/10 bg-white dark:bg-white/5 text-xs font-bold"
+                                        />
+                                    </div>
+                                    <div className="flex items-center gap-2">
+                                        <label className="text-xs font-bold text-gray-600 dark:text-gray-300">Classe :</label>
+                                        <select
+                                            value={presenceClass}
+                                            onChange={e => setPresenceClass(e.target.value)}
+                                            className="px-3 py-1.5 rounded-xl border dark:border-white/10 bg-white dark:bg-white/5 text-xs font-bold"
+                                        >
+                                            <option value="">Toutes les classes</option>
+                                            {presenceClasses.map(c => (
+                                                <option key={c} value={c}>{c}</option>
+                                            ))}
+                                        </select>
+                                    </div>
+                                </div>
                             </div>
-                            <div className="flex flex-wrap items-center gap-3">
-                                <div className="flex items-center gap-2">
-                                    <label className="text-xs font-bold text-gray-600 dark:text-gray-300">Date :</label>
-                                    <input
-                                        type="date"
-                                        value={attendanceDate}
-                                        onChange={e => setAttendanceDate(e.target.value)}
-                                        className="px-3 py-1.5 rounded-xl border dark:border-white/10 bg-white dark:bg-white/5 text-xs font-bold"
-                                    />
-                                </div>
-                                <div className="flex items-center gap-2">
-                                    <label className="text-xs font-bold text-gray-600 dark:text-gray-300">Classe :</label>
-                                    <select
-                                        value={selectedClass}
-                                        onChange={e => setSelectedClass(e.target.value)}
-                                        className="px-3 py-1.5 rounded-xl border dark:border-white/10 bg-white dark:bg-white/5 text-xs font-bold"
+
+                            {/* Boutons de Tri par Cycle */}
+                            <div className="flex flex-wrap items-center gap-2 pt-3 border-t dark:border-white/10">
+                                <span className="text-[11px] font-black uppercase text-gray-400 tracking-wider flex items-center gap-1.5 mr-1">
+                                    <i className="fas fa-layer-group text-indigo-500"></i> Cycle :
+                                </span>
+                                <button
+                                    onClick={() => { setPresenceCycle('all'); setPresenceClass(''); }}
+                                    className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${
+                                        presenceCycle === 'all'
+                                            ? 'bg-indigo-600 text-white shadow-md shadow-indigo-600/30'
+                                            : 'bg-white dark:bg-white/10 text-gray-700 dark:text-gray-300 border dark:border-white/10 hover:border-indigo-300'
+                                    }`}
+                                >
+                                    Tous les cycles
+                                </button>
+                                {Object.values(cycles).map(c => (
+                                    <button
+                                        key={c.id}
+                                        onClick={() => { setPresenceCycle(c.id); setPresenceClass(''); }}
+                                        className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${
+                                            presenceCycle === c.id
+                                                ? 'bg-indigo-600 text-white shadow-md shadow-indigo-600/30'
+                                                : 'bg-white dark:bg-white/10 text-gray-700 dark:text-gray-300 border dark:border-white/10 hover:border-indigo-300'
+                                        }`}
                                     >
-                                        <option value="">Toutes les classes</option>
-                                        {cycleClasses.map(c => (
-                                            <option key={c} value={c}>{c}</option>
-                                        ))}
-                                    </select>
-                                </div>
+                                        {c.name}
+                                    </button>
+                                ))}
                             </div>
                         </div>
 
@@ -428,6 +549,12 @@ export const TimetableManagement: React.FC = () => {
                                         const durationMin = calculateDurationMinutes(slot.startTime, slot.endTime);
                                         const hours = (durationMin / 60).toFixed(1);
 
+                                        const verifiedTeacher = activeStaffTeachers.find(t => t.matricule === slot.teacherMatricule) ||
+                                            activeStaffTeachers.find(t => `${t.prenom} ${t.nom}`.toLowerCase() === slot.teacherName?.toLowerCase());
+                                        const displayTeacher = verifiedTeacher 
+                                            ? `${verifiedTeacher.prenom} ${verifiedTeacher.nom}` 
+                                            : (slot.teacherName && slot.teacherMatricule !== 'NA' ? slot.teacherName : 'Enseignant non assigné');
+
                                         return (
                                             <div
                                                 key={slot.id}
@@ -452,9 +579,12 @@ export const TimetableManagement: React.FC = () => {
                                                 <div className="space-y-1 text-xs text-gray-600 dark:text-gray-300 mb-4">
                                                     <p className="flex items-center gap-2">
                                                         <i className="fas fa-chalkboard-teacher text-indigo-500"></i>
-                                                        <strong>Prof :</strong> {slot.teacherName}
-                                                        {slot.teacherMatricule !== 'NA' && (
-                                                            <span className="font-mono text-[10px] text-gray-400">({slot.teacherMatricule})</span>
+                                                        <strong>Prof :</strong> 
+                                                        <span className={verifiedTeacher ? 'font-bold text-gray-900 dark:text-white' : 'text-amber-600 font-semibold'}>
+                                                            {displayTeacher}
+                                                        </span>
+                                                        {verifiedTeacher && (
+                                                            <span className="font-mono text-[10px] text-gray-400">({verifiedTeacher.matricule})</span>
                                                         )}
                                                     </p>
                                                     {slot.room && (
@@ -535,7 +665,11 @@ export const TimetableManagement: React.FC = () => {
                                 onClick={() => {
                                     setEditingSlotId(null);
                                     setSlotConflictError('');
-                                    setSlotSubject(classSubjects[0]?.nom || '');
+                                    const initSub = classSubjects[0]?.nom || '';
+                                    setSlotSubject(initSub);
+                                    const auto = initSub ? getTeacherForSubject(selectedClass, initSub) : { matricule: 'NA' };
+                                    setSlotTeacherMatricule(auto.matricule !== 'NA' ? auto.matricule : '');
+                                    setSlotRoom('');
                                     setIsSlotModalOpen(true);
                                 }}
                                 variant="primary"
@@ -563,54 +697,65 @@ export const TimetableManagement: React.FC = () => {
                                         </div>
 
                                         <div className="space-y-2.5">
-                                            {daySlots.map(slot => (
-                                                <div
-                                                    key={slot.id}
-                                                    className="p-3 bg-white dark:bg-white/5 rounded-xl border dark:border-white/10 shadow-sm hover:shadow transition-all group"
-                                                >
-                                                    <div className="flex justify-between items-start">
-                                                        <span className="font-bold text-xs text-indigo-600 dark:text-indigo-400">
-                                                            {slot.startTime} - {slot.endTime}
-                                                        </span>
-                                                        <div className="opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-1">
-                                                            <button
-                                                                onClick={() => {
-                                                                    setEditingSlotId(slot.id);
-                                                                    setSlotDay(slot.day);
-                                                                    setSlotStartTime(slot.startTime);
-                                                                    setSlotEndTime(slot.endTime);
-                                                                    setSlotSubject(slot.subject);
-                                                                    setSlotRoom(slot.room || '');
-                                                                    setSlotConflictError('');
-                                                                    setIsSlotModalOpen(true);
-                                                                }}
-                                                                className="text-gray-400 hover:text-indigo-600 text-xs p-1"
-                                                                title="Modifier"
-                                                            >
-                                                                <i className="fas fa-edit"></i>
-                                                            </button>
-                                                            <button
-                                                                onClick={() => handleDeleteSlot(slot.id)}
-                                                                className="text-gray-400 hover:text-red-600 text-xs p-1"
-                                                                title="Supprimer"
-                                                            >
-                                                                <i className="fas fa-trash"></i>
-                                                            </button>
-                                                        </div>
-                                                    </div>
+                                            {daySlots.map(slot => {
+                                                const verifiedTeacher = activeStaffTeachers.find(t => t.matricule === slot.teacherMatricule) ||
+                                                    activeStaffTeachers.find(t => `${t.prenom} ${t.nom}`.toLowerCase() === slot.teacherName?.toLowerCase());
+                                                const displayTeacher = verifiedTeacher 
+                                                    ? `${verifiedTeacher.prenom} ${verifiedTeacher.nom}` 
+                                                    : (slot.teacherName && slot.teacherMatricule !== 'NA' ? slot.teacherName : 'Non assigné');
 
-                                                    <h5 className="font-bold text-sm dark:text-white mt-1">{slot.subject}</h5>
-                                                    <p className="text-[11px] text-gray-500 dark:text-gray-400 truncate mt-0.5">
-                                                        <i className="fas fa-chalkboard-teacher mr-1 text-gray-400"></i>
-                                                        {slot.teacherName}
-                                                    </p>
-                                                    {slot.room && (
-                                                        <p className="text-[10px] text-amber-600 dark:text-amber-400 mt-1">
-                                                            <i className="fas fa-door-open mr-1"></i> {slot.room}
+                                                return (
+                                                    <div
+                                                        key={slot.id}
+                                                        className="p-3 bg-white dark:bg-white/5 rounded-xl border dark:border-white/10 shadow-sm hover:shadow transition-all group"
+                                                    >
+                                                        <div className="flex justify-between items-start">
+                                                            <span className="font-bold text-xs text-indigo-600 dark:text-indigo-400">
+                                                                {slot.startTime} - {slot.endTime}
+                                                            </span>
+                                                            <div className="opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-1">
+                                                                <button
+                                                                    onClick={() => {
+                                                                        setEditingSlotId(slot.id);
+                                                                        setSlotDay(slot.day);
+                                                                        setSlotStartTime(slot.startTime);
+                                                                        setSlotEndTime(slot.endTime);
+                                                                        setSlotSubject(slot.subject);
+                                                                        setSlotTeacherMatricule(slot.teacherMatricule || '');
+                                                                        setSlotRoom(slot.room || '');
+                                                                        setSlotConflictError('');
+                                                                        setIsSlotModalOpen(true);
+                                                                    }}
+                                                                    className="text-gray-400 hover:text-indigo-600 text-xs p-1"
+                                                                    title="Modifier"
+                                                                >
+                                                                    <i className="fas fa-edit"></i>
+                                                                </button>
+                                                                <button
+                                                                    onClick={() => handleDeleteSlot(slot.id)}
+                                                                    className="text-gray-400 hover:text-red-600 text-xs p-1"
+                                                                    title="Supprimer"
+                                                                >
+                                                                    <i className="fas fa-trash"></i>
+                                                                </button>
+                                                            </div>
+                                                        </div>
+
+                                                        <h5 className="font-bold text-sm dark:text-white mt-1">{slot.subject}</h5>
+                                                        <p className="text-[11px] text-gray-500 dark:text-gray-400 truncate mt-0.5">
+                                                            <i className="fas fa-chalkboard-teacher mr-1 text-gray-400"></i>
+                                                            <span className={verifiedTeacher ? 'font-semibold text-gray-800 dark:text-gray-200' : 'text-amber-600 italic'}>
+                                                                {displayTeacher}
+                                                            </span>
                                                         </p>
-                                                    )}
-                                                </div>
-                                            ))}
+                                                        {slot.room && (
+                                                            <p className="text-[10px] text-amber-600 dark:text-amber-400 mt-1">
+                                                                <i className="fas fa-door-open mr-1"></i> {slot.room}
+                                                            </p>
+                                                        )}
+                                                    </div>
+                                                );
+                                            })}
 
                                             {daySlots.length === 0 && (
                                                 <p className="text-[11px] text-gray-400 italic text-center py-6">
@@ -771,7 +916,16 @@ export const TimetableManagement: React.FC = () => {
                                 <label className="text-xs font-bold text-gray-600 dark:text-gray-300 block mb-1">Matière</label>
                                 <select
                                     value={slotSubject}
-                                    onChange={e => setSlotSubject(e.target.value)}
+                                    onChange={e => {
+                                        const newSub = e.target.value;
+                                        setSlotSubject(newSub);
+                                        const auto = getTeacherForSubject(selectedClass, newSub);
+                                        if (auto.matricule !== 'NA') {
+                                            setSlotTeacherMatricule(auto.matricule);
+                                        } else {
+                                            setSlotTeacherMatricule('');
+                                        }
+                                    }}
                                     className="w-full px-3 py-2 rounded-xl border dark:border-white/10 bg-white dark:bg-white/5 text-sm font-bold"
                                 >
                                     <option value="">-- Choisir la matière --</option>
@@ -782,13 +936,39 @@ export const TimetableManagement: React.FC = () => {
                             </div>
                         </div>
 
-                        {/* Professeur auto-assigné */}
-                        {slotSubject && (
-                            <div className="p-3 bg-indigo-50 dark:bg-indigo-950/30 rounded-xl border border-indigo-200 dark:border-indigo-900/50 flex items-center gap-2 text-xs">
-                                <i className="fas fa-user-check text-indigo-600"></i>
+                        <div>
+                            <label className="text-xs font-bold text-gray-600 dark:text-gray-300 block mb-1">
+                                Enseignant responsable (Personnel actif de l'établissement)
+                            </label>
+                            <select
+                                value={slotTeacherMatricule}
+                                onChange={e => setSlotTeacherMatricule(e.target.value)}
+                                className="w-full px-3 py-2 rounded-xl border dark:border-white/10 bg-white dark:bg-white/5 text-sm font-bold"
+                            >
+                                <option value="">-- Non assigné / Choisir plus tard --</option>
+                                {activeStaffTeachers.map(t => (
+                                    <option key={t.matricule} value={t.matricule}>
+                                        {t.prenom} {t.nom} ({t.matricule})
+                                    </option>
+                                ))}
+                            </select>
+                        </div>
+
+                        {/* Professeur actif vérifié */}
+                        {slotTeacherMatricule ? (
+                            <div className="p-3 bg-emerald-50 dark:bg-emerald-950/30 rounded-xl border border-emerald-200 dark:border-emerald-900/50 flex items-center gap-2 text-xs text-emerald-800 dark:text-emerald-300">
+                                <i className="fas fa-check-circle text-emerald-600"></i>
                                 <span>
-                                    Professeur assigné : <strong>{getTeacherForSubject(selectedClass, slotSubject).name}</strong>
+                                    Professeur assigné : <strong>
+                                        {activeStaffTeachers.find(t => t.matricule === slotTeacherMatricule)?.prenom}{' '}
+                                        {activeStaffTeachers.find(t => t.matricule === slotTeacherMatricule)?.nom}
+                                    </strong> ({slotTeacherMatricule})
                                 </span>
+                            </div>
+                        ) : (
+                            <div className="p-3 bg-amber-50 dark:bg-amber-950/30 rounded-xl border border-amber-200 dark:border-amber-900/50 flex items-center gap-2 text-xs text-amber-800 dark:text-amber-300">
+                                <i className="fas fa-exclamation-triangle text-amber-600"></i>
+                                <span>Aucun enseignant actif n'est encore assigné à ce créneau.</span>
                             </div>
                         )}
 

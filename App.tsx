@@ -406,8 +406,8 @@ const App: React.FC = () => {
           setCurrentView('timetable');
         }
       } else if (effectiveRole === 'gestionnaire') {
-        // Le gestionnaire a accès à Inscription, Comptabilité, Suivi & Évaluation et Mon Profil
-        if (currentView !== 'inscription' && currentView !== 'accounting' && currentView !== 'evaluation' && currentView !== 'profile') {
+        // Le gestionnaire a accès à Inscription, Comptabilité, Suivi & Évaluation, Emploi du Temps et Mon Profil
+        if (currentView !== 'inscription' && currentView !== 'accounting' && currentView !== 'evaluation' && currentView !== 'profile' && currentView !== 'timetable') {
           setCurrentView('accounting');
         }
       } else if (effectiveRole === 'directeur') {
@@ -647,7 +647,7 @@ const App: React.FC = () => {
                     <NavItem icon="fa-users-cog" label="Personnel" active={currentView === 'personnel'} collapsed={isSidebarCollapsed} onClick={() => setCurrentView('personnel')} />
                   )}
                   
-                  {['dirigeant', 'directeur', 'admin', 'surveillant_general', 'professeur'].includes(effectiveRole || '') && (
+                  {['dirigeant', 'directeur', 'admin', 'surveillant_general', 'professeur', 'gestionnaire'].includes(effectiveRole || '') && (
                     <NavItem icon="fa-calendar-alt" label="Emploi du Temps" active={currentView === 'timetable'} collapsed={isSidebarCollapsed} onClick={() => setCurrentView('timetable')} />
                   )}
                   
@@ -655,7 +655,7 @@ const App: React.FC = () => {
                     <NavItem icon="fa-cogs" label="Paramètres" active={currentView === 'settings'} collapsed={isSidebarCollapsed} onClick={() => setCurrentView('settings')} />
                   )}
 
-                  {effectiveRole !== 'eleve' && effectiveRole !== 'admin' && effectiveRole !== 'dirigeant' && effectiveRole !== 'directeur' && effectiveRole !== 'surveillant_general' && (
+                  {effectiveRole !== 'eleve' && effectiveRole !== 'admin' && effectiveRole !== 'dirigeant' && effectiveRole !== 'directeur' && (
                     <NavItem icon="fa-user-circle" label="Mon Profil" active={currentView === 'profile'} collapsed={isSidebarCollapsed} onClick={() => setCurrentView('profile')} />
                   )}
 
@@ -771,7 +771,7 @@ const App: React.FC = () => {
                     {currentView === 'admin' && isAdmin && <AdminPanel onBack={() => setCurrentView('dashboard')} userRole={effectiveRole} />}
                     {currentView === 'evaluation' && <Evaluation />}
                     {currentView === 'academic_results' && effectiveRole !== 'gestionnaire' && <AcademicResults />}
-                    {currentView === 'timetable' && ['dirigeant', 'directeur', 'admin', 'surveillant_general', 'professeur'].includes(effectiveRole || '') && <TimetableManagement />}
+                    {currentView === 'timetable' && ['dirigeant', 'directeur', 'admin', 'surveillant_general', 'professeur', 'gestionnaire'].includes(effectiveRole || '') && <TimetableManagement />}
                   </div>
                 </div>
               </main>

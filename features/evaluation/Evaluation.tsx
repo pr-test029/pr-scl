@@ -1,11 +1,11 @@
 import React, { useState, useMemo } from 'react';
-import { Card, Button, Select } from '../../components/ui/Common';
+import { Card, Button, Select, Modal, Input } from '../../components/ui/Common';
 import { HelpGuide } from '../../components/ui/HelpGuide';
 import { useSchool } from '../../App';
-import { Student, Grade } from '../../types';
+import { Student, Grade, Payment } from '../../types';
 
 export const Evaluation: React.FC = () => {
-    const { students, grades, payments, settings, subjects, cycles } = useSchool();
+    const { students, grades, payments, settings, subjects, cycles, addPayment, session, selectedAcademicYear } = useSchool();
     
     // Onglet par défaut : 'recouvrement'
     const [activeTab, setActiveTab] = useState<'recouvrement' | 'academique'>('recouvrement');
@@ -14,6 +14,13 @@ export const Evaluation: React.FC = () => {
     const [selectedCycle, setSelectedCycle] = useState<string>('');
     const [selectedClass, setSelectedClass] = useState<string>('');
     const [selectedRoom, setSelectedRoom] = useState<string>('');
+
+    // Modal d'encaissement immédiat
+    const [isCollectModalOpen, setIsCollectModalOpen] = useState(false);
+    const [collectingStudent, setCollectingStudent] = useState<Student | null>(null);
+    const [collectAmount, setCollectAmount] = useState<number>(0);
+    const [collectMethod, setCollectMethod] = useState<Payment['method']>('cash');
+    const [collectNotes, setCollectNotes] = useState<string>('');
 
     // États pliables pour Tableau d'Honneur et Suivi de Soutien
     const [isTop5Expanded, setIsTop5Expanded] = useState<boolean>(true);
@@ -31,8 +38,12 @@ export const Evaluation: React.FC = () => {
         { id: 9, label: 'Juin' }
     ];
 
-    // Helper pour le tarif mensuel d'un élève (statut spécial ou normal)
+    // Helper pour le tarif mensuel d'un élève (extra > spécial > classe)
     const getStudentMonthlyFee = (student: Student) => {
+        // Priorité 1 : Tarif personnalisé spécifique (Extra)
+        if (student.customMonthlyFee !== undefined && student.customMonthlyFee !== null && student.customMonthlyFee >= 0) {
+            return student.customMonthlyFee;
+        }
         const fullClassName = student.serie ? `${student.classe} ${student.serie}` : student.classe;
         if (student.isSpecial) {
             if (student.specialMonthlyFee !== undefined && student.specialMonthlyFee >= 0) {
@@ -105,46 +116,120 @@ export const Evaluation: React.FC = () => {
         return { top5, bottom10 };
     }, [students, grades, activeTrimestre, subjects, settings.gradeWeights]);
 
+    // Helpers pour la cohérence stricte avec la comptabilité
+    const getStudentTuitionPaid = (studentId: string) => {
+        return payments
+            .filter(p => {
+                if (p.studentId !== studentId) return false;
+                if (p.type === 'registration' || p.type === 're_registration') return false;
+                if (p.notes && /inscription/i.test(p.notes)) return false;
+                return true;
+            })
+            .reduce((acc, p) => acc + (p.amount || 0), 0);
+    };
+
+    const getStudentDebt = (s: Student, monthNumber: number = selectedMonth) => {
+        const monthlyFee = getStudentMonthlyFee(s);
+        const annualFee = monthlyFee * 9;
+        const expectedUpToNow = Math.min(monthlyFee * monthNumber, annualFee);
+        const tuitionPaid = getStudentTuitionPaid(s.id);
+        return Math.max(0, expectedUpToNow - tuitionPaid);
+    };
+
     // 2. Financial Recovery Data Preparation
     const recoveryData = useMemo(() => {
-        const debtors = students.filter(student => {
-            const monthlyFee = getStudentMonthlyFee(student);
-            const expectedUpToNow = monthlyFee * selectedMonth;
-            // Ne comptabiliser que les paiements de scolarité (hors frais d'inscription/réinscription)
-            const tuitionPaid = payments
-                .filter(p => {
-                    if (p.studentId !== student.id) return false;
-                    if (p.type === 'registration' || p.type === 're_registration') return false;
-                    if (p.notes && /inscription/i.test(p.notes)) return false;
-                    return true;
-                })
-                .reduce((acc, p) => acc + (p.amount || 0), 0);
-            return tuitionPaid < expectedUpToNow;
-        });
+        const debtors = students.filter(student => getStudentDebt(student, selectedMonth) > 0);
 
-        const cyclesFound = Array.from(new Set(debtors.map(s => s.cycle)));
-        const classesInCycle = selectedCycle ? Array.from(new Set(debtors.filter(s => s.cycle === selectedCycle).map(s => s.classe))) : [];
+        // Cycles disponibles dans l'établissement
+        const cyclesFound = Array.from(new Set([
+            ...Object.keys(cycles),
+            ...students.map(s => s.cycle)
+        ])).filter(Boolean);
+
+        // Construction complète des classes avec leurs séries (ex: Terminale A, Terminale C)
+        let classesInCycle: string[] = [];
+        if (selectedCycle) {
+            const cycleObj = cycles[selectedCycle];
+            const fromCycle: string[] = [];
+            if (cycleObj?.classes) {
+                cycleObj.classes.forEach(c => {
+                    if (cycleObj.series && cycleObj.series.length > 0 && ['2nde', '1ere', 'tle', 'seconde', 'premiere', 'première', 'terminale'].some(l => c.toLowerCase().includes(l))) {
+                        cycleObj.series.forEach(ser => fromCycle.push(`${c} ${ser}`));
+                    } else {
+                        fromCycle.push(c);
+                    }
+                });
+            }
+            const fromStudents = students
+                .filter(s => s.cycle === selectedCycle)
+                .map(s => s.serie ? `${s.classe} ${s.serie}` : s.classe);
+            
+            classesInCycle = Array.from(new Set([...fromCycle, ...fromStudents])).filter(Boolean).sort();
+        }
         
         // Salles contenant les élèves de la classe sélectionnée
         const availableRoomsForClass = (selectedCycle && selectedClass)
             ? Array.from(new Set(
                 students
-                    .filter(s => s.cycle === selectedCycle && s.classe === selectedClass && !!s.salle)
+                    .filter(s => {
+                        const fullClass = s.serie ? `${s.classe} ${s.serie}` : s.classe;
+                        return s.cycle === selectedCycle && fullClass === selectedClass && !!s.salle;
+                    })
                     .map(s => s.salle!)
               )).sort()
             : [];
 
         const studentsToDisplay = (selectedCycle && selectedClass) 
             ? debtors.filter(s => {
+                const fullClass = s.serie ? `${s.classe} ${s.serie}` : s.classe;
                 const matchCycle = s.cycle === selectedCycle;
-                const matchClass = s.classe === selectedClass;
+                const matchClass = fullClass === selectedClass;
                 const matchRoom = selectedRoom ? s.salle === selectedRoom : true;
                 return matchCycle && matchClass && matchRoom;
             })
             : [];
 
         return { debtors, cyclesFound, classesInCycle, availableRoomsForClass, studentsToDisplay };
-    }, [students, selectedMonth, selectedCycle, selectedClass, selectedRoom, settings.accounting]);
+    }, [students, payments, selectedMonth, selectedCycle, selectedClass, selectedRoom, settings.accounting, cycles]);
+
+    // Handlers pour encaissement immédiat
+    const handleOpenCollectModal = (student: Student, currentDebt: number) => {
+        setCollectingStudent(student);
+        setCollectAmount(currentDebt);
+        setCollectMethod('cash');
+        const monthObj = months.find(m => m.id === selectedMonth);
+        setCollectNotes(`Frais scolarité : ${monthObj ? monthObj.label : `Mois ${selectedMonth}`}`);
+        setIsCollectModalOpen(true);
+    };
+
+    const handleConfirmCollect = () => {
+        if (!collectingStudent || collectAmount <= 0) {
+            alert("Veuillez saisir un montant valide supérieur à 0.");
+            return;
+        }
+
+        const monthObj = months.find(m => m.id === selectedMonth);
+        const monthLabel = monthObj ? monthObj.label : `Mois ${selectedMonth}`;
+
+        const payment: Payment = {
+            id: Date.now().toString(),
+            studentId: collectingStudent.id,
+            academic_year: selectedAcademicYear,
+            amount: collectAmount,
+            date: new Date().toISOString(),
+            method: collectMethod,
+            type: 'tuition',
+            notes: collectNotes || `Encaissement recouvrement - ${monthLabel}`,
+            targetMonths: [monthLabel],
+            recorded_by: session?.user_id,
+            recorded_by_name: session?.display_name || 'Surveillance / Recouvrement'
+        };
+
+        addPayment(payment);
+        setIsCollectModalOpen(false);
+        setCollectingStudent(null);
+        alert(`Encaissement de ${collectAmount.toLocaleString()} FCFA validé avec succès pour ${collectingStudent.nom} ${collectingStudent.prenom} !`);
+    };
 
     return (
         <div className="space-y-8 animate-fade-in pb-20">
@@ -321,16 +406,7 @@ export const Evaluation: React.FC = () => {
                                             </span>
                                             <span className="text-xs font-bold text-red-600 bg-red-100 dark:bg-red-950/60 px-3 py-1 rounded-xl">
                                                 Total dû : {recoveryData.studentsToDisplay.reduce((sum, s) => {
-                                                    const fee = getStudentMonthlyFee(s);
-                                                    const tuitionPaid = payments
-                                                        .filter(p => {
-                                                            if (p.studentId !== s.id) return false;
-                                                            if (p.type === 'registration' || p.type === 're_registration') return false;
-                                                            if (p.notes && /inscription/i.test(p.notes)) return false;
-                                                            return true;
-                                                        })
-                                                        .reduce((acc, p) => acc + (p.amount || 0), 0);
-                                                    return sum + ((fee * selectedMonth) - tuitionPaid);
+                                                    return sum + getStudentDebt(s, selectedMonth);
                                                 }, 0).toLocaleString()} FCFA
                                             </span>
                                         </div>
@@ -339,37 +415,72 @@ export const Evaluation: React.FC = () => {
                                 >
                                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 p-2">
                                         {recoveryData.studentsToDisplay.map(s => {
+                                            const debt = getStudentDebt(s, selectedMonth);
                                             const monthlyFee = getStudentMonthlyFee(s);
-                                            const tuitionPaid = payments
-                                                .filter(p => {
-                                                    if (p.studentId !== s.id) return false;
-                                                    if (p.type === 'registration' || p.type === 're_registration') return false;
-                                                    if (p.notes && /inscription/i.test(p.notes)) return false;
-                                                    return true;
-                                                })
-                                                .reduce((acc, p) => acc + (p.amount || 0), 0);
-                                            const debt = (monthlyFee * selectedMonth) - tuitionPaid;
+                                            const totalPaid = getStudentTuitionPaid(s.id);
+                                            const currentMonthLabel = months.find(m => m.id === selectedMonth)?.label || `Mois ${selectedMonth}`;
+
                                             return (
-                                                <div key={s.id} className="p-4 bg-gray-50 dark:bg-white/5 rounded-2xl flex justify-between items-center border dark:border-white/10 group hover:border-red-300 hover:bg-red-50/30 dark:hover:bg-red-900/10 transition-all">
+                                                <div key={s.id} className="p-4 bg-gray-50 dark:bg-white/5 rounded-2xl flex flex-col justify-between border dark:border-white/10 group hover:border-red-300 hover:bg-red-50/20 dark:hover:bg-red-900/10 transition-all gap-3 shadow-sm">
                                                     <div>
-                                                        <div className="flex items-center gap-2">
-                                                            <p className="font-black text-sm uppercase dark:text-white tracking-tight">{s.nom} {s.prenom}</p>
-                                                            {s.isSpecial && (
-                                                                <span className="text-[9px] bg-purple-100 dark:bg-purple-900/50 text-purple-700 dark:text-purple-300 px-1.5 py-0.5 rounded font-black">SPÉCIAL</span>
-                                                            )}
+                                                        <div className="flex items-start justify-between gap-2">
+                                                            <div>
+                                                                <div className="flex flex-wrap items-center gap-1.5">
+                                                                    <p className="font-black text-sm uppercase dark:text-white tracking-tight">
+                                                                        {s.nom} {s.prenom}
+                                                                    </p>
+                                                                    {s.isSpecial && (
+                                                                        <span className="text-[9px] bg-purple-100 dark:bg-purple-900/50 text-purple-700 dark:text-purple-300 px-1.5 py-0.5 rounded font-black">
+                                                                            SPÉCIAL
+                                                                        </span>
+                                                                    )}
+                                                                    {s.customMonthlyFee !== undefined && s.customMonthlyFee >= 0 && (
+                                                                        <span className="text-[9px] bg-indigo-100 dark:bg-indigo-900/50 text-indigo-700 dark:text-indigo-300 px-1.5 py-0.5 rounded font-black">
+                                                                            EXTRA ({s.customMonthlyFee.toLocaleString()} F)
+                                                                        </span>
+                                                                    )}
+                                                                </div>
+                                                                <p className="font-mono text-[11px] text-blue-600 mt-0.5">{s.matricule}</p>
+                                                                {s.salle && (
+                                                                    <p className="text-[10px] text-gray-500 font-semibold mt-0.5">
+                                                                        <i className="fas fa-door-closed mr-1"></i>Salle : {s.salle}
+                                                                    </p>
+                                                                )}
+                                                            </div>
+                                                            <div className="w-8 h-8 rounded-xl bg-red-100 dark:bg-red-900/30 flex items-center justify-center text-red-600 shrink-0 shadow-sm">
+                                                                <i className="fas fa-exclamation-circle text-sm"></i>
+                                                            </div>
                                                         </div>
-                                                        {s.salle && (
-                                                            <p className="text-[10px] text-gray-500 font-semibold mt-0.5">
-                                                                <i className="fas fa-door-closed mr-1"></i>Salle : {s.salle}
-                                                            </p>
-                                                        )}
-                                                        <div className="flex items-center gap-2 mt-1">
-                                                            <span className="text-[10px] text-gray-400 font-bold tracking-widest uppercase">Dette :</span>
-                                                            <span className="text-xs font-black text-red-600 bg-red-100 dark:bg-red-900/30 px-2 py-0.5 rounded-lg">{debt.toLocaleString()} FCFA</span>
+
+                                                        <div className="mt-3 grid grid-cols-2 gap-2 text-[11px] bg-white dark:bg-white/5 p-2 rounded-xl border dark:border-white/10">
+                                                            <div>
+                                                                <span className="text-gray-400 block text-[9px] uppercase font-bold">Tarif mensuel</span>
+                                                                <span className="font-bold text-gray-700 dark:text-gray-300">{monthlyFee.toLocaleString()} F</span>
+                                                            </div>
+                                                            <div>
+                                                                <span className="text-gray-400 block text-[9px] uppercase font-bold">Total Réglé</span>
+                                                                <span className="font-bold text-emerald-600">{totalPaid.toLocaleString()} F</span>
+                                                            </div>
                                                         </div>
                                                     </div>
-                                                    <div className="w-10 h-10 rounded-xl bg-red-100 dark:bg-red-900/30 flex items-center justify-center text-red-600 shadow-sm group-hover:scale-110 transition-transform">
-                                                        <i className="fas fa-exclamation-circle"></i>
+
+                                                    <div className="pt-2 border-t dark:border-white/10 flex items-center justify-between gap-2">
+                                                        <div>
+                                                            <span className="text-[9px] text-gray-400 font-bold uppercase tracking-wider block">
+                                                                Dette à {currentMonthLabel} :
+                                                            </span>
+                                                            <span className="text-xs font-black text-red-600 bg-red-100 dark:bg-red-900/40 px-2 py-0.5 rounded-lg inline-block">
+                                                                {debt.toLocaleString()} FCFA
+                                                            </span>
+                                                        </div>
+                                                        <Button
+                                                            size="sm"
+                                                            variant="primary"
+                                                            onClick={() => handleOpenCollectModal(s, debt)}
+                                                            className="!px-3 !py-1 text-xs font-bold shadow-md shadow-blue-500/20"
+                                                        >
+                                                            <i className="fas fa-cash-register mr-1.5"></i> Encaisser
+                                                        </Button>
                                                     </div>
                                                 </div>
                                             );
@@ -525,6 +636,89 @@ export const Evaluation: React.FC = () => {
                         </div>
                     </div>
                 </div>
+            )}
+            {/* Modal d'encaissement direct */}
+            {isCollectModalOpen && collectingStudent && (
+                <Modal
+                    isOpen={isCollectModalOpen}
+                    onClose={() => {
+                        setIsCollectModalOpen(false);
+                        setCollectingStudent(null);
+                    }}
+                    title="Encaisser le versement de l'élève"
+                >
+                    <div className="space-y-4">
+                        <div className="p-4 bg-blue-50 dark:bg-blue-950/30 rounded-2xl border border-blue-200 dark:border-blue-900/50">
+                            <p className="font-black text-base text-gray-900 dark:text-white uppercase">
+                                {collectingStudent.nom} {collectingStudent.prenom}
+                            </p>
+                            <p className="font-mono text-xs text-blue-600">Matricule : {collectingStudent.matricule}</p>
+                            <p className="text-xs text-gray-600 dark:text-gray-300 mt-1">
+                                Classe : <strong>{collectingStudent.serie ? `${collectingStudent.classe} ${collectingStudent.serie}` : collectingStudent.classe}</strong>
+                                {collectingStudent.salle ? ` • Salle ${collectingStudent.salle}` : ''}
+                            </p>
+                            <div className="mt-2 pt-2 border-t border-blue-200/50 dark:border-blue-800/40 flex justify-between text-xs">
+                                <span>Tarif mensuel : <strong>{getStudentMonthlyFee(collectingStudent).toLocaleString()} FCFA</strong></span>
+                                <span className="text-red-600 font-bold">Dette calculée : {collectAmount.toLocaleString()} FCFA</span>
+                            </div>
+                        </div>
+
+                        <div>
+                            <Input
+                                label="Montant à encaisser (FCFA)"
+                                type="number"
+                                value={collectAmount || ''}
+                                onChange={e => setCollectAmount(Number(e.target.value))}
+                                placeholder="Montant en FCFA"
+                            />
+                        </div>
+
+                        <div>
+                            <label className="block text-xs font-bold text-gray-600 dark:text-gray-300 mb-1">
+                                Mode de règlement
+                            </label>
+                            <Select
+                                value={collectMethod}
+                                onChange={e => setCollectMethod(e.target.value as Payment['method'])}
+                                options={[
+                                    { value: 'cash', label: 'Espèces (Cash)' },
+                                    { value: 'wave', label: 'Wave' },
+                                    { value: 'mobile_money', label: 'Mobile Money (Orange/MTN/Moov)' },
+                                    { value: 'check', label: 'Chèque' },
+                                    { value: 'card', label: 'Carte Bancaire' }
+                                ]}
+                            />
+                        </div>
+
+                        <div>
+                            <Input
+                                label="Observations / Notes"
+                                value={collectNotes}
+                                onChange={e => setCollectNotes(e.target.value)}
+                                placeholder="Ex: Paiement scolarité par parent"
+                            />
+                        </div>
+
+                        <div className="flex justify-end gap-2 pt-4 border-t dark:border-white/10">
+                            <Button
+                                variant="secondary"
+                                onClick={() => {
+                                    setIsCollectModalOpen(false);
+                                    setCollectingStudent(null);
+                                }}
+                            >
+                                Annuler
+                            </Button>
+                            <Button
+                                variant="primary"
+                                onClick={handleConfirmCollect}
+                                disabled={collectAmount <= 0}
+                            >
+                                <i className="fas fa-check-circle mr-1.5"></i> Valider l'encaissement
+                            </Button>
+                        </div>
+                    </div>
+                </Modal>
             )}
         </div>
     );

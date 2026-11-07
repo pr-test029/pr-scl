@@ -130,13 +130,26 @@ export const SalaryManagement: React.FC = () => {
     };
 
     // Paiements de salaires enregistrés (stockés dans settings ou dans expenses de type 'Salaire')
-    const recordedSalaryPayments = useMemo(() => {
-        // Liste des dépenses étiquetées comme salaires
+    const recordedSalaryPayments: SalaryPayment[] = useMemo(() => {
         return (settings.accounting as any)?.salaryPayments || [];
     }, [settings.accounting]);
 
+    // Vérifier si un membre du personnel a déjà été payé pour un mois donné
+    const getExistingSalaryPayment = (staff: StaffMember, month: string) => {
+        return recordedSalaryPayments.find(p => 
+            (p.staffMatricule === staff.matricule || p.staffId === staff.id) && 
+            p.periodMonth === month
+        );
+    };
+
     // Déclencher le paiement
     const handleOpenPayment = (staff: StaffMember) => {
+        const existing = getExistingSalaryPayment(staff, selectedMonth);
+        if (existing) {
+            alert(`⚠️ Impossible d'effectuer le paiement : le salaire de ${staff.prenom} ${staff.nom} pour le mois ${selectedMonth} a déjà été payé (${existing.amount.toLocaleString()} FCFA le ${new Date(existing.paymentDate).toLocaleDateString('fr-FR')}).\n\nLe système bloque tout double paiement pour garantir l'intégrité comptable.`);
+            return;
+        }
+
         const breakdown = getStaffSalaryBreakdown(staff, selectedMonth);
         setTargetStaff(staff);
         setPayAmount(breakdown.calculatedAmount);
@@ -148,6 +161,15 @@ export const SalaryManagement: React.FC = () => {
     const handleConfirmPayment = () => {
         if (!targetStaff || payAmount <= 0) {
             alert("Veuillez saisir un montant valide.");
+            return;
+        }
+
+        // Vérification stricte anti-double paiement
+        const alreadyPaid = getExistingSalaryPayment(targetStaff, selectedMonth);
+        if (alreadyPaid) {
+            alert(`⚠️ Opération bloquée : Le salaire de ${targetStaff.prenom} ${targetStaff.nom} pour le mois ${selectedMonth} a déjà été consigné et décaissé (${alreadyPaid.amount.toLocaleString()} FCFA). Tout décaissement en doublon est strictement interdit.`);
+            setIsPayModalOpen(false);
+            setTargetStaff(null);
             return;
         }
 
@@ -310,6 +332,7 @@ export const SalaryManagement: React.FC = () => {
                         <tbody className="divide-y divide-gray-200 dark:divide-white/10">
                             {filteredStaff.map(staff => {
                                 const breakdown = getStaffSalaryBreakdown(staff, selectedMonth);
+                                const existingPayment = getExistingSalaryPayment(staff, selectedMonth);
                                 return (
                                     <tr key={staff.id} className="hover:bg-gray-50 dark:hover:bg-white/5">
                                         <td className="py-3 px-4">
@@ -344,14 +367,20 @@ export const SalaryManagement: React.FC = () => {
                                             {breakdown.details}
                                         </td>
                                         <td className="py-3 px-4 text-right">
-                                            <Button
-                                                onClick={() => handleOpenPayment(staff)}
-                                                size="sm"
-                                                variant="primary"
-                                                disabled={breakdown.calculatedAmount <= 0}
-                                            >
-                                                <i className="fas fa-money-bill-wave mr-1.5"></i> Payer Salaire
-                                            </Button>
+                                            {existingPayment ? (
+                                                <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-300">
+                                                    <i className="fas fa-check-circle"></i> Réglé ({existingPayment.amount?.toLocaleString()} F)
+                                                </span>
+                                            ) : (
+                                                <Button
+                                                    onClick={() => handleOpenPayment(staff)}
+                                                    size="sm"
+                                                    variant="primary"
+                                                    disabled={breakdown.calculatedAmount <= 0}
+                                                >
+                                                    <i className="fas fa-money-bill-wave mr-1.5"></i> Payer Salaire
+                                                </Button>
+                                            )}
                                         </td>
                                     </tr>
                                 );
